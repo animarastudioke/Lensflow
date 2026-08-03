@@ -929,7 +929,8 @@ export function StoreList({ studioSlug, isLoading = false }: StoreListProps) {
                         </TableRow>
                       ))
                     )}
-                  </TableBody                </Table>
+                  </TableBody>
+                </Table>
               </CardContent>
             </Card>
           </TabsContent>
@@ -949,6 +950,3 @@ export function StoreList({ studioSlug, isLoading = false }: StoreListProps) {
     </div>
   )
 }
-
-// Missing imports
-import { ArrowUpDown, LayoutList, LayoutGrid, Briefcase, Truck } from 'lucide-react'

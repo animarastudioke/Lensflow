@@ -38,6 +38,11 @@ import {
   CheckCircle,
   XCircle,
   Copy,
+  ArrowUpDown,
+  LayoutList,
+  LayoutGrid,
+  BarChart3,
+  Users,
 } from 'lucide-react'
 import {
   DropdownMenu,
@@ -746,6 +751,3 @@ export function WebsiteList({ studioSlug, isLoading = false }: WebsiteListProps)
     </div>
   )
 }
-
-// Missing imports
-import { ArrowUpDown, LayoutList, LayoutGrid, BarChart3, Users, Layout, ExternalLink, Copy } from 'lucide-react'

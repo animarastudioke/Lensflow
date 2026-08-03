@@ -32,10 +32,14 @@ import {
   Trash2,
   Edit,
   Download,
-  Mail,
   AlertCircle,
   CheckCircle,
   Clock,
+  Mail,
+  XCircle,
+  ArrowUpDown,
+  LayoutList,
+  LayoutGrid,
 } from 'lucide-react'
 import {
   DropdownMenu,
@@ -759,6 +763,3 @@ export function ContractList({ studioSlug, isLoading = false }: ContractListProp
     </div>
   )
 }
-
-// Missing imports
-import { ArrowUpDown, LayoutList, LayoutGrid, XCircle, Mail, CheckCircle, Clock, Download } from 'lucide-react'
