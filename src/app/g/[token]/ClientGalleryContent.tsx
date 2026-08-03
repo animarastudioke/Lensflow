@@ -10,9 +10,8 @@ import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Separator } from '@/components/ui/separator'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { Loader2, Eye, Download, Heart, Share2, ChevronLeft, ChevronRight, X, Expand, Grid, List, Info, Lock, ArrowLeft } from 'lucide-react'
+import { Loader2, Eye, Download, Heart, Share2, ChevronLeft, ChevronRight, X, Expand, Grid, List, Info, Lock, ArrowLeft, Calendar } from 'lucide-react'
 import { format } from 'date-fns'
-import Image from 'next/image'
 import { toast } from 'sonner'
 
 interface MediaItem {
@@ -159,7 +158,7 @@ export function ClientGalleryContent({
     if (!password.trim()) return
 
     // Redirect with password in URL
-    const params = new SearchParams(searchParams)
+    const params = new URLSearchParams(searchParams.toString())
     params.set('password', password)
     router.push(`?${params.toString()}`)
   }
@@ -322,7 +321,7 @@ export function ClientGalleryContent({
       return (
         <div className="col-span-full text-center py-12">
           <div className="h-12 w-12 mx-auto text-muted-foreground/50 mb-4">
-            <Image className="h-12 w-12" />
+            <Grid className="h-12 w-12" />
           </div>
           <h3 className="text-heading text-muted-foreground">No photos in this album</h3>
         </div>
@@ -386,7 +385,7 @@ export function ClientGalleryContent({
         <div className="flex gap-2 overflow-x-auto pb-2">
           <button
             onClick={() => {
-              const params = new SearchParams(searchParams)
+              const params = new URLSearchParams(searchParams.toString())
               params.delete('album')
               router.push(`?${params.toString()}`)
             }}
@@ -403,7 +402,7 @@ export function ClientGalleryContent({
             <button
               key={album.id}
               onClick={() => {
-                const params = new SearchParams(searchParams)
+                const params = new URLSearchParams(searchParams.toString())
                 params.set('album', album.id)
                 router.push(`?${params.toString()}`)
               }}
@@ -470,7 +469,7 @@ export function ClientGalleryContent({
             </span>
           )}
           <span className="flex items-center gap-1">
-            <Image className="h-4 w-4" />
+            <Grid className="h-4 w-4" />
             {gallery.media_count} photos
           </span>
         </div>
@@ -488,7 +487,7 @@ export function ClientGalleryContent({
       </div>
 
       {/* Lightbox */}
-      {showLightbox && media.length > 0 && (
+      {showLightbox && media.length > 0 && media[lightboxIndex] && (
         <div
           className="fixed inset-0 z-50 bg-black/95 flex items-center justify-center p-4"
           onClick={closeLightbox}
@@ -508,8 +507,8 @@ export function ClientGalleryContent({
 
           <div className="relative max-w-[90vw] max-h-[90vh]">
             <img
-              src={media[lightboxIndex].url}
-              alt={media[lightboxIndex].filename}
+              src={media[lightboxIndex]!.url}
+              alt={media[lightboxIndex]!.filename}
               className="max-w-[90vw] max-h-[90vh] object-contain"
               onClick={e => e.stopPropagation()}
             />
@@ -537,11 +536,11 @@ export function ClientGalleryContent({
 
           <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-2 text-white text-sm">
             <span>{lightboxIndex + 1} / {media.length}</span>
-            <Button variant="ghost" size="sm" className="text-white hover:bg-white/20" onClick={(e) => { e.stopPropagation(); downloadImage(media[lightboxIndex]) }}>
+            <Button variant="ghost" size="sm" className="text-white hover:bg-white/20" onClick={(e) => { e.stopPropagation(); downloadImage(media[lightboxIndex]!) }}>
               <Download className="h-4 w-4 mr-1" /> Download
             </Button>
-            <Button variant="ghost" size="sm" className="text-white hover:bg-white/20" onClick={(e) => { e.stopPropagation(); toggleFavorite(media[lightboxIndex].id) }}>
-              <Heart className={cn('h-4 w-4 mr-1', favorites.includes(media[lightboxIndex].id) ? 'fill-red-500 text-red-500' : '')} />
+            <Button variant="ghost" size="sm" className="text-white hover:bg-white/20" onClick={(e) => { e.stopPropagation(); toggleFavorite(media[lightboxIndex]!.id) }}>
+              <Heart className={cn('h-4 w-4 mr-1', favorites.includes(media[lightboxIndex]!.id) ? 'fill-red-500 text-red-500' : '')} />
             </Button>
           </div>
         </div>

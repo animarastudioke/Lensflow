@@ -7,7 +7,7 @@ const nextConfig = {
       allowedOrigins: ['localhost:3000'],
     },
     optimizePackageImports: ['lucide-react', '@radix-ui/react-icons'],
-    typedRoutes: true,
+    typedRoutes: false,
   },
   images: {
     remotePatterns: [

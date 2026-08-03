@@ -14,7 +14,7 @@ export default function AuthCallbackPage() {
   const searchParams = useSearchParams()
   const [status, setStatus] = React.useState<'loading' | 'success' | 'error'>('loading')
   const [message, setMessage] = React.useState('')
-  const [redirectTo, setRedirectTo] = React.useState('/dashboard')
+  const redirectTo = (searchParams.get('redirect') || '/dashboard') as string
 
   React.useEffect(() => {
     const handleAuthCallback = async () => {
@@ -23,7 +23,7 @@ export default function AuthCallbackPage() {
       // Get redirect URL from search params
       const redirect = searchParams.get('redirect')
       if (redirect) {
-        setRedirectTo(decodeURIComponent(redirect))
+        // redirectTo is already set from searchParams
       }
 
       // Check for error parameters
@@ -141,7 +141,7 @@ export default function AuthCallbackPage() {
     }
 
     handleAuthCallback()
-  }, [searchParams, router, redirectTo])
+  }, [searchParams, router])
 
   if (status === 'loading') {
     return (

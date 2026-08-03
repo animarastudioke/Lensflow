@@ -1,6 +1,6 @@
 'use client'
 
-import { createContext, useContext, useEffect, useState, ReactNode } from 'react'
+import { createContext, useContext, useEffect, useState, ReactNode, createElement } from 'react'
 import { User, Session } from '@supabase/supabase-js'
 import { createBrowserClient } from '@/lib/supabase/client'
 import { UserRole } from './permissions'
@@ -55,7 +55,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         studioId: profile.studio_id,
       })
     } else {
-      // Fallback to auth metadata
       setUser({
         id: session.user.id,
         email: session.user.email!,
@@ -79,13 +78,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   useEffect(() => {
-    // Get initial session
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session)
       fetchUser(session).finally(() => setIsLoading(false))
     })
 
-    // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       setSession(session)
       await fetchUser(session)
@@ -95,10 +92,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => subscription.unsubscribe()
   }, [])
 
-  return (
-    <AuthContext.Provider value={{ user, session, isLoading, signOut, refreshUser }}>
-      {children}
-    </AuthContext.Provider>
+  const value = { user, session, isLoading, signOut, refreshUser }
+
+  return createElement(
+    AuthContext.Provider,
+    { value },
+    children
   )
 }
 
@@ -111,7 +110,5 @@ export function useAuthUser() {
 }
 
 export function getAuthUserServer() {
-  // Server-side function to get user
-  // This would be implemented in server.ts
   return null
 }

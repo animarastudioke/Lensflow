@@ -113,7 +113,7 @@ export default function ResetPasswordPage() {
       }
 
       toast.success('Password updated successfully!')
-      router.push('/auth/login?reset=success')
+      router.push('/auth/)login?reset=success' as string)
       router.refresh()
     } catch (err) {
       const message = err instanceof Error ? err.message : 'An unexpected error occurred'
@@ -142,7 +142,7 @@ export default function ResetPasswordPage() {
                   The reset link may have already been used or expired. Reset links are valid for 1 hour.
                 </AlertDescription>
               </Alert>
-              <Link href="/auth/forgot-password" className="block text-center text-primary hover:underline">
+              <Link href="/auth/)forgot-password" className="block text-center text-primary hover:underline">
                 Request a new reset link
               </Link>
             </CardContent>
@@ -262,7 +262,7 @@ export default function ResetPasswordPage() {
 
           <CardFooter className="flex flex-col gap-4">
             <p className="text-sm text-muted-foreground text-center">
-              <Link href="/auth/login" className="text-primary font-medium hover:underline">
+              <Link href="/auth/)login" className="text-primary font-medium hover:underline">
                 Back to sign in
               </Link>
             </p>

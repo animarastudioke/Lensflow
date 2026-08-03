@@ -51,6 +51,7 @@ import {
   Image as ImageIcon,
   Calendar,
   Users,
+  Heart,
   Lock,
   Globe,
   ChevronDown,
@@ -220,6 +221,9 @@ export function GalleryList({ studioSlug, initialGalleries = [], isLoading = fal
     result.sort((a, b) => {
       const aVal = a[sortBy as keyof Gallery]
       const bVal = b[sortBy as keyof Gallery]
+      if (aVal == null && bVal == null) return 0
+      if (aVal == null) return 1
+      if (bVal == null) return -1
       if (aVal < bVal) return sortOrder === 'asc' ? -1 : 1
       if (aVal > bVal) return sortOrder === 'asc' ? 1 : -1
       return 0
@@ -235,7 +239,7 @@ export function GalleryList({ studioSlug, initialGalleries = [], isLoading = fal
   const confirmDelete = (id: string) => {
     setGalleries(prev => prev.filter(g => g.id !== id))
     setDeleteConfirm(null)
-    setSelectedGalleries(prev => prev.filter(g => g.id !== id))
+    setSelectedGalleries(prev => prev.filter(g => g !== id))
   }
 
   const handleBulkAction = (action: 'delete' | 'archive' | 'publish' | 'download') => {

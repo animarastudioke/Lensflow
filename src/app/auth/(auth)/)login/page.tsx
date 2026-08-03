@@ -28,7 +28,7 @@ type LoginForm = z.infer<typeof loginSchema>
 export default function LoginPage() {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const redirectTo = searchParams.get('redirect') || '/dashboard'
+  const redirectTo = (searchParams.get('redirect') || '/dashboard') as string
   const [showPassword, setShowPassword] = React.useState(false)
   const [isLoading, setIsLoading] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
@@ -197,7 +197,7 @@ export default function LoginPage() {
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <Label htmlFor="password">Password</Label>
-                  <a href="/auth/forgot-password" className="text-sm text-primary hover:underline">
+                  <a href="/auth/)forgot-password" className="text-sm text-primary hover:underline">
                     Forgot password?
                   </a>
                 </div>

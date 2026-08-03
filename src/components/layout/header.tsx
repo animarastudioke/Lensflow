@@ -9,7 +9,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { Search, Bell, Moon, Sun, LogOut, User, Settings, HelpCircle, Shield, Crown } from 'lucide-react'
 import { useTheme } from 'next-themes'
-import { useAuthUser } from '@/lib/auth'
+import { useAuthUser } from '@/lib/auth/hooks'
 import { Badge } from '@/components/ui/badge'
 
 interface HeaderProps {

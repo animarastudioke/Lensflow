@@ -30,7 +30,7 @@ const signupSchema = z.object({
     .regex(/[0-9]/, 'Password must contain at least one number')
     .regex(/[^A-Za-z0-9]/, 'Password must contain at least one special character'),
   confirmPassword: z.string(),
-  terms: z.literal(true, { errorMap: () => ({ message: 'You must accept the terms' }) }),
+  terms: z.boolean().refine(val => val === true, { message: 'You must accept the terms' }),
 }).refine((data) => data.password === data.confirmPassword, {
   message: 'Passwords do not match',
   path: ['confirmPassword'],
@@ -49,7 +49,7 @@ const passwordRequirements = [
 export default function SignupPage() {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const redirectTo = searchParams.get('redirect') || '/dashboard'
+  const redirectTo = (searchParams.get('redirect') || '/dashboard') as string
   const [showPassword, setShowPassword] = React.useState(false)
   const [isLoading, setIsLoading] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
@@ -367,7 +367,7 @@ export default function SignupPage() {
           <CardFooter className="flex flex-col gap-4">
             <p className="text-sm text-muted-foreground text-center">
               Already have an account?{' '}
-              <Link href="/auth/login" className="text-primary font-medium hover:underline">
+              <Link href="/auth/)login" className="text-primary font-medium hover:underline">
                 Sign in
               </Link>
             </p>
