@@ -28,9 +28,6 @@
     --success-foreground: 0 0% 98%;
     --warning: 38 92% 50%;
     --warning-foreground: 0 0% 98%;
-    --font-sans: 'Geist', system-ui, sans-serif;
-    --font-mono: 'Geist Mono', monospace;
-    --font-display: 'Geist', system-ui, sans-serif;
   }
 
   .dark {
