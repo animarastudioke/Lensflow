@@ -66,10 +66,11 @@ const config: Config = {
         sm: 'calc(var(--radius) - 4px)',
       },
       fontFamily: {
-        sans: ['var(--font-sans)', 'system-ui', 'sans-serif'],
-        mono: ['var(--font-mono)', 'monospace'],
-        display: ['var(--font-display)', 'system-ui', 'sans-serif'],
-      },
+  sans: ['var(--font-geist-sans)', 'system-ui', 'sans-serif'],
+  mono: ['var(--font-geist-mono)', 'monospace'],
+  display: ['var(--font-geist-sans)', 'system-ui', 'sans-serif'],
+},
+
       fontSize: {
         'display-xl': ['clamp(2.5rem, 5vw, 4rem)', { lineHeight: '1.1', letterSpacing: '-0.02em' }],
         'display-lg': ['clamp(2rem, 4vw, 3rem)', { lineHeight: '1.15', letterSpacing: '-0.01em' }],
