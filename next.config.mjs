@@ -6,7 +6,7 @@ const nextConfig = {
       bodySizeLimit: '50mb',
       allowedOrigins: ['localhost:3000'],
     },
-    optimizePackageImports: ['lucide-react', '@radix-ui/react-icons'],
+    optimizePackageImports: ['lucide-react'],
     typedRoutes: false,
   },
   images: {
@@ -61,22 +61,6 @@ const nextConfig = {
             value: '/',
           },
         ],
-      },
-    ]
-  },
-  async rewrites() {
-    return [
-      {
-        source: '/ingest/static/:path*',
-        destination: 'https://eu-assets.i.posthog.com/static/:path*',
-      },
-      {
-        source: '/ingest/:path*',
-        destination: 'https://eu-assets.i.posthog.com/:path*',
-      },
-      {
-        source: '/ingest/decide',
-        destination: 'https://eu-assets.i.posthog.com/decide',
       },
     ]
   },
