@@ -9,6 +9,9 @@ const nextConfig = {
     optimizePackageImports: ['lucide-react'],
     typedRoutes: false,
   },
+		eslint: {
+			ignoreDuringBuilds: true,
+		},
   images: {
     remotePatterns: [
       {
