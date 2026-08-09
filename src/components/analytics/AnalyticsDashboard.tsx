@@ -1,10 +1,8 @@
 'use client'
 
 import * as React from 'react'
-import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
-import { cn } from '@/lib/utils'
-import { format, subDays, startOfMonth, startOfWeek, eachDayOfInterval, addMonths } from 'date-fns'
+import { format, subDays } from 'date-fns'
 import {
   Card,
   CardContent,
@@ -29,23 +27,18 @@ import {
   BarChart3,
   Calendar,
   ArrowRight,
-  ExternalLink,
   Download,
-  ChevronLeft,
-  ChevronRight,
+  MoreVertical,
+  Eye,
 } from 'lucide-react'
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { Badge } from '@/components/ui/badge'
-import { Separator } from '@/components/ui/separator'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Progress } from '@/components/ui/progress'
-import { SpriteSpinner } from '@/components/ui/sprite-spinner'
 
 // Simple chart using SVG
 interface ChartDataPoint {
@@ -170,8 +163,6 @@ interface AnalyticsDashboardProps {
 }
 
 export function AnalyticsDashboard({ studioSlug, isLoading = false }: AnalyticsDashboardProps) {
-  const router = useRouter()
-  const searchParams = useSearchParams()
   const [period, setPeriod] = React.useState<'7d' | '30d' | '90d' | '1y'>('30d')
 
   // Mock data for charts
@@ -259,11 +250,11 @@ export function AnalyticsDashboard({ studioSlug, isLoading = false }: AnalyticsD
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-display-md font-display font-bold text-foreground">Analytics</h1>
+          <h1 className="text-display-md font-display font-semibold text-foreground">Analytics</h1>
           <p className="text-body text-muted-foreground mt-1">Track your studio performance and growth</p>
         </div>
         <div className="flex items-center gap-2">
-          <Select value={period} onValueChange={setPeriod}>
+          <Select value={period} onValueChange={(value) => setPeriod(value as typeof period)}>
             <SelectTrigger className="w-[160px]">
               <SelectValue placeholder="Time Period" />
             </SelectTrigger>
@@ -280,22 +271,20 @@ export function AnalyticsDashboard({ studioSlug, isLoading = false }: AnalyticsD
         </div>
       </div>
 
-      {/* Stats Cards */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+      {/* Stats Row */}
+      <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 divide-y lg:divide-y-0 divide-x-0 lg:divide-x divide-border border border-border">
         {stats.map((stat, index) => (
-          <Card key={index} className="card-hover">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">{stat.label}</CardTitle>
-              <stat.icon className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{stat.value}</div>
-              <p className={`text-xs mt-1 flex items-center gap-1 ${stat.changeType === 'positive' ? 'text-success' : 'text-destructive'}`}>
-                {stat.changeType === 'positive' ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
-                {stat.change} vs last period
-              </p>
-            </CardContent>
-          </Card>
+          <div key={index} className="px-5 py-5">
+            <div className="flex items-center justify-between">
+              <span className="label-caption">{stat.label}</span>
+              <stat.icon className="h-4 w-4 text-muted-foreground/60" strokeWidth={1.5} />
+            </div>
+            <div className="mt-2 font-mono text-2xl font-medium text-foreground tabular-nums">{stat.value}</div>
+            <p className={`text-xs mt-1 flex items-center gap-1 ${stat.changeType === 'positive' ? 'text-success' : 'text-destructive'}`}>
+              {stat.changeType === 'positive' ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
+              <span className="font-mono tabular-nums">{stat.change}</span> vs last period
+            </p>
+          </div>
         ))}
       </div>
 
@@ -351,7 +340,7 @@ export function AnalyticsDashboard({ studioSlug, isLoading = false }: AnalyticsD
                 <div key={index} className="space-y-1">
                   <div className="flex items-center justify-between text-sm">
                     <span className="font-medium">{item.source}</span>
-                    <span className="font-bold">${item.value.toLocaleString()}</span>
+                    <span className="font-mono tabular-nums font-medium">${item.value.toLocaleString()}</span>
                   </div>
                   <div className="flex items-center gap-2">
                     <Progress value={item.percentage} className="h-2 flex-1" />
@@ -379,14 +368,14 @@ export function AnalyticsDashboard({ studioSlug, isLoading = false }: AnalyticsD
                       style={{ width: `${(month.revenue / 25600) * 100}%` }}
                     />
                   </div>
-                  <span className="text-sm text-muted-foreground w-[80px] text-right">${month.revenue.toLocaleString()}</span>
+                  <span className="text-sm text-muted-foreground w-[80px] text-right font-mono tabular-nums">${month.revenue.toLocaleString()}</span>
                   <div className="flex-1 h-8 bg-muted rounded relative overflow-hidden">
                     <div
                       className="h-full bg-secondary"
                       style={{ width: `${(month.bookings / 16) * 100}%` }}
                     />
                   </div>
-                  <span className="text-sm text-muted-foreground w-[40px] text-right">{month.bookings}</span>
+                  <span className="text-sm text-muted-foreground w-[40px] text-right font-mono tabular-nums">{month.bookings}</span>
                 </div>
               ))}
             </div>
@@ -424,8 +413,8 @@ export function AnalyticsDashboard({ studioSlug, isLoading = false }: AnalyticsD
                     <td className="p-4">
                       <div className="font-medium">{gallery.name}</div>
                     </td>
-                    <td className="p-4 text-right text-sm text-muted-foreground">{gallery.views.toLocaleString()}</td>
-                    <td className="p-4 text-right text-sm font-medium">${gallery.revenue.toLocaleString()}</td>
+                    <td className="p-4 text-right text-sm text-muted-foreground font-mono tabular-nums">{gallery.views.toLocaleString()}</td>
+                    <td className="p-4 text-right text-sm font-mono tabular-nums font-medium">${gallery.revenue.toLocaleString()}</td>
                     <td className="p-4 text-right text-sm">
                       <Badge variant="outline">{gallery.conversion}%</Badge>
                     </td>
@@ -477,9 +466,9 @@ export function AnalyticsDashboard({ studioSlug, isLoading = false }: AnalyticsD
                 <div key={index} className="space-y-1">
                   <div className="flex items-center justify-between text-sm">
                     <span>{item.label}</span>
-                    <span className="font-bold">{item.value}%</span>
+                    <span className="font-mono tabular-nums font-medium">{item.value}%</span>
                   </div>
-                  <Progress value={item.value} className="h-2" style={{ '--progress-color': item.color }} />
+                  <Progress value={item.value} className="h-2" style={{ '--progress-color': item.color } as React.CSSProperties} />
                 </div>
               ))}
             </div>
@@ -501,9 +490,9 @@ export function AnalyticsDashboard({ studioSlug, isLoading = false }: AnalyticsD
                 <div key={index} className="space-y-1">
                   <div className="flex items-center justify-between text-sm">
                     <span>{item.label}</span>
-                    <span className="font-bold">{item.value}</span>
+                    <span className="font-mono tabular-nums font-medium">{item.value}</span>
                   </div>
-                  <Progress value={(item.value / 120) * 100} className="h-2" style={{ '--progress-color': item.color }} />
+                  <Progress value={(item.value / 120) * 100} className="h-2" style={{ '--progress-color': item.color } as React.CSSProperties} />
                 </div>
               ))}
             </div>

@@ -2,8 +2,6 @@
 
 import * as React from 'react'
 import Link from 'next/link'
-import { usePathname } from 'next/navigation'
-import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
@@ -18,8 +16,7 @@ interface HeaderProps {
 }
 
 export function Header({ studioSlug, studioName = 'Studio' }: HeaderProps) {
-  const pathname = usePathname()
-  const { theme, setTheme, resolvedTheme } = useTheme()
+  const { setTheme, resolvedTheme } = useTheme()
   const { user, isLoading, signOut } = useAuthUser()
   const [searchQuery, setSearchQuery] = React.useState('')
   const [notificationsOpen, setNotificationsOpen] = React.useState(false)
@@ -31,7 +28,7 @@ export function Header({ studioSlug, studioName = 'Studio' }: HeaderProps) {
 
   if (isLoading) {
     return (
-      <header className="sticky top-0 z-30 h-16 bg-background/80 backdrop-blur-xl border-b border-border">
+      <header className="sticky top-0 z-30 h-16 glass">
         <div className="flex h-full items-center justify-between px-4 sm:px-6 lg:px-8">
           <div className="h-8 w-32 animate-pulse rounded-lg bg-muted" />
           <div className="h-8 w-24 animate-pulse rounded-lg bg-muted" />

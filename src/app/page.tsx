@@ -2,58 +2,43 @@ import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import {
   Camera,
-  Users,
-  Calendar,
   CreditCard,
   Globe,
-  Shield,
   Zap,
-  Sparkles,
   ArrowRight,
   CheckCircle,
-  Star,
-  BarChart3,
-  Palette,
-  Lock,
   Cloud,
   Mail,
   Phone,
-  MapPin,
 } from 'lucide-react'
 
 const features = [
   {
-    icon: Camera,
     title: 'Beautiful Client Galleries',
     description:
       'Deliver photos and videos in stunning, responsive galleries with albums, collections, proofing, favorites, and comments.',
   },
   {
-    icon: Users,
     title: 'Complete CRM',
     description:
       'Manage clients, leads, projects, tasks, and notes with custom fields, tags, and activity history all in one place.',
   },
   {
-    icon: Calendar,
     title: 'Smart Booking System',
     description:
       'Availability management, packages, mini-sessions, questionnaires, contracts, deposits, and automated reminders.',
   },
   {
-    icon: CreditCard,
     title: 'Multi-Payment Support',
     description:
       'Accept payments via Stripe, Flutterwave, M-Pesa, and PayPal with multi-currency support and automated invoicing.',
   },
   {
-    icon: Globe,
     title: 'Portfolio Websites',
     description:
       'Build beautiful portfolio websites with custom domains, SEO, blog, themes, and no-code page builder.',
   },
   {
-    icon: BarChart3,
     title: 'Business Analytics',
     description:
       'Revenue tracking, expense management, profit reports, tax reports, and actionable insights for growth.',
@@ -62,8 +47,8 @@ const features = [
 
 const stats = [
   { value: '10K+', label: 'Photographers' },
-  { value: '1M+', label: 'Photos Delivered' },
-  { value: '50K+', label: 'Galleries Created' },
+  { value: '1M+', label: 'Photos delivered' },
+  { value: '50K+', label: 'Galleries created' },
   { value: '99.9%', label: 'Uptime' },
 ]
 
@@ -73,21 +58,18 @@ const testimonials = [
       'LensFlow transformed how I deliver photos to clients. The galleries are beautiful, and the booking system saves me hours every week.',
     author: 'Sarah Chen',
     role: 'Wedding Photographer',
-    avatar: '/avatars/sarah.jpg',
   },
   {
     quote:
-      'Finally, a platform that handles everything - galleries, bookings, contracts, invoices, and my website. Worth every penny.',
+      'Finally, a platform that handles everything — galleries, bookings, contracts, invoices, and my website. Worth every penny.',
     author: 'Marcus Johnson',
     role: 'Portrait & Commercial',
-    avatar: '/avatars/marcus.jpg',
   },
   {
     quote:
       'The multi-currency support and M-Pesa integration let me serve clients across Africa seamlessly. Game changer for my studio.',
     author: 'Grace Ochieng',
     role: 'Event Photographer',
-    avatar: '/avatars/grace.jpg',
   },
 ]
 
@@ -95,7 +77,7 @@ const integrations = [
   { name: 'Stripe', icon: CreditCard },
   { name: 'Supabase', icon: Cloud },
   { name: 'Resend', icon: Mail },
-  { name: 'Africa\'s Talking', icon: Phone },
+  { name: "Africa's Talking", icon: Phone },
   { name: 'Flutterwave', icon: Globe },
   { name: 'M-Pesa', icon: Phone },
   { name: 'PayPal', icon: CreditCard },
@@ -105,39 +87,52 @@ const integrations = [
 export default function HomePage() {
   return (
     <main className="min-h-screen">
-      {/* Hero Section */}
-      <section className="relative overflow-hidden py-20 sm:py-28 lg:py-36">
-        <div className="container-wide">
-          <div className="mx-auto max-w-4xl text-center">
-            <div className="inline-flex items-center gap-2 rounded-full bg-primary/10 px-4 py-1.5 text-sm font-medium text-primary mb-6 animate-in">
-              <Sparkles className="h-4 w-4" />
-              <span>Now with Video Galleries & Multi-Currency Payments</span>
-            </div>
+      {/* Nav */}
+      <header className="sticky top-0 z-30 glass">
+        <div className="container-wide flex h-16 items-center justify-between">
+          <Link href="/" className="flex items-center gap-2 font-display text-xl italic text-foreground">
+            <Camera className="h-5 w-5 text-primary" strokeWidth={1.5} />
+            <span>LensFlow</span>
+          </Link>
+          <div className="flex items-center gap-3">
+            <Button variant="ghost" asChild>
+              <Link href="/auth/login">Sign in</Link>
+            </Button>
+            <Button asChild>
+              <Link href="/auth/signup">Get started</Link>
+            </Button>
+          </div>
+        </div>
+      </header>
 
-            <h1 className="text-display-xl font-display font-bold tracking-tight text-foreground mb-6 animate-in" style={{ animationDelay: '100ms' }}>
-              The Complete Platform for
+      {/* Hero */}
+      <section className="py-20 sm:py-28 lg:py-32">
+        <div className="container-wide">
+          <div className="mx-auto max-w-3xl">
+            <h1 className="text-display-xl font-display font-semibold tracking-tight text-foreground text-balance">
+              The complete platform for
               <br />
-              <span className="text-gradient">Photographers & Videographers</span>
+              <em className="font-display italic">photographers &amp; videographers</em>
             </h1>
 
-            <p className="text-body-lg text-muted-foreground mb-8 max-w-2xl mx-auto animate-in" style={{ animationDelay: '200ms' }}>
+            <p className="mt-6 max-w-xl text-body-lg text-muted-foreground">
               Deliver stunning galleries, manage bookings, sign contracts, accept payments,
               sell prints, and build your portfolio website — all in one elegant platform.
             </p>
 
-            <div className="flex flex-col sm:flex-row items-center justify-center gap-4 animate-in" style={{ animationDelay: '300ms' }}>
+            <div className="mt-10 flex flex-col sm:flex-row items-start sm:items-center gap-4">
               <Button size="lg" className="gap-2" asChild>
                 <Link href="/auth/signup">
-                  Start Free Trial
+                  Start free trial
                   <ArrowRight className="h-4 w-4" />
                 </Link>
               </Button>
               <Button size="lg" variant="outline" asChild>
-                <Link href="/demo">Watch Demo</Link>
+                <Link href="/demo">Watch demo</Link>
               </Button>
             </div>
 
-            <div className="mt-8 flex items-center justify-center gap-6 text-sm text-muted-foreground animate-in" style={{ animationDelay: '400ms' }}>
+            <div className="mt-8 flex flex-wrap items-center gap-x-6 gap-y-2 text-sm text-muted-foreground">
               <span className="flex items-center gap-1.5">
                 <CheckCircle className="h-4 w-4 text-success" />
                 No credit card required
@@ -153,31 +148,27 @@ export default function HomePage() {
             </div>
           </div>
 
-          {/* Floating stats */}
-          <div className="mt-16 grid grid-cols-2 md:grid-cols-4 gap-6 md:gap-8 animate-in" style={{ animationDelay: '500ms' }}>
+          {/* Stat plaque */}
+          <div className="mt-16 grid grid-cols-2 sm:grid-cols-4 divide-x divide-y sm:divide-y-0 divide-border border border-border">
             {stats.map((stat) => (
-              <div key={stat.label} className="text-center">
-                <div className="text-display-md font-display font-bold text-foreground">{stat.value}</div>
-                <div className="text-body-sm text-muted-foreground">{stat.label}</div>
+              <div key={stat.label} className="px-6 py-6">
+                <div className="font-mono text-2xl sm:text-3xl font-medium text-foreground tabular-nums">
+                  {stat.value}
+                </div>
+                <div className="label-caption mt-1">{stat.label}</div>
               </div>
             ))}
           </div>
         </div>
-
-        {/* Background decoration */}
-        <div className="absolute inset-0 -z-10 overflow-hidden">
-          <div className="absolute top-0 left-1/4 w-96 h-96 bg-primary/5 rounded-full blur-3xl animate-pulse-slow" />
-          <div className="absolute bottom-0 right-1/4 w-96 h-96 bg-primary/5 rounded-full blur-3xl animate-pulse-slow" style={{ animationDelay: '1s' }} />
-        </div>
       </section>
 
-      {/* Trust Indicators */}
-      <section className="py-12 border-y border-border/50">
+      {/* Trust indicators */}
+      <section className="py-10 border-y border-border">
         <div className="container-wide">
-          <div className="flex flex-wrap items-center justify-center gap-8 md:gap-12 opacity-60">
+          <div className="flex flex-wrap items-center justify-center gap-x-10 gap-y-4">
             {integrations.map((integration) => (
-              <span key={integration.name} className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
-                <integration.icon className="h-5 w-5" />
+              <span key={integration.name} className="flex items-center gap-2 text-sm text-muted-foreground">
+                <integration.icon className="h-4 w-4" strokeWidth={1.5} />
                 {integration.name}
               </span>
             ))}
@@ -185,100 +176,76 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* Features */}
+      {/* Features: editorial listing, not a card grid */}
       <section className="page-section">
         <div className="container-wide">
-          <div className="mx-auto max-w-2xl text-center mb-16">
-            <h2 className="text-display-lg font-display font-bold tracking-tight text-foreground mb-4">
-              Everything You Need to Run Your Studio
+          <div className="max-w-2xl mb-14">
+            <h2 className="text-display-md font-display font-semibold tracking-tight text-foreground">
+              Everything you need to run your studio
             </h2>
-            <p className="text-body-lg text-muted-foreground">
+            <p className="mt-4 text-body-lg text-muted-foreground">
               Powerful features designed for professional photographers and videographers.
             </p>
           </div>
 
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="border-y border-border divide-y divide-border">
             {features.map((feature, index) => (
-              <article
-                key={feature.title}
-                className="group relative rounded-2xl bg-card p-6 border border-border/50 card-hover animate-in"
-                style={{ animationDelay: `${index * 100}ms` }}
-              >
-                <div className="mb-4 inline-flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10 text-primary">
-                  <feature.icon className="h-6 w-6" />
+              <div key={feature.title} className="grid md:grid-cols-12 gap-x-6 gap-y-2 py-8">
+                <div className="md:col-span-1 font-mono text-sm text-muted-foreground/70 tabular-nums">
+                  {String(index + 1).padStart(2, '0')}
                 </div>
-                <h3 className="text-heading-md font-semibold text-foreground mb-2">
+                <h3 className="md:col-span-4 text-heading-xl font-display text-foreground">
                   {feature.title}
                 </h3>
-                <p className="text-body text-muted-foreground">{feature.description}</p>
-              </article>
+                <p className="md:col-span-7 text-body text-muted-foreground max-w-prose">
+                  {feature.description}
+                </p>
+              </div>
             ))}
           </div>
         </div>
       </section>
 
       {/* Testimonials */}
-      <section className="page-section bg-muted/30">
+      <section className="page-section bg-muted/40">
         <div className="container-wide">
-          <div className="mx-auto max-w-2xl text-center mb-16">
-            <h2 className="text-display-lg font-display font-bold tracking-tight text-foreground mb-4">
-              Trusted by Photographers Worldwide
+          <div className="max-w-2xl mb-14">
+            <h2 className="text-display-md font-display font-semibold tracking-tight text-foreground">
+              Trusted by photographers worldwide
             </h2>
-            <p className="text-body-lg text-muted-foreground">
+            <p className="mt-4 text-body-lg text-muted-foreground">
               See what our customers have to say about their experience with LensFlow.
             </p>
           </div>
 
-          <div className="grid md:grid-cols-3 gap-6">
-            {testimonials.map((testimonial, index) => (
-              <article
-                key={testimonial.author}
-                className="rounded-2xl bg-card p-6 border border-border/50 card-hover animate-in"
-                style={{ animationDelay: `${index * 100}ms` }}
-              >
-                <div className="flex items-center gap-1 mb-4">
-                  {[...Array(5)].map((_, i) => (
-                    <Star key={i} className="h-5 w-5 fill-yellow-400 text-yellow-400" />
-                  ))}
-                </div>
-                <blockquote className="text-body text-foreground mb-6 italic">
+          <div className="grid md:grid-cols-3 gap-8 md:gap-10">
+            {testimonials.map((testimonial) => (
+              <figure key={testimonial.author} className="border-t border-foreground/20 pt-6">
+                <blockquote className="font-display text-xl italic leading-snug text-foreground">
                   &ldquo;{testimonial.quote}&rdquo;
                 </blockquote>
-                <div className="flex items-center gap-3">
-                  <div className="h-10 w-10 rounded-full bg-muted flex items-center justify-center text-muted-foreground">
-                    {testimonial.author.charAt(0)}
-                  </div>
-                  <div>
-                    <div className="font-medium text-foreground">{testimonial.author}</div>
-                    <div className="text-body-sm text-muted-foreground">{testimonial.role}</div>
-                  </div>
-                </div>
-              </article>
+                <figcaption className="mt-6 label-caption">
+                  {testimonial.author} — {testimonial.role}
+                </figcaption>
+              </figure>
             ))}
           </div>
         </div>
       </section>
 
-      {/* CTA Section */}
-      <section className="page-section">
-        <div className="container-wide">
-          <div className="mx-auto max-w-3xl text-center rounded-3xl bg-gradient-to-br from-primary via-primary/80 to-primary p-8 sm:p-12 lg:p-16">
-            <div className="inline-flex items-center gap-2 rounded-full bg-white/10 px-4 py-1.5 text-sm font-medium text-white mb-6">
-              <Zap className="h-4 w-4" />
-              <span>Join 10,000+ photographers already using LensFlow</span>
-            </div>
-
-            <h2 className="text-display-lg font-display font-bold text-white mb-4">
-              Ready to Transform Your Photography Business?
+      {/* CTA: full-bleed committed color plate */}
+      <section className="bg-primary text-primary-foreground">
+        <div className="container-wide py-16 lg:py-24">
+          <div className="max-w-2xl">
+            <h2 className="text-display-md font-display font-semibold">
+              Ready to transform your photography business?
             </h2>
-
-            <p className="text-body-lg text-white/80 mb-8 max-w-xl mx-auto">
+            <p className="mt-4 text-body-lg text-primary-foreground/80">
               Start your 14-day free trial today. No credit card required. Cancel anytime.
             </p>
-
-            <Button size="lg" variant="secondary" className="gap-2" asChild>
+            <Button size="lg" variant="secondary" className="mt-8 gap-2" asChild>
               <Link href="/auth/signup">
-                Get Started Free
+                Get started free
                 <ArrowRight className="h-4 w-4" />
               </Link>
             </Button>
@@ -287,12 +254,12 @@ export default function HomePage() {
       </section>
 
       {/* Footer */}
-      <footer className="border-t border-border/50 bg-background/50 backdrop-blur-sm">
+      <footer className="border-t border-border">
         <div className="container-wide py-12 lg:py-16">
-          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-8 mb-12">
+          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-8 mb-12">
             <div className="lg:col-span-2">
-              <Link href="/" className="flex items-center gap-2 font-display font-bold text-xl text-foreground mb-4">
-                <Camera className="h-6 w-6 text-primary" />
+              <Link href="/" className="flex items-center gap-2 font-display italic text-xl text-foreground mb-4">
+                <Camera className="h-5 w-5 text-primary" strokeWidth={1.5} />
                 <span>LensFlow</span>
               </Link>
               <p className="text-body text-muted-foreground max-w-xs mb-6">
@@ -312,7 +279,7 @@ export default function HomePage() {
             </div>
 
             <div>
-              <h4 className="font-semibold text-foreground mb-4">Product</h4>
+              <h4 className="label-caption mb-4">Product</h4>
               <ul className="space-y-2 text-body-sm text-muted-foreground">
                 <li><Link href="/features/galleries" className="hover:text-foreground transition-colors">Client Galleries</Link></li>
                 <li><Link href="/features/booking" className="hover:text-foreground transition-colors">Booking System</Link></li>
@@ -324,7 +291,7 @@ export default function HomePage() {
             </div>
 
             <div>
-              <h4 className="font-semibold text-foreground mb-4">Resources</h4>
+              <h4 className="label-caption mb-4">Resources</h4>
               <ul className="space-y-2 text-body-sm text-muted-foreground">
                 <li><Link href="/docs" className="hover:text-foreground transition-colors">Documentation</Link></li>
                 <li><Link href="/blog" className="hover:text-foreground transition-colors">Blog</Link></li>
@@ -336,7 +303,7 @@ export default function HomePage() {
             </div>
 
             <div>
-              <h4 className="font-semibold text-foreground mb-4">Company</h4>
+              <h4 className="label-caption mb-4">Company</h4>
               <ul className="space-y-2 text-body-sm text-muted-foreground">
                 <li><Link href="/about" className="hover:text-foreground transition-colors">About</Link></li>
                 <li><Link href="/careers" className="hover:text-foreground transition-colors">Careers</Link></li>
@@ -348,7 +315,7 @@ export default function HomePage() {
             </div>
 
             <div>
-              <h4 className="font-semibold text-foreground mb-4">Legal</h4>
+              <h4 className="label-caption mb-4">Legal</h4>
               <ul className="space-y-2 text-body-sm text-muted-foreground">
                 <li><Link href="/privacy" className="hover:text-foreground transition-colors">Privacy Policy</Link></li>
                 <li><Link href="/terms" className="hover:text-foreground transition-colors">Terms of Service</Link></li>
@@ -360,14 +327,14 @@ export default function HomePage() {
             </div>
           </div>
 
-          <div className="flex flex-col md:flex-row items-center justify-between gap-4 pt-8 border-t border-border/50">
+          <div className="flex flex-col md:flex-row items-center justify-between gap-4 pt-8 border-t border-border">
             <p className="text-body-sm text-muted-foreground">
               © {new Date().getFullYear()} LensFlow. All rights reserved.
             </p>
             <div className="flex items-center gap-6 text-body-sm text-muted-foreground">
               <span>Made with care for photographers worldwide</span>
               <span className="flex items-center gap-1.5">
-                <span className="h-2 w-2 rounded-full bg-success" />
+                <span className="h-1.5 w-1.5 rounded-full bg-success" />
                 <span>99.9% uptime</span>
               </span>
             </div>

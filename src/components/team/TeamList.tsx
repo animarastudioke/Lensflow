@@ -1,16 +1,11 @@
 'use client'
 
 import * as React from 'react'
-import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { cn } from '@/lib/utils'
 import { format, formatDistanceToNow } from 'date-fns'
 import {
   Card,
   CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
 } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -35,12 +30,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import {
-  Plus,
   Search,
-  Filter,
-  User,
-  Mail,
-  Phone,
   Shield,
   Crown,
   UserCheck,
@@ -48,16 +38,13 @@ import {
   Edit,
   Trash2,
   MoreVertical,
-  Invite,
-  Settings,
+  UserPlus as Invite,
   Activity,
   Clock,
   CheckCircle,
   XCircle,
   Loader2,
   Send,
-  Key,
-  Bell,
   Eye,
   EyeOff,
   Users,
@@ -66,8 +53,6 @@ import {
   DollarSign,
 } from 'lucide-react'
 import { Label } from '@/components/ui/label'
-import { Switch } from '@/components/ui/switch'
-import { Separator } from '@/components/ui/separator'
 import {
   Table,
   TableBody,
@@ -81,11 +66,10 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
+  DialogDescription,
   DialogFooter,
 } from '@/components/ui/dialog'
 import { Textarea } from '@/components/ui/textarea'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 
 interface TeamMember {
   id: string
@@ -202,17 +186,17 @@ const mockTeamMembers: TeamMember[] = [
 
 function getRoleBadge(role: TeamMember['role']) {
   const roleConfig = {
-    owner: { label: 'Owner', className: 'bg-purple-100 text-purple-800', icon: Crown },
-    admin: { label: 'Admin', className: 'bg-blue-100 text-blue-800', icon: Shield },
-    editor: { label: 'Editor', className: 'bg-green-100 text-green-800', icon: Edit },
-    viewer: { label: 'Viewer', className: 'bg-gray-100 text-gray-800', icon: Eye },
-    client_manager: { label: 'Client Mgr', className: 'bg-orange-100 text-orange-800', icon: UserCheck },
-    billing: { label: 'Billing', className: 'bg-yellow-100 text-yellow-800', icon: DollarSign },
+    owner: { label: 'Owner', variant: 'default' as const, icon: Crown },
+    admin: { label: 'Admin', variant: 'secondary' as const, icon: Shield },
+    editor: { label: 'Editor', variant: 'outline' as const, icon: Edit },
+    viewer: { label: 'Viewer', variant: 'outline' as const, icon: Eye },
+    client_manager: { label: 'Client Mgr', variant: 'info' as const, icon: UserCheck },
+    billing: { label: 'Billing', variant: 'warning' as const, icon: DollarSign },
   }
   const config = roleConfig[role]
   const Icon = config.icon
   return (
-    <Badge className={cn(config.className, 'gap-1')}>
+    <Badge variant={config.variant} className="gap-1">
       <Icon className="h-3 w-3" />
       {config.label}
     </Badge>
@@ -221,14 +205,14 @@ function getRoleBadge(role: TeamMember['role']) {
 
 function getStatusBadge(status: TeamMember['status']) {
   const statusConfig = {
-    active: { label: 'Active', className: 'bg-green-100 text-green-800', icon: CheckCircle },
-    invited: { label: 'Invited', className: 'bg-yellow-100 text-yellow-800', icon: Clock },
-    suspended: { label: 'Suspended', className: 'bg-red-100 text-red-800', icon: XCircle },
+    active: { label: 'Active', variant: 'success' as const, icon: CheckCircle },
+    invited: { label: 'Invited', variant: 'warning' as const, icon: Clock },
+    suspended: { label: 'Suspended', variant: 'destructive' as const, icon: XCircle },
   }
   const config = statusConfig[status]
   const Icon = config.icon
   return (
-    <Badge className={cn(config.className, 'gap-1')}>
+    <Badge variant={config.variant} className="gap-1">
       <Icon className="h-3 w-3" />
       {config.label}
     </Badge>
@@ -245,8 +229,6 @@ interface TeamListProps {
 }
 
 export function TeamList({ studioSlug, isLoading = false }: TeamListProps) {
-  const router = useRouter()
-
   const [members, setMembers] = React.useState<TeamMember[]>(mockTeamMembers)
   const [searchQuery, setSearchQuery] = React.useState('')
   const [roleFilter, setRoleFilter] = React.useState<string>('all')
@@ -292,7 +274,7 @@ export function TeamList({ studioSlug, isLoading = false }: TeamListProps) {
 
     const newMember: TeamMember = {
       id: String(Date.now()),
-      name: inviteForm.email.split('@')[0],
+      name: inviteForm.email.split('@')[0]!,
       email: inviteForm.email,
       role: inviteForm.role,
       status: 'invited',
@@ -324,11 +306,23 @@ export function TeamList({ studioSlug, isLoading = false }: TeamListProps) {
     )
   }
 
+  const [removeConfirm, setRemoveConfirm] = React.useState<string | null>(null)
+  const [bulkRemoveConfirm, setBulkRemoveConfirm] = React.useState(false)
+
   const handleRemove = (memberId: string) => {
-    if (confirm('Are you sure you want to remove this team member?')) {
-      setMembers(prev => prev.filter(m => m.id !== memberId))
-      setSelectedMembers(prev => prev.filter(g => g !== memberId))
-    }
+    setRemoveConfirm(memberId)
+  }
+
+  const confirmRemove = (memberId: string) => {
+    setMembers(prev => prev.filter(m => m.id !== memberId))
+    setSelectedMembers(prev => prev.filter(g => g !== memberId))
+    setRemoveConfirm(null)
+  }
+
+  const confirmBulkRemove = () => {
+    setMembers(prev => prev.filter(m => !selectedMembers.includes(m.id)))
+    setSelectedMembers([])
+    setBulkRemoveConfirm(false)
   }
 
   const handleResendInvite = (memberId: string) => {
@@ -378,57 +372,49 @@ export function TeamList({ studioSlug, isLoading = false }: TeamListProps) {
   return (
     <div className="space-y-6">
       {/* Stats Row */}
-      <div className="grid gap-4 md:grid-cols-4">
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">Total Members</p>
-                <p className="text-2xl font-bold">{members.length}</p>
-              </div>
-              <Users className="h-8 w-8 text-muted-foreground/50" />
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">Active</p>
-                <p className="text-2xl font-bold text-success">{activeCount}</p>
-              </div>
-              <Activity className="h-8 w-8 text-muted-foreground/50" />
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">Invited</p>
-                <p className="text-2xl font-bold text-warning">{invitedCount}</p>
-              </div>
-              <Send className="h-8 w-8 text-muted-foreground/50" />
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">Suspended</p>
-                <p className="text-2xl font-bold text-destructive">{suspendedCount}</p>
-              </div>
-              <UserX className="h-8 w-8 text-muted-foreground/50" />
-            </div>
-          </CardContent>
-        </Card>
+      <div className="grid grid-cols-2 sm:grid-cols-4 divide-y sm:divide-y-0 sm:divide-x divide-border border border-border">
+        <div className="px-5 py-5">
+          <div className="flex items-center justify-between">
+            <span className="label-caption">Total members</span>
+            <Users className="h-4 w-4 text-muted-foreground/60" strokeWidth={1.5} />
+          </div>
+          <div className="mt-2 font-mono text-2xl font-medium text-foreground tabular-nums">
+            {members.length}
+          </div>
+        </div>
+        <div className="px-5 py-5">
+          <div className="flex items-center justify-between">
+            <span className="label-caption">Active</span>
+            <Activity className="h-4 w-4 text-muted-foreground/60" strokeWidth={1.5} />
+          </div>
+          <div className="mt-2 font-mono text-2xl font-medium text-success tabular-nums">
+            {activeCount}
+          </div>
+        </div>
+        <div className="px-5 py-5">
+          <div className="flex items-center justify-between">
+            <span className="label-caption">Invited</span>
+            <Send className="h-4 w-4 text-muted-foreground/60" strokeWidth={1.5} />
+          </div>
+          <div className="mt-2 font-mono text-2xl font-medium text-warning tabular-nums">
+            {invitedCount}
+          </div>
+        </div>
+        <div className="px-5 py-5">
+          <div className="flex items-center justify-between">
+            <span className="label-caption">Suspended</span>
+            <UserX className="h-4 w-4 text-muted-foreground/60" strokeWidth={1.5} />
+          </div>
+          <div className="mt-2 font-mono text-2xl font-medium text-destructive tabular-nums">
+            {suspendedCount}
+          </div>
+        </div>
       </div>
 
       {/* Page Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-display-sm font-display font-bold text-foreground">Team Members</h1>
+          <h1 className="text-display-sm font-display font-semibold text-foreground">Team Members</h1>
           <p className="text-body text-muted-foreground mt-1">Manage studio team and permissions</p>
         </div>
         <Button onClick={() => setIsInviteDialogOpen(true)}>
@@ -527,12 +513,7 @@ export function TeamList({ studioSlug, isLoading = false }: TeamListProps) {
                   <UserX className="h-3.5 w-3.5 mr-1.5" />
                   Suspend
                 </Button>
-                <Button variant="destructive" size="sm" onClick={() => {
-                  if (confirm(`Remove ${selectedMembers.length} member(s)?`)) {
-                    selectedMembers.forEach(id => handleRemove(id))
-                    setSelectedMembers([])
-                  }
-                }}>
+                <Button variant="destructive" size="sm" onClick={() => setBulkRemoveConfirm(true)}>
                   <Trash2 className="h-3.5 w-3.5 mr-1.5" />
                   Remove
                 </Button>
@@ -554,7 +535,8 @@ export function TeamList({ studioSlug, isLoading = false }: TeamListProps) {
                       type="checkbox"
                       checked={selectedMembers.length === filteredMembers.length && filteredMembers.length > 0}
                       onChange={toggleSelectAll}
-                      className="rounded border-input"
+                      aria-label="Select all team members"
+                      className="h-4 w-4 rounded border-input text-primary focus:ring-2 focus:ring-primary"
                     />
                   </TableHead>
                   <TableHead>Member</TableHead>
@@ -586,7 +568,8 @@ export function TeamList({ studioSlug, isLoading = false }: TeamListProps) {
                           type="checkbox"
                           checked={selectedMembers.includes(member.id)}
                           onChange={() => toggleSelect(member.id)}
-                          className="rounded border-input"
+                          aria-label={`Select ${member.name}`}
+                          className="h-4 w-4 rounded border-input text-primary focus:ring-2 focus:ring-primary"
                         />
                       </TableCell>
                       <TableCell>
@@ -602,7 +585,9 @@ export function TeamList({ studioSlug, isLoading = false }: TeamListProps) {
                             <p className="text-sm text-muted-foreground truncate max-w-[200px]">{member.email}</p>
                           </div>
                           {member.role === 'owner' && (
-                            <Crown className="h-4 w-4 text-yellow-500 ml-1" title="Owner" />
+                            <span title="Owner">
+                              <Crown className="h-4 w-4 text-warning ml-1" />
+                            </span>
                           )}
                         </div>
                       </TableCell>
@@ -700,7 +685,7 @@ export function TeamList({ studioSlug, isLoading = false }: TeamListProps) {
                                 <DropdownMenuItem
                                   onClick={() => handleStatusChange(member.id, 'active')}
                                 >
-                                  <UserCheck className="mr-2 h-4 w-4 text-green-600" />
+                                  <UserCheck className="mr-2 h-4 w-4 text-success" />
                                   Reactivate
                                 </DropdownMenuItem>
                               </>
@@ -746,7 +731,8 @@ export function TeamList({ studioSlug, isLoading = false }: TeamListProps) {
                       type="checkbox"
                       checked={selectedMembers.includes(member.id)}
                       onChange={() => toggleSelect(member.id)}
-                      className="rounded border-input mt-1"
+                      aria-label={`Select ${member.name}`}
+                      className="h-4 w-4 rounded border-input text-primary focus:ring-2 focus:ring-primary mt-1"
                     />
                     <Avatar className="h-12 w-12 flex-shrink-0">
                       <AvatarImage src={member.avatar || ''} alt={member.name} />
@@ -758,7 +744,9 @@ export function TeamList({ studioSlug, isLoading = false }: TeamListProps) {
                       <div className="flex items-center gap-2">
                         <h3 className="font-semibold truncate">{member.name}</h3>
                         {member.role === 'owner' && (
-                          <Crown className="h-4 w-4 text-yellow-500" title="Owner" />
+                          <span title="Owner">
+                            <Crown className="h-4 w-4 text-warning" />
+                          </span>
                         )}
                       </div>
                       <p className="text-sm text-muted-foreground truncate">{member.email}</p>
@@ -805,7 +793,7 @@ export function TeamList({ studioSlug, isLoading = false }: TeamListProps) {
                           <DropdownMenuItem
                             onClick={() => handleStatusChange(member.id, 'active')}
                           >
-                            <UserCheck className="mr-2 h-4 w-4 text-green-600" />
+                            <UserCheck className="mr-2 h-4 w-4 text-success" />
                             Reactivate
                           </DropdownMenuItem>
                         )}
@@ -921,6 +909,38 @@ export function TeamList({ studioSlug, isLoading = false }: TeamListProps) {
                 </>
               )}
             </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Remove member confirmation */}
+      <Dialog open={!!removeConfirm} onOpenChange={(open) => !open && setRemoveConfirm(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Remove team member</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to remove this team member? This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRemoveConfirm(null)}>Cancel</Button>
+            <Button variant="destructive" onClick={() => removeConfirm && confirmRemove(removeConfirm)}>Remove</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Bulk remove confirmation */}
+      <Dialog open={bulkRemoveConfirm} onOpenChange={setBulkRemoveConfirm}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Remove {selectedMembers.length} member{selectedMembers.length !== 1 ? 's' : ''}</DialogTitle>
+            <DialogDescription>
+              This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setBulkRemoveConfirm(false)}>Cancel</Button>
+            <Button variant="destructive" onClick={confirmBulkRemove}>Remove</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

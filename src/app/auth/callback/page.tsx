@@ -5,11 +5,11 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Loader2, CheckCircle, AlertCircle, Mail } from 'lucide-react'
+import { Loader2, CheckCircle, AlertCircle } from 'lucide-react'
 import { toast } from 'sonner'
 import { createBrowserClient } from '@/lib/supabase/client'
 
-export default function AuthCallbackPage() {
+function AuthCallbackPageContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const [status, setStatus] = React.useState<'loading' | 'success' | 'error'>('loading')
@@ -29,7 +29,6 @@ export default function AuthCallbackPage() {
       // Check for error parameters
       const error = searchParams.get('error')
       const errorDescription = searchParams.get('error_description')
-      const errorCode = searchParams.get('error_code')
 
       if (error) {
         setStatus('error')
@@ -146,7 +145,7 @@ export default function AuthCallbackPage() {
   if (status === 'loading') {
     return (
       <div className="min-h-screen flex items-center justify-center bg-muted/30 px-4 py-12">
-        <Card className="shadow-xl max-w-md w-full">
+        <Card className="max-w-md w-full">
           <CardHeader className="text-center">
             <div className="flex justify-center mb-4">
               <Loader2 className="h-10 w-10 text-primary animate-spin" />
@@ -170,7 +169,7 @@ export default function AuthCallbackPage() {
   if (status === 'error') {
     return (
       <div className="min-h-screen flex items-center justify-center bg-muted/30 px-4 py-12">
-        <Card className="shadow-xl max-w-md w-full">
+        <Card className="max-w-md w-full">
           <CardHeader className="text-center">
             <div className="flex justify-center mb-4">
               <div className="h-10 w-10 rounded-full bg-destructive/10 flex items-center justify-center">
@@ -218,5 +217,19 @@ export default function AuthCallbackPage() {
         </CardContent>
       </Card>
     </div>
+  )
+}
+
+export default function AuthCallbackPage() {
+  return (
+    <React.Suspense
+      fallback={
+        <div className="min-h-screen flex items-center justify-center">
+          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+        </div>
+      }
+    >
+      <AuthCallbackPageContent />
+    </React.Suspense>
   )
 }

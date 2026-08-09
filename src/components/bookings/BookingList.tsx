@@ -1,17 +1,20 @@
 'use client'
 
 import * as React from 'react'
-import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
-import { cn } from '@/lib/utils'
 import { format, addDays, startOfDay } from 'date-fns'
 import {
   Card,
   CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
 } from '@/components/ui/card'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
@@ -24,11 +27,9 @@ import {
 import {
   Plus,
   Search,
-  Filter,
   Calendar,
   Clock,
   MapPin,
-  User,
   MoreVertical,
   Trash2,
   Edit,
@@ -37,7 +38,8 @@ import {
   ChevronRight,
   CheckCircle,
   XCircle,
-  AlertCircle,
+  ArrowUpDown,
+  LayoutList,
 } from 'lucide-react'
 import {
   DropdownMenu,
@@ -56,9 +58,7 @@ import {
 } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
-import { Separator } from '@/components/ui/separator'
 import { Calendar as CalendarComponent } from '@/components/ui/calendar'
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 
 interface Booking {
   id: string
@@ -167,15 +167,15 @@ const mockBookings: Booking[] = [
 
 function getStatusBadge(status: Booking['status']) {
   const statusConfig = {
-    inquiry: { label: 'Inquiry', className: 'bg-blue-100 text-blue-800' },
-    confirmed: { label: 'Confirmed', className: 'bg-green-100 text-green-800' },
-    scheduled: { label: 'Scheduled', className: 'bg-purple-100 text-purple-800' },
-    completed: { label: 'Completed', className: 'bg-gray-100 text-gray-800' },
-    cancelled: { label: 'Cancelled', className: 'bg-red-100 text-red-800' },
-    'no-show': { label: 'No Show', className: 'bg-orange-100 text-orange-800' },
+    inquiry: { label: 'Inquiry', variant: 'info' as const },
+    confirmed: { label: 'Confirmed', variant: 'success' as const },
+    scheduled: { label: 'Scheduled', variant: 'default' as const },
+    completed: { label: 'Completed', variant: 'secondary' as const },
+    cancelled: { label: 'Cancelled', variant: 'destructive' as const },
+    'no-show': { label: 'No Show', variant: 'warning' as const },
   }
   const config = statusConfig[status]
-  return <Badge className={config.className}>{config.label}</Badge>
+  return <Badge variant={config.variant}>{config.label}</Badge>
 }
 
 function getTypeLabel(type: Booking['type']) {
@@ -197,15 +197,12 @@ interface BookingListProps {
 }
 
 export function BookingList({ studioSlug, isLoading = false }: BookingListProps) {
-  const router = useRouter()
-  const searchParams = useSearchParams()
-
   const [bookings, setBookings] = React.useState<Booking[]>(mockBookings)
   const [searchQuery, setSearchQuery] = React.useState('')
   const [statusFilter, setStatusFilter] = React.useState<string>('all')
   const [typeFilter, setTypeFilter] = React.useState<string>('all')
   const [dateFilter, setDateFilter] = React.useState<string>('all')
-  const [sortBy, setSortBy] = React.useState<string>('startDateTime')
+  const [sortBy] = React.useState<string>('startDateTime')
   const [sortOrder, setSortOrder] = React.useState<'asc' | 'desc'>('asc')
   const [viewMode, setViewMode] = React.useState<'table' | 'calendar'>('table')
   const [selectedBookings, setSelectedBookings] = React.useState<string[]>([])
@@ -268,11 +265,23 @@ export function BookingList({ studioSlug, isLoading = false }: BookingListProps)
     return result
   }, [bookings, searchQuery, statusFilter, typeFilter, dateFilter, sortBy, sortOrder])
 
+  const [deleteConfirm, setDeleteConfirm] = React.useState<string | null>(null)
+  const [bulkDeleteConfirm, setBulkDeleteConfirm] = React.useState(false)
+
   const handleDelete = (id: string) => {
-    if (confirm('Are you sure you want to delete this booking?')) {
-      setBookings(prev => prev.filter(b => b.id !== id))
-      setSelectedBookings(prev => prev.filter(g => g !== id))
-    }
+    setDeleteConfirm(id)
+  }
+
+  const confirmDelete = (id: string) => {
+    setBookings(prev => prev.filter(b => b.id !== id))
+    setSelectedBookings(prev => prev.filter(g => g !== id))
+    setDeleteConfirm(null)
+  }
+
+  const confirmBulkDelete = () => {
+    setBookings(prev => prev.filter(b => !selectedBookings.includes(b.id)))
+    setSelectedBookings([])
+    setBulkDeleteConfirm(false)
   }
 
   const handleBulkAction = (action: 'delete' | 'confirm' | 'cancel') => {
@@ -280,10 +289,7 @@ export function BookingList({ studioSlug, isLoading = false }: BookingListProps)
 
     switch (action) {
       case 'delete':
-        if (confirm(`Delete ${selectedBookings.length} bookings?`)) {
-          setBookings(prev => prev.filter(b => !selectedBookings.includes(b.id)))
-          setSelectedBookings([])
-        }
+        setBulkDeleteConfirm(true)
         break
       case 'confirm':
         setBookings(prev =>
@@ -342,7 +348,7 @@ export function BookingList({ studioSlug, isLoading = false }: BookingListProps)
       {/* Page Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-display-md font-display font-bold text-foreground">Bookings</h1>
+          <h1 className="text-display-md font-display font-semibold text-foreground">Bookings</h1>
           <p className="text-body text-muted-foreground mt-1">Manage your sessions and appointments</p>
         </div>
         <Link href={`/dashboard/${studioSlug}/bookings/new`}>
@@ -479,7 +485,8 @@ export function BookingList({ studioSlug, isLoading = false }: BookingListProps)
                       type="checkbox"
                       checked={selectedBookings.length === filteredBookings.length && filteredBookings.length > 0}
                       onChange={toggleSelectAll}
-                      className="rounded border-input"
+                      aria-label="Select all bookings"
+                      className="h-4 w-4 rounded border-input text-primary focus:ring-2 focus:ring-primary"
                     />
                   </TableHead>
                   <TableHead>Session</TableHead>
@@ -508,7 +515,8 @@ export function BookingList({ studioSlug, isLoading = false }: BookingListProps)
                           type="checkbox"
                           checked={selectedBookings.includes(booking.id)}
                           onChange={() => toggleSelect(booking.id)}
-                          className="rounded border-input"
+                          aria-label={`Select ${booking.title}`}
+                          className="h-4 w-4 rounded border-input text-primary focus:ring-2 focus:ring-primary"
                         />
                       </TableCell>
                       <TableCell>
@@ -553,11 +561,11 @@ export function BookingList({ studioSlug, isLoading = false }: BookingListProps)
                       <TableCell className="hidden md:table-cell">
                         {getStatusBadge(booking.status)}
                       </TableCell>
-                      <TableCell className="text-right hidden xl:table-cell font-medium">
+                      <TableCell className="text-right hidden xl:table-cell font-mono tabular-nums">
                         {booking.balanceDue > 0 ? (
                           <span className="text-destructive">${booking.balanceDue.toLocaleString()} due</span>
                         ) : (
-                          <span className="text-success">Paid in full</span>
+                          <span className="text-success font-sans">Paid in full</span>
                         )}
                       </TableCell>
                       <TableCell>
@@ -585,7 +593,7 @@ export function BookingList({ studioSlug, isLoading = false }: BookingListProps)
                               <DropdownMenuItem onClick={() => {
                                 setBookings(prev => prev.map(b => b.id === booking.id ? { ...b, status: 'confirmed' as const } : b))
                               }}>
-                                <CheckCircle className="mr-2 h-4 w-4 text-green-600" />
+                                <CheckCircle className="mr-2 h-4 w-4 text-success" />
                                 Mark Confirmed
                               </DropdownMenuItem>
                             )}
@@ -636,7 +644,7 @@ export function BookingList({ studioSlug, isLoading = false }: BookingListProps)
                   <Button variant="outline" size="icon" onClick={() => setSelectedDate(d => d ? addDays(d, -1) : undefined)}>
                     <ChevronLeft className="h-4 w-4" />
                   </Button>
-                  <Button variant="outline" size="icon" onClick={() => setSelectedDate(new Date())}>
+                  <Button variant="outline" size="sm" onClick={() => setSelectedDate(new Date())}>
                     Today
                   </Button>
                   <Button variant="outline" size="icon" onClick={() => setSelectedDate(d => d ? addDays(d, 1) : undefined)}>
@@ -648,7 +656,7 @@ export function BookingList({ studioSlug, isLoading = false }: BookingListProps)
             <CalendarComponent
               mode="single"
               selected={selectedDate}
-              onSelect={setSelectedDate}
+              onSelect={(date) => setSelectedDate(date as Date)}
               className="p-4"
             />
             <div className="p-4 border-t">
@@ -696,9 +704,38 @@ export function BookingList({ studioSlug, isLoading = false }: BookingListProps)
           <Button variant="outline" size="sm" disabled>Next</Button>
         </div>
       </div>
+
+      {/* Delete confirmation */}
+      <Dialog open={!!deleteConfirm} onOpenChange={(open) => !open && setDeleteConfirm(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Delete booking</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete this booking? This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteConfirm(null)}>Cancel</Button>
+            <Button variant="destructive" onClick={() => deleteConfirm && confirmDelete(deleteConfirm)}>Delete</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Bulk delete confirmation */}
+      <Dialog open={bulkDeleteConfirm} onOpenChange={setBulkDeleteConfirm}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Delete {selectedBookings.length} booking{selectedBookings.length !== 1 ? 's' : ''}</DialogTitle>
+            <DialogDescription>
+              This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setBulkDeleteConfirm(false)}>Cancel</Button>
+            <Button variant="destructive" onClick={confirmBulkDelete}>Delete</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
-
-// Missing imports
-import { ArrowUpDown, LayoutList, LayoutGrid } from 'lucide-react'

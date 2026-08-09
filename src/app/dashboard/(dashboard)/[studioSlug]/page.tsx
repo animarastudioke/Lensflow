@@ -6,8 +6,6 @@ import { DashboardLayout } from '@/components/layout/dashboard-layout'
 import {
   Card,
   CardContent,
-  CardDescription,
-  CardFooter,
   CardHeader,
   CardTitle,
 } from '@/components/ui/card'
@@ -15,18 +13,13 @@ import { Button } from '@/components/ui/button'
 import {
   Users,
   Image,
-  Images,
   Calendar,
   DollarSign,
-  BarChart3,
-  TrendingUp,
   Clock,
   ArrowRight,
   Plus,
-  Briefcase,
   FileText,
   Store,
-  Globe,
 } from 'lucide-react'
 import { format } from 'date-fns'
 
@@ -124,7 +117,7 @@ export default async function DashboardPage({ params }: DashboardPageProps) {
         {/* Page Header */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
-            <h1 className="text-display-md font-display font-bold text-foreground">
+            <h1 className="text-display-md font-display font-semibold text-foreground">
               Welcome back, {user.firstName}
             </h1>
             <p className="text-body text-muted-foreground mt-1">
@@ -141,30 +134,25 @@ export default async function DashboardPage({ params }: DashboardPageProps) {
           </div>
         </div>
 
-        {/* Stats Grid */}
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-          {dashboardData.stats.map((stat, index) => (
-            <Card key={stat.label} className="card-hover">
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground">
-                  {stat.label}
-                </CardTitle>
-                <stat.icon className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">{stat.value}</div>
-                <p className="text-xs text-success mt-1 flex items-center gap-1">
-                  <TrendingUp className="h-3 w-3" />
-                  {stat.change} vs last month
-                </p>
-              </CardContent>
-              <CardFooter className="flex items-center justify-between pt-0">
-                <Link href={stat.href} className="text-sm text-primary hover:underline flex items-center gap-1">
-                  View details
-                  <ArrowRight className="h-3.5 w-3.5" />
-                </Link>
-              </CardFooter>
-            </Card>
+        {/* Stats plaque: one bordered region, hairline dividers, not repeated cards */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 divide-x divide-y lg:divide-y-0 divide-border border border-border">
+          {dashboardData.stats.map((stat) => (
+            <Link
+              key={stat.label}
+              href={stat.href}
+              className="group px-5 py-5 transition-colors hover:bg-accent"
+            >
+              <div className="flex items-center justify-between">
+                <span className="label-caption">{stat.label}</span>
+                <stat.icon className="h-4 w-4 text-muted-foreground/60" strokeWidth={1.5} />
+              </div>
+              <div className="mt-2 font-mono text-2xl font-medium text-foreground tabular-nums">
+                {stat.value}
+              </div>
+              <div className="mt-1 flex items-center gap-1 text-xs text-success">
+                {stat.change} vs last month
+              </div>
+            </Link>
           ))}
         </div>
 
@@ -173,25 +161,22 @@ export default async function DashboardPage({ params }: DashboardPageProps) {
           {/* Quick Actions */}
           <div className="lg:col-span-2 space-y-4">
             <h2 className="text-heading font-semibold">Quick Actions</h2>
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              {dashboardData.quickActions.map((action, index) => (
-                <Link key={action.title} href={action.href}>
-                  <Card className={action.primary ? 'border-primary/50 bg-primary/5' : 'card-hover'}>
-                    <CardContent className="pt-6 pb-4">
-                      <div className="flex items-center gap-3">
-                        <div className={cn(
-                          'h-10 w-10 rounded-lg flex items-center justify-center',
-                          action.primary ? 'bg-primary text-primary-foreground' : 'bg-muted'
-                        )}>
-                          <action.icon className="h-5 w-5" />
-                        </div>
-                        <div>
-                          <p className="font-medium text-foreground">{action.title}</p>
-                          <p className="text-sm text-muted-foreground">{action.description}</p>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
+            <div className="border-y border-border divide-y divide-border">
+              {dashboardData.quickActions.map((action) => (
+                <Link
+                  key={action.title}
+                  href={action.href}
+                  className="group flex items-center gap-4 py-3.5 transition-colors hover:bg-accent -mx-1 px-1"
+                >
+                  <action.icon
+                    className={cn('h-5 w-5 flex-shrink-0', action.primary ? 'text-primary' : 'text-muted-foreground')}
+                    strokeWidth={1.5}
+                  />
+                  <div className="min-w-0 flex-1">
+                    <p className="font-medium text-foreground">{action.title}</p>
+                    <p className="text-sm text-muted-foreground">{action.description}</p>
+                  </div>
+                  <ArrowRight className="h-4 w-4 text-muted-foreground/40 flex-shrink-0 opacity-0 transition-opacity group-hover:opacity-100" />
                 </Link>
               ))}
             </div>
@@ -229,7 +214,7 @@ export default async function DashboardPage({ params }: DashboardPageProps) {
                             {format(new Date(booking.startDateTime), 'MMM d, h:mm a')}
                           </p>
                         </div>
-                        <span className="px-2 py-1 text-xs rounded-full bg-green-100 text-green-800">
+                        <span className="px-2 py-1 text-xs rounded-full bg-success/10 text-success">
                           {booking.status}
                         </span>
                       </li>
@@ -270,33 +255,6 @@ export default async function DashboardPage({ params }: DashboardPageProps) {
                 )}
               </CardContent>
             </Card>
-          </div>
-        </div>
-
-        {/* Feature Overview */}
-        <div className="border-t border-border pt-6">
-          <h2 className="text-heading font-semibold mb-4">Explore Features</h2>
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-6">
-            {[
-              { title: 'Galleries', description: 'Client photo delivery', icon: Images, href: `/dashboard/${studioSlug}/galleries` },
-              { title: 'Clients', description: 'CRM & relationships', icon: Users, href: `/dashboard/${studioSlug}/clients` },
-              { title: 'Projects', description: 'Track shoots & deliverables', icon: Briefcase, href: `/dashboard/${studioSlug}/projects` },
-              { title: 'Bookings', description: 'Schedule & manage sessions', icon: Calendar, href: `/dashboard/${studioSlug}/bookings` },
-              { title: 'Contracts', description: 'Digital signatures & docs', icon: FileText, href: `/dashboard/${studioSlug}/contracts` },
-              { title: 'Store', description: 'Sell prints & digital', icon: Store, href: `/dashboard/${studioSlug}/store` },
-              { title: 'Website', description: 'Portfolio & landing pages', icon: Globe, href: `/dashboard/${studioSlug}/website` },
-              { title: 'Analytics', description: 'Revenue & insights', icon: BarChart3, href: `/dashboard/${studioSlug}/analytics` },
-            ].map((feature) => (
-              <Link key={feature.title} href={feature.href}>
-                <Card className="card-hover text-center p-6">
-                  <div className="h-12 w-12 rounded-xl bg-primary/10 flex items-center justify-center mx-auto mb-4">
-                    <feature.icon className="h-6 w-6 text-primary" />
-                  </div>
-                  <h3 className="font-medium text-foreground mb-1">{feature.title}</h3>
-                  <p className="text-sm text-muted-foreground">{feature.description}</p>
-                </Card>
-              </Link>
-            ))}
           </div>
         </div>
       </div>

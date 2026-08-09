@@ -1,17 +1,21 @@
 'use client'
 
 import * as React from 'react'
-import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
-import { cn } from '@/lib/utils'
 import { format } from 'date-fns'
 import {
   Card,
   CardContent,
-  CardDescription,
   CardHeader,
-  CardTitle,
 } from '@/components/ui/card'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
@@ -24,7 +28,6 @@ import {
 import {
   Plus,
   Search,
-  Filter,
   FileText,
   DollarSign,
   Eye,
@@ -35,8 +38,12 @@ import {
   Mail,
   AlertCircle,
   Clock,
-  CreditCard,
   Banknote,
+  LayoutList,
+  LayoutGrid,
+  ArrowUpDown,
+  CheckCircle,
+  Calendar,
 } from 'lucide-react'
 import {
   DropdownMenu,
@@ -55,7 +62,6 @@ import {
 } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
-import { Separator } from '@/components/ui/separator'
 
 interface Invoice {
   id: string
@@ -186,17 +192,17 @@ const mockInvoices: Invoice[] = [
 
 function getStatusBadge(status: Invoice['status']) {
   const statusConfig = {
-    draft: { label: 'Draft', className: 'bg-gray-100 text-gray-800' },
-    sent: { label: 'Sent', className: 'bg-blue-100 text-blue-800' },
-    viewed: { label: 'Viewed', className: 'bg-yellow-100 text-yellow-800' },
-    paid: { label: 'Paid', className: 'bg-green-100 text-green-800' },
-    partial: { label: 'Partial', className: 'bg-orange-100 text-orange-800' },
-    overdue: { label: 'Overdue', className: 'bg-red-100 text-red-800' },
-    cancelled: { label: 'Cancelled', className: 'bg-gray-100 text-gray-600' },
-    refunded: { label: 'Refunded', className: 'bg-purple-100 text-purple-800' },
+    draft: { label: 'Draft', variant: 'secondary' as const },
+    sent: { label: 'Sent', variant: 'info' as const },
+    viewed: { label: 'Viewed', variant: 'outline' as const },
+    paid: { label: 'Paid', variant: 'success' as const },
+    partial: { label: 'Partial', variant: 'warning' as const },
+    overdue: { label: 'Overdue', variant: 'destructive' as const },
+    cancelled: { label: 'Cancelled', variant: 'secondary' as const },
+    refunded: { label: 'Refunded', variant: 'outline' as const },
   }
   const config = statusConfig[status]
-  return <Badge className={config.className}>{config.label}</Badge>
+  return <Badge variant={config.variant}>{config.label}</Badge>
 }
 
 interface InvoiceListProps {
@@ -205,13 +211,10 @@ interface InvoiceListProps {
 }
 
 export function InvoiceList({ studioSlug, isLoading = false }: InvoiceListProps) {
-  const router = useRouter()
-  const searchParams = useSearchParams()
-
   const [invoices, setInvoices] = React.useState<Invoice[]>(mockInvoices)
   const [searchQuery, setSearchQuery] = React.useState('')
   const [statusFilter, setStatusFilter] = React.useState<string>('all')
-  const [sortBy, setSortBy] = React.useState<string>('issueDate')
+  const [sortBy] = React.useState<string>('issueDate')
   const [sortOrder, setSortOrder] = React.useState<'asc' | 'desc'>('desc')
   const [viewMode, setViewMode] = React.useState<'table' | 'grid'>('table')
   const [selectedInvoices, setSelectedInvoices] = React.useState<string[]>([])
@@ -245,11 +248,23 @@ export function InvoiceList({ studioSlug, isLoading = false }: InvoiceListProps)
     return result
   }, [invoices, searchQuery, statusFilter, sortBy, sortOrder])
 
+  const [deleteConfirm, setDeleteConfirm] = React.useState<string | null>(null)
+  const [bulkDeleteConfirm, setBulkDeleteConfirm] = React.useState(false)
+
   const handleDelete = (id: string) => {
-    if (confirm('Are you sure you want to delete this invoice?')) {
-      setInvoices(prev => prev.filter(i => i.id !== id))
-      setSelectedInvoices(prev => prev.filter(g => g !== id))
-    }
+    setDeleteConfirm(id)
+  }
+
+  const confirmDelete = (id: string) => {
+    setInvoices(prev => prev.filter(i => i.id !== id))
+    setSelectedInvoices(prev => prev.filter(g => g !== id))
+    setDeleteConfirm(null)
+  }
+
+  const confirmBulkDelete = () => {
+    setInvoices(prev => prev.filter(i => !selectedInvoices.includes(i.id)))
+    setSelectedInvoices([])
+    setBulkDeleteConfirm(false)
   }
 
   const handleBulkAction = (action: 'delete' | 'send' | 'mark-paid') => {
@@ -257,10 +272,7 @@ export function InvoiceList({ studioSlug, isLoading = false }: InvoiceListProps)
 
     switch (action) {
       case 'delete':
-        if (confirm(`Delete ${selectedInvoices.length} invoices?`)) {
-          setInvoices(prev => prev.filter(i => !selectedInvoices.includes(i.id)))
-          setSelectedInvoices([])
-        }
+        setBulkDeleteConfirm(true)
         break
       case 'send':
         setInvoices(prev =>
@@ -324,47 +336,41 @@ export function InvoiceList({ studioSlug, isLoading = false }: InvoiceListProps)
 
   return (
     <div className="space-y-6">
-      {/* Stats Row */}
-      <div className="grid gap-4 md:grid-cols-3">
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">Total Revenue</p>
-                <p className="text-2xl font-bold">${totalRevenue.toLocaleString()}</p>
-              </div>
-              <DollarSign className="h-8 w-8 text-muted-foreground/50" />
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">Outstanding</p>
-                <p className="text-2xl font-bold text-destructive">${outstandingAmount.toLocaleString()}</p>
-              </div>
-              <Clock className="h-8 w-8 text-muted-foreground/50" />
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">Overdue</p>
-                <p className="text-2xl font-bold text-destructive">{overdueCount}</p>
-              </div>
-              <AlertCircle className="h-8 w-8 text-muted-foreground/50" />
-            </div>
-          </CardContent>
-        </Card>
+      {/* Stats plaque: one bordered region, hairline dividers, not repeated cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 divide-y sm:divide-y-0 sm:divide-x divide-border border border-border">
+        <div className="px-5 py-5">
+          <div className="flex items-center justify-between">
+            <span className="label-caption">Total revenue</span>
+            <DollarSign className="h-4 w-4 text-muted-foreground/60" strokeWidth={1.5} />
+          </div>
+          <div className="mt-2 font-mono text-2xl font-medium text-foreground tabular-nums">
+            ${totalRevenue.toLocaleString()}
+          </div>
+        </div>
+        <div className="px-5 py-5">
+          <div className="flex items-center justify-between">
+            <span className="label-caption">Outstanding</span>
+            <Clock className="h-4 w-4 text-muted-foreground/60" strokeWidth={1.5} />
+          </div>
+          <div className="mt-2 font-mono text-2xl font-medium text-destructive tabular-nums">
+            ${outstandingAmount.toLocaleString()}
+          </div>
+        </div>
+        <div className="px-5 py-5">
+          <div className="flex items-center justify-between">
+            <span className="label-caption">Overdue</span>
+            <AlertCircle className="h-4 w-4 text-muted-foreground/60" strokeWidth={1.5} />
+          </div>
+          <div className="mt-2 font-mono text-2xl font-medium text-destructive tabular-nums">
+            {overdueCount}
+          </div>
+        </div>
       </div>
 
       {/* Page Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-display-md font-display font-bold text-foreground">Invoices</h1>
+          <h1 className="text-display-md font-display font-semibold text-foreground">Invoices</h1>
           <p className="text-body text-muted-foreground mt-1">Track payments, send reminders, manage billing</p>
         </div>
         <Link href={`/dashboard/${studioSlug}/invoices/new`}>
@@ -475,7 +481,8 @@ export function InvoiceList({ studioSlug, isLoading = false }: InvoiceListProps)
                       type="checkbox"
                       checked={selectedInvoices.length === filteredInvoices.length && filteredInvoices.length > 0}
                       onChange={toggleSelectAll}
-                      className="rounded border-input"
+                      aria-label="Select all invoices"
+                      className="h-4 w-4 rounded border-input text-primary focus:ring-2 focus:ring-primary"
                     />
                   </TableHead>
                   <TableHead>Invoice #</TableHead>
@@ -503,7 +510,8 @@ export function InvoiceList({ studioSlug, isLoading = false }: InvoiceListProps)
                           type="checkbox"
                           checked={selectedInvoices.includes(invoice.id)}
                           onChange={() => toggleSelect(invoice.id)}
-                          className="rounded border-input"
+                          aria-label={`Select ${invoice.invoiceNumber}`}
+                          className="h-4 w-4 rounded border-input text-primary focus:ring-2 focus:ring-primary"
                         />
                       </TableCell>
                       <TableCell>
@@ -546,10 +554,10 @@ export function InvoiceList({ studioSlug, isLoading = false }: InvoiceListProps)
                       <TableCell className="hidden md:table-cell">
                         {getStatusBadge(invoice.status)}
                       </TableCell>
-                      <TableCell className="text-right hidden lg:table-cell font-medium">
+                      <TableCell className="text-right hidden lg:table-cell font-mono tabular-nums">
                         ${invoice.total.toLocaleString()}
                       </TableCell>
-                      <TableCell className="text-right hidden xl:table-cell font-medium">
+                      <TableCell className="text-right hidden xl:table-cell font-mono tabular-nums">
                         {invoice.balanceDue > 0 ? (
                           <span className="text-destructive">${invoice.balanceDue.toLocaleString()}</span>
                         ) : (
@@ -598,13 +606,13 @@ export function InvoiceList({ studioSlug, isLoading = false }: InvoiceListProps)
                                 </DropdownMenuItem>
                               </>
                             )}
-                            {invoice.status === 'sent' || invoice.status === 'viewed' || invoice.status === 'partial' || invoice.status === 'overdue' && (
+                            {(invoice.status === 'sent' || invoice.status === 'viewed' || invoice.status === 'partial' || invoice.status === 'overdue') && (
                               <>
                                 <DropdownMenuSeparator />
                                 <DropdownMenuItem onClick={() => {
                                   setInvoices(prev => prev.map(i => i.id === invoice.id ? { ...i, status: 'paid' as const, amountPaid: i.total, balanceDue: 0, paidDate: new Date().toISOString() } : i))
                                 }}>
-                                  <CheckCircle className="mr-2 h-4 w-4 text-green-600" />
+                                  <CheckCircle className="mr-2 h-4 w-4 text-success" />
                                   Mark as Paid
                                 </DropdownMenuItem>
                                 <DropdownMenuItem onClick={() => {}}>
@@ -658,13 +666,11 @@ export function InvoiceList({ studioSlug, isLoading = false }: InvoiceListProps)
                         type="checkbox"
                         checked={selectedInvoices.includes(invoice.id)}
                         onChange={() => toggleSelect(invoice.id)}
-                        className="rounded border-input mt-1"
+                        aria-label={`Select ${invoice.invoiceNumber}`}
+                        className="h-4 w-4 rounded border-input text-primary focus:ring-2 focus:ring-primary"
                       />
-                      <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center">
-                        <FileText className="h-5 w-5 text-primary" />
-                      </div>
                       <div className="min-w-0">
-                        <h3 className="font-semibold truncate font-mono">{invoice.invoiceNumber}</h3>
+                        <h3 className="font-medium truncate font-mono">{invoice.invoiceNumber}</h3>
                         <p className="text-sm text-muted-foreground">{invoice.clientName}</p>
                       </div>
                     </div>
@@ -699,10 +705,10 @@ export function InvoiceList({ studioSlug, isLoading = false }: InvoiceListProps)
                       Due: {format(new Date(invoice.dueDate), 'MMM d, yyyy')}
                     </span>
                   </div>
-                  <div className="text-2xl font-bold">${invoice.total.toLocaleString()}</div>
+                  <div className="font-mono text-2xl font-medium tabular-nums">${invoice.total.toLocaleString()}</div>
                   {invoice.balanceDue > 0 && (
                     <div className="text-sm text-destructive">
-                      Balance due: ${invoice.balanceDue.toLocaleString()}
+                      Balance due: <span className="font-mono tabular-nums">${invoice.balanceDue.toLocaleString()}</span>
                     </div>
                   )}
                   <div className="pt-2 border-t flex items-center justify-between">
@@ -712,7 +718,7 @@ export function InvoiceList({ studioSlug, isLoading = false }: InvoiceListProps)
                           View
                         </Link>
                       </Button>
-                      {invoice.status === 'sent' || invoice.status === 'viewed' || invoice.status === 'partial' || invoice.status === 'overdue' && (
+                      {(invoice.status === 'sent' || invoice.status === 'viewed' || invoice.status === 'partial' || invoice.status === 'overdue') && (
                         <Button variant="default" size="sm" onClick={() => {
                           setInvoices(prev => prev.map(i => i.id === invoice.id ? { ...i, status: 'paid' as const, amountPaid: i.total, balanceDue: 0, paidDate: new Date().toISOString() } : i))
                         }}>
@@ -739,8 +745,38 @@ export function InvoiceList({ studioSlug, isLoading = false }: InvoiceListProps)
           <Button variant="outline" size="sm" disabled>Next</Button>
         </div>
       </div>
+
+      {/* Delete confirmation */}
+      <Dialog open={!!deleteConfirm} onOpenChange={(open) => !open && setDeleteConfirm(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Delete invoice</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete this invoice? This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteConfirm(null)}>Cancel</Button>
+            <Button variant="destructive" onClick={() => deleteConfirm && confirmDelete(deleteConfirm)}>Delete</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Bulk delete confirmation */}
+      <Dialog open={bulkDeleteConfirm} onOpenChange={setBulkDeleteConfirm}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Delete {selectedInvoices.length} invoice{selectedInvoices.length !== 1 ? 's' : ''}</DialogTitle>
+            <DialogDescription>
+              This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setBulkDeleteConfirm(false)}>Cancel</Button>
+            <Button variant="destructive" onClick={confirmBulkDelete}>Delete</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
-
-// Missing imports

@@ -10,7 +10,7 @@ export default function ConfirmedPage() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-muted/30 px-4 py-12">
       <div className="w-full max-w-md">
-        <Card className="shadow-xl">
+        <Card>
           <CardHeader className="text-center">
             <div className="flex justify-center mb-6">
               <div className="h-16 w-16 rounded-full bg-success/10 flex items-center justify-center">

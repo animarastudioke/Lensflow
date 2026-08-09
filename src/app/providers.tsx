@@ -36,7 +36,7 @@ export function Providers({ children }: { children: ReactNode }) {
             position="top-right"
             toastOptions={{
               classNames: {
-                toast: 'glass-dark',
+                toast: 'bg-card text-card-foreground border border-border rounded-md',
                 description: 'text-sm text-muted-foreground',
                 actionButton: 'bg-primary text-primary-foreground',
                 cancelButton: 'bg-secondary text-secondary-foreground',

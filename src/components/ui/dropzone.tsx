@@ -1,6 +1,7 @@
 import * as React from 'react'
 import { cn } from '@/lib/utils'
 import { X, Loader2 } from 'lucide-react'
+import { Button } from '@/components/ui/button'
 
 interface DropzoneProps {
   onFilesChange: (files: File[]) => void
@@ -24,7 +25,7 @@ export function Dropzone({
   children,
 }: DropzoneProps) {
   const [isDragActive, setIsDragActive] = React.useState(false)
-  const [isUploading, setIsUploading] = React.useState(false)
+  const [isUploading] = React.useState(false)
   const [files, setFiles] = React.useState<File[]>([])
   const inputRef = React.useRef<HTMLInputElement>(null)
 
@@ -212,7 +213,7 @@ export function Dropzone({
               </Button>
             </div>
           ))}
-        </>
+        </div>
       )}
 
       {isUploading && (

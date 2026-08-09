@@ -18,7 +18,7 @@ export async function generateMetadata({
   }
 }
 
-export default async function InvoicesPage({ params, searchParams }: InvoicesPageProps) {
+export default async function InvoicesPage({ params }: InvoicesPageProps) {
   const { studioSlug } = await params
   const user = await getAuthUserServer()
 

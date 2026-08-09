@@ -18,7 +18,7 @@ export async function generateMetadata({
   }
 }
 
-export default async function StorePage({ params, searchParams }: StorePageProps) {
+export default async function StorePage({ params }: StorePageProps) {
   const { studioSlug } = await params
   const user = await getAuthUserServer()
 

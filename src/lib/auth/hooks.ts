@@ -1,9 +1,11 @@
 'use client'
 
 import { createContext, useContext, useEffect, useState, ReactNode, createElement } from 'react'
-import { User, Session } from '@supabase/supabase-js'
+import { Session } from '@supabase/supabase-js'
 import { createBrowserClient } from '@/lib/supabase/client'
-import { UserRole } from './permissions'
+import type { UserRole } from './permissions'
+
+export type { UserRole }
 
 interface AuthUser {
   id: string
@@ -48,20 +50,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser({
         id: profile.id,
         email: profile.email,
-        firstName: profile.first_name,
-        lastName: profile.last_name,
-        avatarUrl: profile.avatar_url,
-        role: profile.role as UserRole,
+        firstName: profile['first_name'],
+        lastName: profile['last_name'],
+        avatarUrl: profile['avatar_url'],
+        role: profile['role'] as UserRole,
         studioId: profile.studio_id,
       })
     } else {
       setUser({
         id: session.user.id,
         email: session.user.email!,
-        firstName: session.user.user_metadata?.first_name || 'User',
-        lastName: session.user.user_metadata?.last_name || '',
-        avatarUrl: session.user.user_metadata?.avatar_url,
-        role: (session.user.user_metadata?.role as UserRole) || 'client',
+        firstName: session.user.user_metadata?.['first_name'] || 'User',
+        lastName: session.user.user_metadata?.['last_name'] || '',
+        avatarUrl: session.user.user_metadata?.['avatar_url'],
+        role: (session.user.user_metadata?.['role'] as UserRole) || 'client',
       })
     }
   }

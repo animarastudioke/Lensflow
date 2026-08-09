@@ -1,17 +1,21 @@
 'use client'
 
 import * as React from 'react'
-import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
-import { cn } from '@/lib/utils'
 import { format } from 'date-fns'
 import {
   Card,
   CardContent,
-  CardDescription,
   CardHeader,
-  CardTitle,
 } from '@/components/ui/card'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
@@ -24,17 +28,17 @@ import {
 import {
   Plus,
   Search,
-  Filter,
   Calendar,
-  Camera,
   Image,
   MoreVertical,
   Trash2,
   Edit,
   Eye,
-  CheckCircle,
-  AlertCircle,
   Briefcase,
+  ArrowUpDown,
+  LayoutList,
+  LayoutGrid,
+  Video,
 } from 'lucide-react'
 import {
   DropdownMenu,
@@ -53,7 +57,6 @@ import {
 } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
-import { Separator } from '@/components/ui/separator'
 import { Progress } from '@/components/ui/progress'
 
 interface Project {
@@ -170,16 +173,16 @@ const mockProjects: Project[] = [
 
 function getStatusBadge(status: Project['status']) {
   const statusConfig = {
-    planning: { label: 'Planning', className: 'bg-gray-100 text-gray-800' },
-    scheduled: { label: 'Scheduled', className: 'bg-blue-100 text-blue-800' },
-    'in-progress': { label: 'In Progress', className: 'bg-yellow-100 text-yellow-800' },
-    editing: { label: 'Editing', className: 'bg-purple-100 text-purple-800' },
-    review: { label: 'Client Review', className: 'bg-orange-100 text-orange-800' },
-    delivered: { label: 'Delivered', className: 'bg-green-100 text-green-800' },
-    archived: { label: 'Archived', className: 'bg-gray-100 text-gray-600' },
+    planning: { label: 'Planning', variant: 'secondary' as const },
+    scheduled: { label: 'Scheduled', variant: 'info' as const },
+    'in-progress': { label: 'In Progress', variant: 'default' as const },
+    editing: { label: 'Editing', variant: 'warning' as const },
+    review: { label: 'Client Review', variant: 'outline' as const },
+    delivered: { label: 'Delivered', variant: 'success' as const },
+    archived: { label: 'Archived', variant: 'secondary' as const },
   }
   const config = statusConfig[status]
-  return <Badge className={config.className}>{config.label}</Badge>
+  return <Badge variant={config.variant}>{config.label}</Badge>
 }
 
 function getTypeLabel(type: Project['type']) {
@@ -202,14 +205,11 @@ interface ProjectListProps {
 }
 
 export function ProjectList({ studioSlug, isLoading = false }: ProjectListProps) {
-  const router = useRouter()
-  const searchParams = useSearchParams()
-
   const [projects, setProjects] = React.useState<Project[]>(mockProjects)
   const [searchQuery, setSearchQuery] = React.useState('')
   const [statusFilter, setStatusFilter] = React.useState<string>('all')
   const [typeFilter, setTypeFilter] = React.useState<string>('all')
-  const [sortBy, setSortBy] = React.useState<string>('startDate')
+  const [sortBy] = React.useState<string>('startDate')
   const [sortOrder, setSortOrder] = React.useState<'asc' | 'desc'>('asc')
   const [viewMode, setViewMode] = React.useState<'table' | 'grid'>('table')
   const [selectedProjects, setSelectedProjects] = React.useState<string[]>([])
@@ -248,11 +248,23 @@ export function ProjectList({ studioSlug, isLoading = false }: ProjectListProps)
     return result
   }, [projects, searchQuery, statusFilter, typeFilter, sortBy, sortOrder])
 
+  const [deleteConfirm, setDeleteConfirm] = React.useState<string | null>(null)
+  const [bulkDeleteConfirm, setBulkDeleteConfirm] = React.useState(false)
+
   const handleDelete = (id: string) => {
-    if (confirm('Are you sure you want to delete this project?')) {
-      setProjects(prev => prev.filter(p => p.id !== id))
-      setSelectedProjects(prev => prev.filter(g => g !== id))
-    }
+    setDeleteConfirm(id)
+  }
+
+  const confirmDelete = (id: string) => {
+    setProjects(prev => prev.filter(p => p.id !== id))
+    setSelectedProjects(prev => prev.filter(g => g !== id))
+    setDeleteConfirm(null)
+  }
+
+  const confirmBulkDelete = () => {
+    setProjects(prev => prev.filter(p => !selectedProjects.includes(p.id)))
+    setSelectedProjects([])
+    setBulkDeleteConfirm(false)
   }
 
   const handleBulkAction = (action: 'delete' | 'archive') => {
@@ -260,10 +272,7 @@ export function ProjectList({ studioSlug, isLoading = false }: ProjectListProps)
 
     switch (action) {
       case 'delete':
-        if (confirm(`Delete ${selectedProjects.length} projects?`)) {
-          setProjects(prev => prev.filter(p => !selectedProjects.includes(p.id)))
-          setSelectedProjects([])
-        }
+        setBulkDeleteConfirm(true)
         break
       case 'archive':
         setProjects(prev =>
@@ -314,7 +323,7 @@ export function ProjectList({ studioSlug, isLoading = false }: ProjectListProps)
       {/* Page Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-display-md font-display font-bold text-foreground">Projects</h1>
+          <h1 className="text-display-md font-display font-semibold text-foreground">Projects</h1>
           <p className="text-body text-muted-foreground mt-1">Track shoots, deliverables, and progress</p>
         </div>
         <Link href={`/dashboard/${studioSlug}/projects/new`}>
@@ -435,7 +444,8 @@ export function ProjectList({ studioSlug, isLoading = false }: ProjectListProps)
                       type="checkbox"
                       checked={selectedProjects.length === filteredProjects.length && filteredProjects.length > 0}
                       onChange={toggleSelectAll}
-                      className="rounded border-input"
+                      aria-label="Select all projects"
+                      className="h-4 w-4 rounded border-input text-primary focus:ring-2 focus:ring-primary"
                     />
                   </TableHead>
                   <TableHead>Project</TableHead>
@@ -464,7 +474,8 @@ export function ProjectList({ studioSlug, isLoading = false }: ProjectListProps)
                           type="checkbox"
                           checked={selectedProjects.includes(project.id)}
                           onChange={() => toggleSelect(project.id)}
-                          className="rounded border-input"
+                          aria-label={`Select ${project.title}`}
+                          className="h-4 w-4 rounded border-input text-primary focus:ring-2 focus:ring-primary"
                         />
                       </TableCell>
                       <TableCell>
@@ -511,11 +522,11 @@ export function ProjectList({ studioSlug, isLoading = false }: ProjectListProps)
                           <p className="text-xs text-muted-foreground mt-1">{project.progress}% complete</p>
                         </div>
                       </TableCell>
-                      <TableCell className="text-right hidden xl:table-cell font-medium">
+                      <TableCell className="text-right hidden xl:table-cell font-mono tabular-nums">
                         {project.balanceDue > 0 ? (
                           <span className="text-destructive">${project.balanceDue.toLocaleString()} due</span>
                         ) : (
-                          <span className="text-success">Paid in full</span>
+                          <span className="text-success font-sans">Paid in full</span>
                         )}
                       </TableCell>
                       <TableCell>
@@ -581,13 +592,11 @@ export function ProjectList({ studioSlug, isLoading = false }: ProjectListProps)
                         type="checkbox"
                         checked={selectedProjects.includes(project.id)}
                         onChange={() => toggleSelect(project.id)}
-                        className="rounded border-input mt-1"
+                        aria-label={`Select ${project.title}`}
+                        className="h-4 w-4 rounded border-input text-primary focus:ring-2 focus:ring-primary"
                       />
-                      <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center">
-                        <Camera className="h-5 w-5 text-primary" />
-                      </div>
                       <div className="min-w-0">
-                        <h3 className="font-semibold truncate">{project.title}</h3>
+                        <h3 className="font-medium truncate">{project.title}</h3>
                         <div className="flex items-center gap-2 mt-1">
                           {getStatusBadge(project.status)}
                           <Badge variant="outline" className="text-xs">{getTypeLabel(project.type)}</Badge>
@@ -654,7 +663,7 @@ export function ProjectList({ studioSlug, isLoading = false }: ProjectListProps)
                   </div>
                   <Progress value={project.progress} className="h-2" />
                   <div className="flex items-center justify-between text-sm">
-                    <div className="text-muted-foreground">
+                    <div className="text-muted-foreground font-mono tabular-nums">
                       ${project.paidAmount.toLocaleString()} / ${project.totalValue.toLocaleString()}
                     </div>
                     <div className="flex items-center gap-2">
@@ -688,9 +697,38 @@ export function ProjectList({ studioSlug, isLoading = false }: ProjectListProps)
           <Button variant="outline" size="sm" disabled>Next</Button>
         </div>
       </div>
+
+      {/* Delete confirmation */}
+      <Dialog open={!!deleteConfirm} onOpenChange={(open) => !open && setDeleteConfirm(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Delete project</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete this project? This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteConfirm(null)}>Cancel</Button>
+            <Button variant="destructive" onClick={() => deleteConfirm && confirmDelete(deleteConfirm)}>Delete</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Bulk delete confirmation */}
+      <Dialog open={bulkDeleteConfirm} onOpenChange={setBulkDeleteConfirm}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Delete {selectedProjects.length} project{selectedProjects.length !== 1 ? 's' : ''}</DialogTitle>
+            <DialogDescription>
+              This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setBulkDeleteConfirm(false)}>Cancel</Button>
+            <Button variant="destructive" onClick={confirmBulkDelete}>Delete</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
-
-// Missing imports
-import { ArrowUpDown, LayoutList, LayoutGrid, Video } from 'lucide-react'

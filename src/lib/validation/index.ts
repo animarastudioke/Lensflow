@@ -36,7 +36,17 @@ export const dateSchema = z.string().date('Invalid date')
 
 export const datetimeSchema = z.string().datetime('Invalid datetime')
 
-export const jsonSchema = z.string().json('Invalid JSON')
+export const jsonSchema = z.string().refine(
+  (value) => {
+    try {
+      JSON.parse(value)
+      return true
+    } catch {
+      return false
+    }
+  },
+  { message: 'Invalid JSON' }
+)
 
 export const positiveIntSchema = z.coerce.number().int().positive('Must be a positive integer')
 

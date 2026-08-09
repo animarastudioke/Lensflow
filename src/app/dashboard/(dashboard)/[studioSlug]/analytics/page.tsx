@@ -18,7 +18,7 @@ export async function generateMetadata({
   }
 }
 
-export default async function AnalyticsPage({ params, searchParams }: AnalyticsPageProps) {
+export default async function AnalyticsPage({ params }: AnalyticsPageProps) {
   const { studioSlug } = await params
   const user = await getAuthUserServer()
 

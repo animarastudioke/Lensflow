@@ -1,17 +1,21 @@
 'use client'
 
 import * as React from 'react'
-import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
-import { cn } from '@/lib/utils'
 import { format } from 'date-fns'
 import {
   Card,
   CardContent,
-  CardDescription,
   CardHeader,
-  CardTitle,
 } from '@/components/ui/card'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
@@ -24,15 +28,12 @@ import {
 import {
   Plus,
   Search,
-  Filter,
   FileText,
-  PenTool,
   Eye,
   MoreVertical,
   Trash2,
   Edit,
   Download,
-  AlertCircle,
   CheckCircle,
   Clock,
   Mail,
@@ -58,7 +59,6 @@ import {
 } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
-import { Separator } from '@/components/ui/separator'
 
 interface Contract {
   id: string
@@ -184,17 +184,17 @@ const mockContracts: Contract[] = [
 
 function getStatusBadge(status: Contract['status']) {
   const statusConfig = {
-    draft: { label: 'Draft', className: 'bg-gray-100 text-gray-800' },
-    sent: { label: 'Sent', className: 'bg-blue-100 text-blue-800' },
-    viewed: { label: 'Viewed', className: 'bg-yellow-100 text-yellow-800' },
-    signed: { label: 'Signed', className: 'bg-green-100 text-green-800' },
-    completed: { label: 'Completed', className: 'bg-purple-100 text-purple-800' },
-    expired: { label: 'Expired', className: 'bg-red-100 text-red-800' },
-    declined: { label: 'Declined', className: 'bg-orange-100 text-orange-800' },
-    cancelled: { label: 'Cancelled', className: 'bg-gray-100 text-gray-600' },
+    draft: { label: 'Draft', variant: 'secondary' as const },
+    sent: { label: 'Sent', variant: 'info' as const },
+    viewed: { label: 'Viewed', variant: 'outline' as const },
+    signed: { label: 'Signed', variant: 'default' as const },
+    completed: { label: 'Completed', variant: 'success' as const },
+    expired: { label: 'Expired', variant: 'destructive' as const },
+    declined: { label: 'Declined', variant: 'destructive' as const },
+    cancelled: { label: 'Cancelled', variant: 'secondary' as const },
   }
   const config = statusConfig[status]
-  return <Badge className={config.className}>{config.label}</Badge>
+  return <Badge variant={config.variant}>{config.label}</Badge>
 }
 
 function getTypeLabel(type: Contract['type']) {
@@ -224,14 +224,12 @@ interface ContractListProps {
 }
 
 export function ContractList({ studioSlug, isLoading = false }: ContractListProps) {
-  const router = useRouter()
-  const searchParams = useSearchParams()
 
   const [contracts, setContracts] = React.useState<Contract[]>(mockContracts)
   const [searchQuery, setSearchQuery] = React.useState('')
   const [statusFilter, setStatusFilter] = React.useState<string>('all')
   const [typeFilter, setTypeFilter] = React.useState<string>('all')
-  const [sortBy, setSortBy] = React.useState<string>('createdAt')
+  const [sortBy] = React.useState<string>('createdAt')
   const [sortOrder, setSortOrder] = React.useState<'asc' | 'desc'>('desc')
   const [viewMode, setViewMode] = React.useState<'table' | 'grid'>('table')
   const [selectedContracts, setSelectedContracts] = React.useState<string[]>([])
@@ -269,11 +267,23 @@ export function ContractList({ studioSlug, isLoading = false }: ContractListProp
     return result
   }, [contracts, searchQuery, statusFilter, typeFilter, sortBy, sortOrder])
 
+  const [deleteConfirm, setDeleteConfirm] = React.useState<string | null>(null)
+  const [bulkDeleteConfirm, setBulkDeleteConfirm] = React.useState(false)
+
   const handleDelete = (id: string) => {
-    if (confirm('Are you sure you want to delete this contract?')) {
-      setContracts(prev => prev.filter(c => c.id !== id))
-      setSelectedContracts(prev => prev.filter(g => g !== id))
-    }
+    setDeleteConfirm(id)
+  }
+
+  const confirmDelete = (id: string) => {
+    setContracts(prev => prev.filter(c => c.id !== id))
+    setSelectedContracts(prev => prev.filter(g => g !== id))
+    setDeleteConfirm(null)
+  }
+
+  const confirmBulkDelete = () => {
+    setContracts(prev => prev.filter(c => !selectedContracts.includes(c.id)))
+    setSelectedContracts([])
+    setBulkDeleteConfirm(false)
   }
 
   const handleBulkAction = (action: 'delete' | 'resend' | 'cancel') => {
@@ -281,10 +291,7 @@ export function ContractList({ studioSlug, isLoading = false }: ContractListProp
 
     switch (action) {
       case 'delete':
-        if (confirm(`Delete ${selectedContracts.length} contracts?`)) {
-          setContracts(prev => prev.filter(c => !selectedContracts.includes(c.id)))
-          setSelectedContracts([])
-        }
+        setBulkDeleteConfirm(true)
         break
       case 'resend':
         console.log('Resending contracts:', selectedContracts)
@@ -338,7 +345,7 @@ export function ContractList({ studioSlug, isLoading = false }: ContractListProp
       {/* Page Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-display-md font-display font-bold text-foreground">Contracts</h1>
+          <h1 className="text-display-md font-display font-semibold text-foreground">Contracts</h1>
           <p className="text-body text-muted-foreground mt-1">Manage agreements, signatures, and documents</p>
         </div>
         <Link href={`/dashboard/${studioSlug}/contracts/new`}>
@@ -466,7 +473,8 @@ export function ContractList({ studioSlug, isLoading = false }: ContractListProp
                       type="checkbox"
                       checked={selectedContracts.length === filteredContracts.length && filteredContracts.length > 0}
                       onChange={toggleSelectAll}
-                      className="rounded border-input"
+                      aria-label="Select all contracts"
+                      className="h-4 w-4 rounded border-input text-primary focus:ring-2 focus:ring-primary"
                     />
                   </TableHead>
                   <TableHead>Contract</TableHead>
@@ -495,7 +503,8 @@ export function ContractList({ studioSlug, isLoading = false }: ContractListProp
                           type="checkbox"
                           checked={selectedContracts.includes(contract.id)}
                           onChange={() => toggleSelect(contract.id)}
-                          className="rounded border-input"
+                          aria-label={`Select ${contract.title}`}
+                          className="h-4 w-4 rounded border-input text-primary focus:ring-2 focus:ring-primary"
                         />
                       </TableCell>
                       <TableCell>
@@ -550,19 +559,19 @@ export function ContractList({ studioSlug, isLoading = false }: ContractListProp
                         <div className="flex items-center gap-2">
                           <span className="text-sm font-medium">{getSignerStatus(contract.signers)}</span>
                           {contract.status === 'sent' || contract.status === 'viewed' ? (
-                            <span className="h-2 w-2 rounded-full bg-yellow-500 animate-pulse" title="Pending" />
+                            <span className="h-2 w-2 rounded-full bg-warning animate-pulse" title="Pending" />
                           ) : contract.status === 'signed' || contract.status === 'completed' ? (
-                            <span className="h-2 w-2 rounded-full bg-green-500" title="All signed" />
+                            <span className="h-2 w-2 rounded-full bg-success" title="All signed" />
                           ) : (
-                            <span className="h-2 w-2 rounded-full bg-gray-400" title="Not sent" />
+                            <span className="h-2 w-2 rounded-full bg-muted-foreground/40" title="Not sent" />
                           )}
                         </div>
                       </TableCell>
-                      <TableCell className="text-right hidden xl:table-cell font-medium">
+                      <TableCell className="text-right hidden xl:table-cell font-mono tabular-nums text-sm font-medium">
                         {contract.depositPaid < contract.depositRequired ? (
                           <span className="text-destructive">${(contract.depositRequired - contract.depositPaid).toLocaleString()} deposit due</span>
                         ) : (
-                          <span className="text-success">Deposit paid</span>
+                          <span className="text-success font-sans">Deposit paid</span>
                         )}
                       </TableCell>
                       <TableCell>
@@ -654,11 +663,9 @@ export function ContractList({ studioSlug, isLoading = false }: ContractListProp
                         type="checkbox"
                         checked={selectedContracts.includes(contract.id)}
                         onChange={() => toggleSelect(contract.id)}
-                        className="rounded border-input mt-1"
+                        aria-label={`Select ${contract.title}`}
+                        className="h-4 w-4 rounded border-input text-primary focus:ring-2 focus:ring-primary mt-1"
                       />
-                      <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center">
-                        <FileText className="h-5 w-5 text-primary" />
-                      </div>
                       <div className="min-w-0">
                         <h3 className="font-semibold truncate">{contract.title}</h3>
                         <div className="flex items-center gap-2 mt-1">
@@ -710,11 +717,11 @@ export function ContractList({ studioSlug, isLoading = false }: ContractListProp
                   <div className="flex items-center gap-2 text-sm text-muted-foreground">
                     <span>{getSignerStatus(contract.signers)}</span>
                     {contract.status === 'sent' || contract.status === 'viewed' ? (
-                      <span className="h-2 w-2 rounded-full bg-yellow-500 animate-pulse" />
+                      <span className="h-2 w-2 rounded-full bg-warning animate-pulse" />
                     ) : contract.status === 'signed' || contract.status === 'completed' ? (
-                      <span className="h-2 w-2 rounded-full bg-green-500" />
+                      <span className="h-2 w-2 rounded-full bg-success" />
                     ) : (
-                      <span className="h-2 w-2 rounded-full bg-gray-400" />
+                      <span className="h-2 w-2 rounded-full bg-muted-foreground/40" />
                     )}
                   </div>
                   {contract.expiresAt && (
@@ -725,7 +732,7 @@ export function ContractList({ studioSlug, isLoading = false }: ContractListProp
                   )}
                   <div className="flex items-center justify-between text-sm">
                     <div className="text-muted-foreground">
-                      ${contract.depositPaid.toLocaleString()} / ${contract.depositRequired.toLocaleString()} deposit
+                      <span className="font-mono tabular-nums text-foreground">${contract.depositPaid.toLocaleString()}</span> / <span className="font-mono tabular-nums">${contract.depositRequired.toLocaleString()}</span> deposit
                     </div>
                     <div className="flex items-center gap-2">
                       <Button variant="outline" size="sm" asChild>
@@ -760,6 +767,38 @@ export function ContractList({ studioSlug, isLoading = false }: ContractListProp
           <Button variant="outline" size="sm" disabled>Next</Button>
         </div>
       </div>
+
+      {/* Delete confirmation */}
+      <Dialog open={!!deleteConfirm} onOpenChange={(open) => !open && setDeleteConfirm(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Delete contract</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete this contract? This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteConfirm(null)}>Cancel</Button>
+            <Button variant="destructive" onClick={() => deleteConfirm && confirmDelete(deleteConfirm)}>Delete</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Bulk delete confirmation */}
+      <Dialog open={bulkDeleteConfirm} onOpenChange={setBulkDeleteConfirm}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Delete {selectedContracts.length} contract{selectedContracts.length !== 1 ? 's' : ''}</DialogTitle>
+            <DialogDescription>
+              This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setBulkDeleteConfirm(false)}>Cancel</Button>
+            <Button variant="destructive" onClick={confirmBulkDelete}>Delete</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

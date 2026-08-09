@@ -1,7 +1,6 @@
 'use client'
 
 import * as React from 'react'
-import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -10,10 +9,8 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
-import { Separator } from '@/components/ui/separator'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Loader2, Mail, AlertCircle, CheckCircle, ArrowLeft } from 'lucide-react'
-import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
 import { createBrowserClient } from '@/lib/supabase/client'
 
@@ -24,7 +21,6 @@ const forgotPasswordSchema = z.object({
 type ForgotPasswordForm = z.infer<typeof forgotPasswordSchema>
 
 export default function ForgotPasswordPage() {
-  const router = useRouter()
   const [isLoading, setIsLoading] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
   const [success, setSuccess] = React.useState(false)
@@ -76,11 +72,11 @@ export default function ForgotPasswordPage() {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
             </svg>
-            <span className="font-display font-bold text-2xl text-foreground">LensFlow</span>
+            <span className="font-display italic text-2xl text-foreground">LensFlow</span>
           </Link>
         </div>
 
-        <Card className="shadow-xl">
+        <Card>
           <CardHeader className="text-center">
             <CardTitle className="text-display-sm">{success ? 'Check your email' : 'Forgot password?'}</CardTitle>
             <CardDescription>
@@ -151,7 +147,7 @@ export default function ForgotPasswordPage() {
 
           <CardFooter className="flex flex-col gap-4">
             <p className="text-sm text-muted-foreground text-center">
-              <Link href="/auth/)login" className="flex items-center justify-center gap-1 text-primary font-medium hover:underline">
+              <Link href="/auth/login" className="flex items-center justify-center gap-1 text-primary font-medium hover:underline">
                 <ArrowLeft className="h-4 w-4" />
                 Back to sign in
               </Link>

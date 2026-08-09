@@ -1,5 +1,5 @@
 import { Metadata } from 'next'
-import { redirect, notFound } from 'next/navigation'
+import { notFound } from 'next/navigation'
 import { getGalleryByToken, incrementGalleryView } from '@/lib/actions/galleries'
 import { ClientGalleryContent } from './ClientGalleryContent'
 
@@ -8,7 +8,7 @@ interface Props {
   searchParams: Promise<{ password?: string; embed?: string }>
 }
 
-export async function generateMetadata({ params, searchParams }: Props): Promise<Metadata> {
+export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { token } = await params
   const gallery = await getGalleryByToken(token)
 

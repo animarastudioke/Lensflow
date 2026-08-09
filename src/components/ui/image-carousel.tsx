@@ -1,6 +1,5 @@
 import * as React from 'react'
 import { cn } from '@/lib/utils'
-import { Button } from '@/components/ui/button'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 
 interface ImageCarouselProps {
@@ -28,7 +27,6 @@ export function ImageCarousel({
   className,
 }: ImageCarouselProps) {
   const [currentIndex, setCurrentIndex] = React.useState(selectedIndex)
-  const containerRef = React.useRef<HTMLDivElement>(null)
 
   React.useEffect(() => {
     setCurrentIndex(selectedIndex)

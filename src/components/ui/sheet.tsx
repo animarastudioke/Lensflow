@@ -28,12 +28,6 @@ const SheetContent = React.forwardRef<
   React.ElementRef<typeof SheetPrimitive.Content>,
   React.ComponentPropsWithoutRef<typeof SheetPrimitive.Content> & { side?: 'top' | 'right' | 'bottom' | 'left' }
 >(({ side = 'right', className, children, ...props }, ref) => {
-  const sideClasses = {
-    top: 'data-[state=open]:slide-in-from-top data-[state=closed]:slide-out-to-top',
-    bottom: 'data-[state=open]:slide-in-from-bottom data-[state=closed]:slide-out-to-bottom',
-    left: 'data-[state=open]:slide-in-from-left data-[state=closed]:slide-out-to-left',
-    right: 'data-[state=open]:slide-in-from-right data-[state=closed]:slide-out-to-right',
-  }
   return (
     <SheetPortal>
       <SheetOverlay />

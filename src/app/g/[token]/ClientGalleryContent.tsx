@@ -8,9 +8,8 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Separator } from '@/components/ui/separator'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { Loader2, Eye, Download, Heart, Share2, ChevronLeft, ChevronRight, X, Expand, Grid, List, Info, Lock, ArrowLeft, Calendar } from 'lucide-react'
+import { Loader2, Eye, Download, Heart, Share2, ChevronLeft, ChevronRight, X, Grid, Info, Lock, Calendar } from 'lucide-react'
 import { format } from 'date-fns'
 import { toast } from 'sonner'
 
@@ -141,10 +140,10 @@ export function ClientGalleryContent({
   const router = useRouter()
   const searchParams = useSearchParams()
 
-  const [showPassword, setShowPassword] = React.useState(requirePassword)
+  const [showPassword] = React.useState(requirePassword)
   const [password, setPassword] = React.useState('')
-  const [viewMode, setViewMode] = React.useState<'grid' | 'masonry'>('grid')
-  const [selectedMedia, setSelectedMedia] = React.useState<string | null>(null)
+  const [viewMode] = React.useState<'grid' | 'masonry'>('grid')
+  const [, setSelectedMedia] = React.useState<string | null>(null)
   const [lightboxIndex, setLightboxIndex] = React.useState(0)
   const [showLightbox, setShowLightbox] = React.useState(false)
   const [favorites, setFavorites] = React.useState<string[]>([])
@@ -152,6 +151,15 @@ export function ClientGalleryContent({
   // Transform data if gallery exists
   const media = React.useMemo(() => gallery ? transformMedia(gallery.media || []) : [], [gallery])
   const albums = React.useMemo(() => gallery ? transformAlbums(gallery.albums || []) : [], [gallery])
+
+  const brandColor = (gallery?.share_settings?.custom_branding
+    ? gallery.share_settings.brand_color || gallery.studio?.brand_color
+    : gallery?.studio?.brand_color) || '#3b82f6'
+
+  const style = React.useMemo(() => ({
+    '--brand-color': brandColor,
+    '--brand-color-hover': adjustColor(brandColor, -20),
+  }), [brandColor])
 
   const handleSubmitPassword = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -304,13 +312,6 @@ export function ClientGalleryContent({
         color: gallery.studio?.brand_color,
         coverImage: gallery.cover_image,
       }
-
-  const brandColor = branding.color || '#3b82f6'
-
-  const style = React.useMemo(() => ({
-    '--brand-color': brandColor,
-    '--brand-color-hover': adjustColor(brandColor, -20),
-  }), [brandColor])
 
   const renderMediaGrid = () => {
     const filteredMedia = albums.length > 0 && albums.find(a => a.id === searchParams.get('album'))

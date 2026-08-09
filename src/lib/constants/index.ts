@@ -2,7 +2,7 @@ export const APP_CONSTANTS = {
   NAME: 'LensFlow',
   DESCRIPTION: 'Premium SaaS platform for photographers and videographers',
   VERSION: '0.1.0',
-  URL: process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000',
+  URL: process.env['NEXT_PUBLIC_APP_URL'] ?? 'http://localhost:3000',
   SUPPORT_EMAIL: 'support@lensflow.io',
   SUPPORT_URL: 'https://docs.lensflow.io',
   TERMS_URL: 'https://lensflow.io/terms',

@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { getAuthUser } from '@/lib/auth'
 
 function generateShareToken(): string {
   return Array.from(crypto.getRandomValues(new Uint8Array(16)))

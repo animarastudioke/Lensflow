@@ -41,7 +41,7 @@ const passwordRequirements = [
   { label: 'Special character', test: (p: string) => /[^A-Za-z0-9]/.test(p) },
 ]
 
-export default function ResetPasswordPage() {
+function ResetPasswordPageContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const [showPassword, setShowPassword] = React.useState(false)
@@ -113,7 +113,7 @@ export default function ResetPasswordPage() {
       }
 
       toast.success('Password updated successfully!')
-      router.push('/auth/)login?reset=success' as string)
+      router.push('/auth/login?reset=success' as string)
       router.refresh()
     } catch (err) {
       const message = err instanceof Error ? err.message : 'An unexpected error occurred'
@@ -128,7 +128,7 @@ export default function ResetPasswordPage() {
     return (
       <div className="min-h-screen flex items-center justify-center bg-muted/30 px-4 py-12">
         <div className="w-full max-w-md">
-          <Card className="shadow-xl">
+          <Card>
             <CardHeader className="text-center">
               <CardTitle className="text-display-sm">Invalid reset link</CardTitle>
               <CardDescription>
@@ -142,7 +142,7 @@ export default function ResetPasswordPage() {
                   The reset link may have already been used or expired. Reset links are valid for 1 hour.
                 </AlertDescription>
               </Alert>
-              <Link href="/auth/)forgot-password" className="block text-center text-primary hover:underline">
+              <Link href="/auth/forgot-password" className="block text-center text-primary hover:underline">
                 Request a new reset link
               </Link>
             </CardContent>
@@ -162,11 +162,11 @@ export default function ResetPasswordPage() {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
             </svg>
-            <span className="font-display font-bold text-2xl text-foreground">LensFlow</span>
+            <span className="font-display italic text-2xl text-foreground">LensFlow</span>
           </Link>
         </div>
 
-        <Card className="shadow-xl">
+        <Card>
           <CardHeader className="text-center">
             <CardTitle className="text-display-sm">Reset your password</CardTitle>
             <CardDescription>
@@ -262,7 +262,7 @@ export default function ResetPasswordPage() {
 
           <CardFooter className="flex flex-col gap-4">
             <p className="text-sm text-muted-foreground text-center">
-              <Link href="/auth/)login" className="text-primary font-medium hover:underline">
+              <Link href="/auth/login" className="text-primary font-medium hover:underline">
                 Back to sign in
               </Link>
             </p>
@@ -270,5 +270,19 @@ export default function ResetPasswordPage() {
         </Card>
       </div>
     </div>
+  )
+}
+
+export default function ResetPasswordPage() {
+  return (
+    <React.Suspense
+      fallback={
+        <div className="min-h-screen flex items-center justify-center">
+          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+        </div>
+      }
+    >
+      <ResetPasswordPageContent />
+    </React.Suspense>
   )
 }

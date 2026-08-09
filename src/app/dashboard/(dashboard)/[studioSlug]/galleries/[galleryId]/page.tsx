@@ -10,7 +10,7 @@ interface GalleryDetailPageProps {
 export async function generateMetadata({
   params,
 }: GalleryDetailPageProps): Promise<Metadata> {
-  const { studioSlug, galleryId } = await params
+  const { studioSlug } = await params
   return {
     title: `Gallery - ${studioSlug}`,
     description: 'View and manage gallery',

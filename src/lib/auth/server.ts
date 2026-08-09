@@ -30,10 +30,10 @@ export async function getAuthUser(): Promise<AuthUser | null> {
     return {
       id: profile.id,
       email: profile.email,
-      firstName: profile.first_name,
-      lastName: profile.last_name,
-      avatarUrl: profile.avatar_url,
-      role: profile.role as UserRole,
+      firstName: profile['first_name'],
+      lastName: profile['last_name'],
+      avatarUrl: profile['avatar_url'],
+      role: profile['role'] as UserRole,
       studioId: profile.studio_id,
     }
   }
@@ -42,10 +42,10 @@ export async function getAuthUser(): Promise<AuthUser | null> {
   return {
     id: session.user.id,
     email: session.user.email!,
-    firstName: session.user.user_metadata?.first_name || 'User',
-    lastName: session.user.user_metadata?.last_name || '',
-    avatarUrl: session.user.user_metadata?.avatar_url,
-    role: (session.user.user_metadata?.role as UserRole) || 'client',
+    firstName: session.user.user_metadata?.['first_name'] || 'User',
+    lastName: session.user.user_metadata?.['last_name'] || '',
+    avatarUrl: session.user.user_metadata?.['avatar_url'],
+    role: (session.user.user_metadata?.['role'] as UserRole) || 'client',
   }
 }
 
@@ -87,7 +87,7 @@ export async function getUserStudiios(): Promise<string[]> {
   const user = await getAuthUser()
   if (!user) return []
 
-  const supabase = createServerSupabaseClient()
+  const supabase = createClient()
 
   const { data: memberships } = await supabase
     .from('team_members')
@@ -95,5 +95,5 @@ export async function getUserStudiios(): Promise<string[]> {
     .eq('user_id', user.id)
     .eq('status', 'active')
 
-  return memberships?.map(m => m.studio_id) ?? []
+  return memberships?.map((m: { studio_id: string }) => m.studio_id) ?? []
 }

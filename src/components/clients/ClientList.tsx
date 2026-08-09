@@ -1,17 +1,21 @@
 'use client'
 
 import * as React from 'react'
-import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
-import { cn } from '@/lib/utils'
 import { format } from 'date-fns'
 import {
   Card,
   CardContent,
-  CardDescription,
   CardHeader,
-  CardTitle,
 } from '@/components/ui/card'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
@@ -24,7 +28,6 @@ import {
 import {
   Plus,
   Search,
-  Filter,
   Mail,
   Phone,
   Calendar,
@@ -34,9 +37,12 @@ import {
   Edit,
   Eye,
   Users,
-  FileText,
   DollarSign,
   Calendar as CalendarIcon,
+  ArrowUpDown,
+  LayoutGrid,
+  LayoutList,
+  Images,
 } from 'lucide-react'
 import {
   DropdownMenu,
@@ -169,19 +175,16 @@ interface ClientListProps {
 
 function getStatusBadge(status: Client['status']) {
   const statusConfig = {
-    active: { label: 'Active', className: 'bg-green-100 text-green-800' },
-    lead: { label: 'Lead', className: 'bg-blue-100 text-blue-800' },
-    inactive: { label: 'Inactive', className: 'bg-gray-100 text-gray-800' },
-    archived: { label: 'Archived', className: 'bg-red-100 text-red-800' },
+    active: { label: 'Active', variant: 'success' as const },
+    lead: { label: 'Lead', variant: 'info' as const },
+    inactive: { label: 'Inactive', variant: 'secondary' as const },
+    archived: { label: 'Archived', variant: 'destructive' as const },
   }
   const config = statusConfig[status]
-  return <Badge className={config.className}>{config.label}</Badge>
+  return <Badge variant={config.variant}>{config.label}</Badge>
 }
 
 export function ClientList({ studioSlug, initialClients = [], isLoading = false }: ClientListProps) {
-  const router = useRouter()
-  const searchParams = useSearchParams()
-
   const [clients, setClients] = React.useState<Client[]>(initialClients.length > 0 ? initialClients : mockClients)
   const [searchQuery, setSearchQuery] = React.useState('')
   const [statusFilter, setStatusFilter] = React.useState<string>('all')
@@ -220,11 +223,23 @@ export function ClientList({ studioSlug, initialClients = [], isLoading = false 
     return result
   }, [clients, searchQuery, statusFilter, sortBy, sortOrder])
 
+  const [deleteConfirm, setDeleteConfirm] = React.useState<string | null>(null)
+  const [bulkDeleteConfirm, setBulkDeleteConfirm] = React.useState(false)
+
   const handleDelete = (id: string) => {
-    if (confirm('Are you sure you want to delete this client?')) {
-      setClients(prev => prev.filter(c => c.id !== id))
-      setSelectedClients(prev => prev.filter(g => g !== id))
-    }
+    setDeleteConfirm(id)
+  }
+
+  const confirmDelete = (id: string) => {
+    setClients(prev => prev.filter(c => c.id !== id))
+    setSelectedClients(prev => prev.filter(g => g !== id))
+    setDeleteConfirm(null)
+  }
+
+  const confirmBulkDelete = () => {
+    setClients(prev => prev.filter(c => !selectedClients.includes(c.id)))
+    setSelectedClients([])
+    setBulkDeleteConfirm(false)
   }
 
   const handleBulkAction = (action: 'delete' | 'archive' | 'export') => {
@@ -232,10 +247,7 @@ export function ClientList({ studioSlug, initialClients = [], isLoading = false 
 
     switch (action) {
       case 'delete':
-        if (confirm(`Delete ${selectedClients.length} clients?`)) {
-          setClients(prev => prev.filter(c => !selectedClients.includes(c.id)))
-          setSelectedClients([])
-        }
+        setBulkDeleteConfirm(true)
         break
       case 'archive':
         setClients(prev =>
@@ -289,7 +301,7 @@ export function ClientList({ studioSlug, initialClients = [], isLoading = false 
       {/* Page Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-display-md font-display font-bold text-foreground">Clients</h1>
+          <h1 className="text-display-md font-display font-semibold text-foreground">Clients</h1>
           <p className="text-body text-muted-foreground mt-1">Manage your client relationships</p>
         </div>
         <Link href={`/dashboard/${studioSlug}/clients/new`}>
@@ -385,7 +397,8 @@ export function ClientList({ studioSlug, initialClients = [], isLoading = false 
                       type="checkbox"
                       checked={selectedClients.length === filteredClients.length && filteredClients.length > 0}
                       onChange={toggleSelectAll}
-                      className="rounded border-input"
+                      aria-label="Select all clients"
+                      className="h-4 w-4 rounded border-input text-primary focus:ring-2 focus:ring-primary"
                     />
                   </TableHead>
                   <TableHead>Client</TableHead>
@@ -413,7 +426,8 @@ export function ClientList({ studioSlug, initialClients = [], isLoading = false 
                           type="checkbox"
                           checked={selectedClients.includes(client.id)}
                           onChange={() => toggleSelect(client.id)}
-                          className="rounded border-input"
+                          aria-label={`Select ${client.firstName} ${client.lastName}`}
+                          className="h-4 w-4 rounded border-input text-primary focus:ring-2 focus:ring-primary"
                         />
                       </TableCell>
                       <TableCell>
@@ -455,7 +469,7 @@ export function ClientList({ studioSlug, initialClients = [], isLoading = false 
                       <TableCell className="hidden lg:table-cell">
                         <Badge variant="outline" className="text-xs">{client.source || '—'}</Badge>
                       </TableCell>
-                      <TableCell className="text-right hidden xl:table-cell font-medium">
+                      <TableCell className="text-right hidden xl:table-cell font-mono tabular-nums">
                         ${client.totalSpent.toLocaleString()}
                       </TableCell>
                       <TableCell>
@@ -531,7 +545,8 @@ export function ClientList({ studioSlug, initialClients = [], isLoading = false 
                             type="checkbox"
                             checked={selectedClients.includes(client.id)}
                             onChange={() => toggleSelect(client.id)}
-                            className="rounded border-input mt-1"
+                            aria-label={`Select ${client.firstName} ${client.lastName}`}
+                            className="h-4 w-4 rounded border-input text-primary focus:ring-2 focus:ring-primary mt-1"
                           />
                           <Avatar className="h-12 w-12">
                             <AvatarImage src="" alt={client.firstName} />
@@ -592,7 +607,7 @@ export function ClientList({ studioSlug, initialClients = [], isLoading = false 
                       <Separator />
                       <div className="flex items-center justify-between text-sm">
                         <div className="text-muted-foreground">
-                          <span className="font-medium">${client.totalSpent.toLocaleString()}</span> spent
+                          <span className="font-mono tabular-nums text-foreground">${client.totalSpent.toLocaleString()}</span> spent
                           <span className="mx-2">·</span>
                           {client.totalOrders} order{client.totalOrders !== 1 ? 's' : ''}
                         </div>
@@ -630,9 +645,38 @@ export function ClientList({ studioSlug, initialClients = [], isLoading = false 
           <Button variant="outline" size="sm" disabled>Next</Button>
         </div>
       </div>
+
+      {/* Delete confirmation */}
+      <Dialog open={!!deleteConfirm} onOpenChange={(open) => !open && setDeleteConfirm(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Delete client</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete this client? This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteConfirm(null)}>Cancel</Button>
+            <Button variant="destructive" onClick={() => deleteConfirm && confirmDelete(deleteConfirm)}>Delete</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Bulk delete confirmation */}
+      <Dialog open={bulkDeleteConfirm} onOpenChange={setBulkDeleteConfirm}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Delete {selectedClients.length} client{selectedClients.length !== 1 ? 's' : ''}</DialogTitle>
+            <DialogDescription>
+              This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setBulkDeleteConfirm(false)}>Cancel</Button>
+            <Button variant="destructive" onClick={confirmBulkDelete}>Delete</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
-
-// Missing imports
-import { ArrowUpDown, LayoutGrid, LayoutList, Images } from 'lucide-react'

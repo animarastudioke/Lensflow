@@ -1,8 +1,7 @@
 import * as React from 'react'
 import { cn } from '@/lib/utils'
-import { ChevronDown, ChevronUp, ChevronLeft, ChevronRight, X } from 'lucide-react'
+import { ChevronDown, ChevronUp, ChevronLeft, ChevronRight } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 
 interface DataTableColumn<T> {
   key: string

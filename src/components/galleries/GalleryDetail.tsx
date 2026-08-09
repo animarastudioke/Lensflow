@@ -1,7 +1,7 @@
 'use client'
 
 import * as React from 'react'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { cn } from '@/lib/utils'
 import { format } from 'date-fns'
@@ -24,7 +24,6 @@ import {
 import {
   Plus,
   Search,
-  Filter,
   MoreVertical,
   Trash2,
   Edit,
@@ -34,19 +33,18 @@ import {
   Image as ImageIcon,
   LayoutGrid,
   LayoutList,
-  ChevronLeft,
-  ChevronRight,
   X,
   Heart,
-  Flag,
   MoreHorizontal,
-  RotateCcw,
-  RotateCw,
-  ZoomIn,
-  ZoomOut,
-  Copy,
-  Link2,
-  Archive,
+  Upload,
+  User,
+  Calendar,
+  MapPin,
+  Eye,
+  Square,
+  Settings,
+  BarChart3,
+  ArrowUpDown,
 } from 'lucide-react'
 import {
   DropdownMenu,
@@ -56,10 +54,8 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { Badge } from '@/components/ui/badge'
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Separator } from '@/components/ui/separator'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import {
   Table,
   TableBody,
@@ -69,11 +65,9 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { Label } from '@/components/ui/label'
-import { Slider } from '@/components/ui/slider'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
-import { formatDistanceToNow } from 'date-fns'
-import { Image } from 'next/image'
+import Image from 'next/image'
 
 interface GalleryImage {
   id: string
@@ -352,21 +346,20 @@ interface GalleryDetailProps {
   galleryId: string
 }
 
-export function GalleryDetail({ studioSlug, galleryId }: GalleryDetailProps) {
+export function GalleryDetail({ studioSlug, galleryId: _galleryId }: GalleryDetailProps) {
   const router = useRouter()
-  const searchParams = useSearchParams()
 
   const [gallery, setGallery] = React.useState<Gallery>(mockGallery)
   const [activeTab, setActiveTab] = React.useState<'images' | 'albums' | 'settings' | 'analytics'>('images')
   const [viewMode, setViewMode] = React.useState<'grid' | 'list' | 'masonry'>('grid')
   const [selectedImages, setSelectedImages] = React.useState<string[]>([])
-  const [currentImageIndex, setCurrentImageIndex] = React.useState(0)
-  const [isLightboxOpen, setIsLightboxOpen] = React.useState(false)
+  const [, setCurrentImageIndex] = React.useState(0)
+  const [, setIsLightboxOpen] = React.useState(false)
   const [sortBy, setSortBy] = React.useState<'custom' | 'date' | 'name' | 'favorites'>('custom')
   const [sortOrder, setSortOrder] = React.useState<'asc' | 'desc'>('asc')
-  const [showAlbumSidebar, setShowAlbumSidebar] = React.useState(false)
-  const [lightboxZoom, setLightboxZoom] = React.useState(1)
-  const [lightboxRotation, setLightboxRotation] = React.useState(0)
+  const [, setShowAlbumSidebar] = React.useState(false)
+  const [, setLightboxZoom] = React.useState(1)
+  const [, setLightboxRotation] = React.useState(0)
 
   // Filter and sort images
   const filteredImages = React.useMemo(() => {
@@ -406,16 +399,6 @@ export function GalleryDetail({ studioSlug, galleryId }: GalleryDetailProps) {
     setLightboxRotation(0)
   }
 
-  const handleLightboxNavigate = (direction: 'prev' | 'next') => {
-    if (direction === 'prev') {
-      setCurrentImageIndex((prev) => (prev === 0 ? filteredImages.length - 1 : prev - 1))
-    } else {
-      setCurrentImageIndex((prev) => (prev === filteredImages.length - 1 ? 0 : prev + 1))
-    }
-    setLightboxZoom(1)
-    setLightboxRotation(0)
-  }
-
   const handleDeleteImages = () => {
     if (confirm(`Delete ${selectedImages.length} image(s)?`)) {
       setGallery((prev) => ({
@@ -426,7 +409,7 @@ export function GalleryDetail({ studioSlug, galleryId }: GalleryDetailProps) {
     }
   }
 
-  const handleAddToAlbum = (albumId: string) => {
+  const handleAddToAlbum = (_albumId: string) => {
     // Add selected images to album
     setSelectedImages([])
   }
@@ -469,8 +452,6 @@ export function GalleryDetail({ studioSlug, galleryId }: GalleryDetailProps) {
       setSelectedImages(filteredImages.map((i) => i.id))
     }
   }
-
-  const currentImage = filteredImages[currentImageIndex]
 
   return (
     <div className="h-full flex flex-col">
@@ -559,7 +540,7 @@ export function GalleryDetail({ studioSlug, galleryId }: GalleryDetailProps) {
       </div>
 
       {/* Tabs */}
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col">
+      <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as typeof activeTab)} className="flex-1 flex flex-col">
         <TabsList className="mb-4 bg-transparent">
           <TabsTrigger value="images">
             <LayoutGrid className="h-4 w-4 mr-2" />
@@ -608,8 +589,8 @@ export function GalleryDetail({ studioSlug, galleryId }: GalleryDetailProps) {
             </div>
 
             <div className="flex-1 flex justify-center">
-              <Select value={sortBy} onValueChange={setSortBy} className="w-[180px]">
-                <SelectTrigger>
+              <Select value={sortBy} onValueChange={(value) => setSortBy(value as typeof sortBy)}>
+                <SelectTrigger className="w-[180px]">
                   <SelectValue placeholder="Sort by" />
                 </SelectTrigger>
                 <SelectContent>

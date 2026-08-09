@@ -25,8 +25,6 @@ export function Pagination({
   showPageNumbers = true,
   maxPageNumbers = 5,
 }: PaginationProps) {
-  if (totalPages <= 1) return null
-
   const pages = React.useMemo(() => {
     if (totalPages <= maxPageNumbers) {
       return Array.from({ length: totalPages }, (_, i) => i + 1)
@@ -52,6 +50,8 @@ export function Pagination({
 
     return pages
   }, [currentPage, totalPages, maxPageNumbers])
+
+  if (totalPages <= 1) return null
 
   return (
     <nav

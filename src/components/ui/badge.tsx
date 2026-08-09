@@ -8,13 +8,13 @@ interface BadgeProps extends React.HTMLAttributes<HTMLSpanElement> {
 }
 
 const badgeVariants = {
-  default: 'bg-primary text-primary-foreground hover:bg-primary/80',
-  secondary: 'bg-secondary text-secondary-foreground hover:bg-secondary/80',
-  destructive: 'bg-destructive text-destructive-foreground hover:bg-destructive/80',
+  default: 'bg-primary text-primary-foreground border-transparent hover:bg-primary/85',
+  secondary: 'bg-secondary text-secondary-foreground border-transparent hover:bg-secondary/80',
+  destructive: 'bg-destructive text-destructive-foreground border-transparent hover:bg-destructive/85',
   outline: 'text-foreground border-border hover:bg-accent',
-  success: 'bg-success text-success-foreground hover:bg-success/80',
-  warning: 'bg-warning text-warning-foreground hover:bg-warning/80',
-  info: 'bg-info text-info-foreground hover:bg-info/80',
+  success: 'bg-success text-success-foreground border-transparent hover:bg-success/85',
+  warning: 'bg-warning text-warning-foreground border-transparent hover:bg-warning/85',
+  info: 'bg-info text-info-foreground border-transparent hover:bg-info/85',
 }
 
 export function Badge({
@@ -26,7 +26,7 @@ export function Badge({
   return (
     <span
       className={cn(
-        'inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2',
+        'inline-flex items-center rounded-full border px-2.5 py-0.5 text-[0.6875rem] font-medium uppercase tracking-[0.06em] transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2',
         badgeVariants[variant],
         className
       )}
@@ -129,7 +129,7 @@ export function TagInput({
         setInputValue('')
       }
     } else if (e.key === 'Backspace' && !inputValue && value.length > 0) {
-      onRemove?.(value[value.length - 1])
+      onRemove?.(value[value.length - 1]!)
       onChange(value.slice(0, -1))
     }
   }

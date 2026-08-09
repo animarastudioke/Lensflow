@@ -2,7 +2,6 @@
 
 import * as React from 'react'
 import Link from 'next/link'
-import { useRouter, useSearchParams } from 'next/navigation'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -24,11 +23,16 @@ import {
 import {
   Card,
   CardContent,
-  CardDescription,
-  CardFooter,
   CardHeader,
-  CardTitle,
 } from '@/components/ui/card'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from '@/components/ui/dialog'
 import {
   Table,
   TableBody,
@@ -40,7 +44,6 @@ import {
 import {
   Search,
   Plus,
-  Filter,
   MoreVertical,
   Eye,
   Edit,
@@ -56,7 +59,9 @@ import {
   Globe,
   ChevronDown,
   ChevronUp,
-  Loader2,
+  LayoutGrid,
+  LayoutList,
+  X,
 } from 'lucide-react'
 import { format } from 'date-fns'
 
@@ -155,10 +160,10 @@ const mockGalleries: Gallery[] = [
 ]
 
 const statusColors = {
-  draft: 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200',
-  published: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400',
-  archived: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400',
-  private: 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400',
+  draft: 'bg-muted text-muted-foreground',
+  published: 'bg-success/10 text-success',
+  archived: 'bg-info/10 text-info',
+  private: 'bg-warning/10 text-warning',
 }
 
 const statusIcons = {
@@ -183,9 +188,6 @@ interface GalleryListProps {
 }
 
 export function GalleryList({ studioSlug, initialGalleries = [], isLoading = false }: GalleryListProps) {
-  const router = useRouter()
-  const searchParams = useSearchParams()
-
   const [galleries, setGalleries] = React.useState<Gallery[]>(initialGalleries.length > 0 ? initialGalleries : mockGalleries)
   const [searchQuery, setSearchQuery] = React.useState('')
   const [statusFilter, setStatusFilter] = React.useState<string>('all')
@@ -322,8 +324,8 @@ export function GalleryList({ studioSlug, initialGalleries = [], isLoading = fal
           {selectedGalleries.length > 0 && (
             <div className="flex items-center gap-2 px-3 py-1 bg-primary/10 rounded-lg text-primary text-sm font-medium">
               {selectedGalleries.length} selected
-              <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setSelectedGalleries([])}>
-                <ChevronDown className="h-3.5 w-3.5" />
+              <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setSelectedGalleries([])} aria-label="Clear selection">
+                <X className="h-3.5 w-3.5" />
               </Button>
             </div>
           )}
@@ -374,7 +376,7 @@ export function GalleryList({ studioSlug, initialGalleries = [], isLoading = fal
           </div>
 
           {/* View mode toggle */}
-          <div className="flex bg-muted rounded-lg p-1" role="group" aria-label="View mode">
+          <div className="flex bg-muted rounded-md p-1" role="group" aria-label="View mode">
             <Button
               variant={viewMode === 'grid' ? 'default' : 'ghost'}
               size="icon"
@@ -383,12 +385,7 @@ export function GalleryList({ studioSlug, initialGalleries = [], isLoading = fal
               aria-label="Grid view"
               aria-pressed={viewMode === 'grid'}
             >
-              <div className="grid grid-cols-2 gap-1">
-                <div className="h-3 w-3 bg-current/50 rounded" />
-                <div className="h-3 w-3 bg-current/50 rounded" />
-                <div className="h-3 w-3 bg-current/50 rounded" />
-                <div className="h-3 w-3 bg-current/50 rounded" />
-              </div>
+              <LayoutGrid className="h-4 w-4" strokeWidth={1.5} />
             </Button>
             <Button
               variant={viewMode === 'table' ? 'default' : 'ghost'}
@@ -398,7 +395,7 @@ export function GalleryList({ studioSlug, initialGalleries = [], isLoading = fal
               aria-label="Table view"
               aria-pressed={viewMode === 'table'}
             >
-              <Table className="h-5 w-5" />
+              <LayoutList className="h-4 w-4" strokeWidth={1.5} />
             </Button>
           </div>
 
@@ -465,8 +462,6 @@ export function GalleryList({ studioSlug, initialGalleries = [], isLoading = fal
                 selected={selectedGalleries.includes(gallery.id)}
                 onSelect={toggleSelect}
                 onDelete={handleDelete}
-                deleteConfirm={deleteConfirm === gallery.id}
-                onConfirmDelete={confirmDelete}
               />
             ))
           )}
@@ -690,24 +685,22 @@ export function GalleryList({ studioSlug, initialGalleries = [], isLoading = fal
         </div>
       )}
 
-      {/* Delete confirmation modal */}
-      {deleteConfirm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <Card className="w-full max-w-md">
-            <CardHeader>
-              <CardTitle>Delete Gallery</CardTitle>
-              <CardDescription>
-                Are you sure you want to delete "{galleries.find(g => g.id === deleteConfirm)?.name}"?
-                This action cannot be undone.
-              </CardDescription>
-            </CardHeader>
-            <CardFooter className="flex justify-end gap-2">
-              <Button variant="outline" onClick={() => setDeleteConfirm(null)}>Cancel</Button>
-              <Button variant="destructive" onClick={() => confirmDelete(deleteConfirm)}>Delete</Button>
-            </CardFooter>
-          </Card>
-        </div>
-      )}
+      {/* Delete confirmation */}
+      <Dialog open={!!deleteConfirm} onOpenChange={(open) => !open && setDeleteConfirm(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Delete gallery</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete &quot;{galleries.find(g => g.id === deleteConfirm)?.name}&quot;?
+              This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteConfirm(null)}>Cancel</Button>
+            <Button variant="destructive" onClick={() => deleteConfirm && confirmDelete(deleteConfirm)}>Delete</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
@@ -718,8 +711,6 @@ interface GalleryCardProps {
   selected: boolean
   onSelect: (id: string) => void
   onDelete: (id: string) => void
-  deleteConfirm: boolean
-  onConfirmDelete: (id: string) => void
 }
 
 function GalleryCard({
@@ -728,129 +719,96 @@ function GalleryCard({
   selected,
   onSelect,
   onDelete,
-  deleteConfirm,
-  onConfirmDelete,
 }: GalleryCardProps) {
+  const isExpired = gallery.expiresAt && new Date(gallery.expiresAt) < new Date()
+
   return (
     <Card
       className={cn(
-        'group relative overflow-hidden transition-all duration-200',
-        selected && 'ring-2 ring-primary ring-offset-2 bg-primary/5'
+        'group relative overflow-hidden transition-colors duration-150',
+        selected && 'border-primary'
       )}
     >
       {/* Selection checkbox */}
-      <div className="absolute top-2 right-2 z-10">
+      <div className="absolute top-2 left-2 z-10 opacity-0 transition-opacity group-hover:opacity-100 has-[:checked]:opacity-100">
         <input
           type="checkbox"
           checked={selected}
           onChange={() => onSelect(gallery.id)}
-          className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-2 focus:ring-primary bg-background"
+          className="h-4 w-4 rounded border-border text-primary focus:ring-2 focus:ring-primary bg-background"
           aria-label={`Select ${gallery.name}`}
         />
       </div>
 
-      {/* Cover image */}
+      {/* Cover image - full bleed print, no text overlaid on the photo */}
       <Link href={`/dashboard/${studioSlug}/galleries/${gallery.id}`} className="block">
-        <div className="aspect-video relative overflow-hidden bg-muted">
+        <div className="aspect-[4/3] relative overflow-hidden bg-muted">
           {gallery.coverImage ? (
             <img
               src={gallery.coverImage}
               alt={gallery.name}
-              className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+              className="h-full w-full object-cover"
               loading="lazy"
             />
           ) : (
-            <div className="h-full w-full flex items-center justify-center text-muted-foreground/50">
-              <ImageIcon className="h-10 w-10" />
-            </div>
-          )}
-
-          {/* Status badge */}
-          <div className="absolute top-2 left-2">
-            <span className={cn('px-2 py-1 rounded text-xs font-medium', statusColors[gallery.status])}>
-              {gallery.status.charAt(0).toUpperCase() + gallery.status.slice(1)}
-            </span>
-          </div>
-
-          {/* Type badge */}
-          <div className="absolute top-2 right-2 flex items-center gap-1 px-2 py-1 bg-black/50 rounded text-xs text-white">
-            {typeIcons[gallery.type as keyof typeof typeIcons]}
-          </div>
-
-          {/* Password protected indicator */}
-          {gallery.passwordProtected && (
-            <div className="absolute bottom-2 left-2 flex items-center gap-1 px-2 py-1 bg-black/50 rounded text-xs text-white">
-              <Lock className="h-3 w-3" />
-              Protected
-            </div>
-          )}
-
-          {/* Expiry warning */}
-          {gallery.expiresAt && new Date(gallery.expiresAt) < new Date() && (
-            <div className="absolute bottom-2 right-2 px-2 py-1 bg-destructive/90 rounded text-xs text-white">
-              Expired
+            <div className="h-full w-full flex items-center justify-center text-muted-foreground/40">
+              <ImageIcon className="h-10 w-10" strokeWidth={1.5} />
             </div>
           )}
         </div>
       </Link>
 
-      <CardHeader className="pt-3 pb-0">
+      {/* Wall label: caption block below the print, not overlaid on it */}
+      <div className="border-t border-border p-4">
         <div className="flex items-start justify-between gap-2">
-          <div className="flex items-center gap-2 min-w-0">
-            <h3 className="font-semibold truncate">{gallery.name}</h3>
-            {gallery.passwordProtected && <Lock className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />}
-          </div>
+          <Link href={`/dashboard/${studioSlug}/galleries/${gallery.id}`} className="min-w-0">
+            <h3 className="font-medium text-foreground truncate hover:underline">{gallery.name}</h3>
+          </Link>
+          {gallery.passwordProtected && (
+            <Lock className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0 mt-0.5" strokeWidth={1.5} aria-label="Password protected" />
+          )}
         </div>
         {gallery.clientName && (
-          <p className="text-sm text-muted-foreground mt-1 truncate">
-            {gallery.clientName}
-          </p>
+          <p className="text-sm text-muted-foreground truncate mt-0.5">{gallery.clientName}</p>
         )}
-      </CardHeader>
 
-      <CardContent className="pb-0">
-        <div className="flex items-center gap-4 text-xs text-muted-foreground">
+        <div className="mt-3 flex items-center gap-2 label-caption">
+          <span className={cn('inline-flex items-center gap-1 px-1.5 py-0.5 rounded-sm normal-case tracking-normal font-sans text-xs', statusColors[gallery.status])}>
+            {gallery.status}
+          </span>
+          <span className="flex items-center gap-1">
+            {typeIcons[gallery.type as keyof typeof typeIcons]}
+            {gallery.type}
+          </span>
+          {isExpired && <span className="text-destructive">Expired</span>}
+        </div>
+
+        <div className="mt-3 flex items-center gap-4 text-xs text-muted-foreground">
           {gallery.shootDate && (
             <span className="flex items-center gap-1">
-              <Calendar className="h-3 w-3" />
+              <Calendar className="h-3 w-3" strokeWidth={1.5} />
               {format(new Date(gallery.shootDate), 'MMM d, yyyy')}
             </span>
           )}
           <span className="flex items-center gap-1">
-            <ImageIcon className="h-3 w-3" />
-            {gallery.mediaCount.toLocaleString()} photos
+            <ImageIcon className="h-3 w-3" strokeWidth={1.5} />
+            {gallery.mediaCount.toLocaleString()}
           </span>
           <span className="flex items-center gap-1">
-            <Eye className="h-3 w-3" />
-            {gallery.viewCount.toLocaleString()} views
+            <Eye className="h-3 w-3" strokeWidth={1.5} />
+            {gallery.viewCount.toLocaleString()}
           </span>
         </div>
-      </CardContent>
 
-      <CardFooter className="flex items-center justify-between pt-2">
-        <div className="flex items-center gap-1">
-          <Link href={`/dashboard/${studioSlug}/galleries/${gallery.id}`} className="text-sm text-primary hover:underline">
-            View
-          </Link>
-          <span className="text-muted-foreground">·</span>
-          <Link href={`/dashboard/${studioSlug}/galleries/${gallery.id}/edit`} className="text-sm text-muted-foreground hover:text-foreground">
-            Edit
-          </Link>
-          <span className="text-muted-foreground">·</span>
-          <Link href={`/g/${gallery.shareToken}`} target="_blank" className="text-sm text-muted-foreground hover:text-foreground">
-            Share
-          </Link>
-        </div>
-        {deleteConfirm ? (
-          <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" onClick={() => onConfirmDelete(gallery.id)}>
-              Confirm
-            </Button>
-            <Button variant="ghost" size="sm" onClick={() => onDelete(gallery.id)}>
-              Cancel
-            </Button>
+        <div className="mt-4 flex items-center justify-between border-t border-border pt-3">
+          <div className="flex items-center gap-3">
+            <Link href={`/dashboard/${studioSlug}/galleries/${gallery.id}/edit`} className="text-sm text-muted-foreground hover:text-foreground">
+              Edit
+            </Link>
+            <Link href={`/g/${gallery.shareToken}`} target="_blank" className="text-sm text-muted-foreground hover:text-foreground">
+              Share
+            </Link>
           </div>
-        ) : (
           <Button
             variant="ghost"
             size="icon"
@@ -860,8 +818,8 @@ function GalleryCard({
           >
             <Delete className="h-4 w-4 text-destructive" />
           </Button>
-        )}
-      </CardFooter>
+        </div>
+      </div>
     </Card>
   )
 }

@@ -1,7 +1,7 @@
 'use client'
 
 import * as React from 'react'
-import { ChevronLeft, ChevronRight, ChevronUp, ChevronDown } from 'lucide-react'
+import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 
@@ -81,7 +81,6 @@ export function Calendar({
   weekStartsOn = 0,
   fixedWeeks = false,
   numberOfMonths = 1,
-  initialFocus = false,
   onMonthChange,
 }: CalendarProps) {
   const [currentMonth, setCurrentMonth] = React.useState(new Date())
@@ -205,7 +204,6 @@ export function Calendar({
                   const prevMonthDays = new Date(month.getFullYear(), month.getMonth(), 0).getDate()
 
                   let day = 1
-                  let weekNumber = 1
 
                   for (let week = 0; week < 6; week++) {
                     const weekDays: (Date | null)[] = []
@@ -236,16 +234,16 @@ export function Calendar({
                   <tr key={weekIndex}>
                     {showWeekNumbers && (
                       <td className="w-8 h-8 text-center text-xs text-muted-foreground">
-                        {weekNumber++}
+                        {weekIndex + 1}
                       </td>
                     )}
                     {week.map((date, dayIndex) => {
                       const isCurrentMonth = date?.getMonth() === month.getMonth()
                       const isToday = date && isSameDay(date, new Date())
-                      const isSelected = date && isDateSelected(date, selected)
+                      const isSelected = !!(date && isDateSelected(date, selected))
                       const isInRange = date && mode === 'range' && selected && 'from' in selected && isDateInRange(date, selected as { from: Date; to: Date })
                       const isHovered = date && isDateInHoverRange(date, hoverDate, selected)
-                      const isDisabled = date && (disabled?.(date) || (fromDate && date < fromDate) || (toDate && date > toDate))
+                      const isDisabled = !!(date && (disabled?.(date) || (fromDate && date < fromDate) || (toDate && date > toDate)))
 
                       return (
                         <td key={dayIndex} className="relative">

@@ -151,9 +151,9 @@ export function shuffleArray<T>(array: T[]): T[] {
   const shuffled = [...array]
   for (let i = shuffled.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1))
-    ;[shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]]
-  return shuffled
+    ;[shuffled[i], shuffled[j]] = [shuffled[j]!, shuffled[i]!]
   }
+  return shuffled
 }
 
 export function groupBy<T>(array: T[], key: keyof T | ((item: T) => string)): Record<string, T[]> {
@@ -164,7 +164,7 @@ export function groupBy<T>(array: T[], key: keyof T | ((item: T) => string)): Re
   }, {} as Record<string, T[]>)
 }
 
-export function sortBy<T>(array: T[], key: keyof T | ((item: T) => unknown), direction: 'asc' | 'desc' = 'asc'): T[] {
+export function sortBy<T>(array: T[], key: keyof T | ((item: T) => string | number | Date), direction: 'asc' | 'desc' = 'asc'): T[] {
   return [...array].sort((a, b) => {
     const aVal = typeof key === 'function' ? key(a) : a[key]
     const bVal = typeof key === 'function' ? key(b) : b[key]
@@ -244,7 +244,7 @@ export function fromQueryString(queryString: string): Record<string, string | st
   const result: Record<string, string | string[]> = {}
   for (const [key, value] of params.entries()) {
     if (key in result) {
-      const existing = result[key]
+      const existing = result[key]!
       result[key] = Array.isArray(existing) ? [...existing, value] : [existing, value]
     } else {
       result[key] = value

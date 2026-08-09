@@ -62,7 +62,7 @@ export interface ShareSettings {
 }
 
 // Validation schemas
-const galleryCreateSchema = z.object({
+const galleryBaseSchema = z.object({
   name: z.string().min(1, 'Gallery name is required').max(100),
   description: z.string().max(1000).optional(),
   type: z.enum(['wedding', 'portrait', 'commercial', 'event', 'other']),
@@ -79,12 +79,14 @@ const galleryCreateSchema = z.object({
   seo_title: z.string().max(60).optional(),
   seo_description: z.string().max(160).optional(),
   custom_domain: z.string().optional(),
-}).refine(data => !data.password_protected || data.password, {
+})
+
+const galleryCreateSchema = galleryBaseSchema.refine(data => !data.password_protected || data.password, {
   message: 'Password is required when password protection is enabled',
   path: ['password'],
 })
 
-const galleryUpdateSchema = galleryCreateSchema.partial().extend({
+const galleryUpdateSchema = galleryBaseSchema.partial().extend({
   id: z.string().uuid(),
 })
 

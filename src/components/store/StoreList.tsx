@@ -1,17 +1,21 @@
 'use client'
 
 import * as React from 'react'
-import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
-import { cn } from '@/lib/utils'
 import { format } from 'date-fns'
 import {
   Card,
   CardContent,
-  CardDescription,
   CardHeader,
-  CardTitle,
 } from '@/components/ui/card'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
@@ -24,19 +28,19 @@ import {
 import {
   Plus,
   Search,
-  Filter,
   Package,
   ShoppingCart,
   Eye,
   MoreVertical,
   Trash2,
   Edit,
-  Download,
   AlertCircle,
   CheckCircle,
-  Image as ImageIcon,
-  Video,
-  FileText,
+  LayoutGrid,
+  LayoutList,
+  DollarSign,
+  ArrowUpDown,
+  Truck,
 } from 'lucide-react'
 import {
   DropdownMenu,
@@ -55,7 +59,6 @@ import {
 } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
-import { Separator } from '@/components/ui/separator'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 
 interface Product {
@@ -67,7 +70,7 @@ interface Product {
   price: number
   salePrice?: number
   cost?: number
-  inventory?: number
+  inventory?: number | null
   sku?: string
   images: string[]
   tags: string[]
@@ -253,36 +256,25 @@ const mockOrders: Order[] = [
 
 function getProductStatusBadge(status: Product['status']) {
   const statusConfig = {
-    active: { label: 'Active', className: 'bg-green-100 text-green-800' },
-    draft: { label: 'Draft', className: 'bg-gray-100 text-gray-800' },
-    archived: { label: 'Archived', className: 'bg-gray-100 text-gray-600' },
+    active: { label: 'Active', variant: 'success' as const },
+    draft: { label: 'Draft', variant: 'secondary' as const },
+    archived: { label: 'Archived', variant: 'secondary' as const },
   }
   const config = statusConfig[status]
-  return <Badge className={config.className}>{config.label}</Badge>
+  return <Badge variant={config.variant}>{config.label}</Badge>
 }
 
 function getOrderStatusBadge(status: Order['status']) {
   const statusConfig = {
-    pending: { label: 'Pending', className: 'bg-gray-100 text-gray-800' },
-    processing: { label: 'Processing', className: 'bg-blue-100 text-blue-800' },
-    shipped: { label: 'Shipped', className: 'bg-purple-100 text-purple-800' },
-    delivered: { label: 'Delivered', className: 'bg-green-100 text-green-800' },
-    cancelled: { label: 'Cancelled', className: 'bg-red-100 text-red-800' },
-    refunded: { label: 'Refunded', className: 'bg-orange-100 text-orange-800' },
+    pending: { label: 'Pending', variant: 'secondary' as const },
+    processing: { label: 'Processing', variant: 'info' as const },
+    shipped: { label: 'Shipped', variant: 'default' as const },
+    delivered: { label: 'Delivered', variant: 'success' as const },
+    cancelled: { label: 'Cancelled', variant: 'destructive' as const },
+    refunded: { label: 'Refunded', variant: 'outline' as const },
   }
   const config = statusConfig[status]
-  return <Badge className={config.className}>{config.label}</Badge>
-}
-
-function getTypeIcon(type: Product['type']) {
-  const icons = {
-    digital: <FileText className="h-5 w-5" />,
-    print: <ImageIcon className="h-5 w-5" />,
-    album: <LayoutGrid className="h-5 w-5" />,
-    package: <Package className="h-5 w-5" />,
-    service: <Briefcase className="h-5 w-5" />,
-  }
-  return icons[type]
+  return <Badge variant={config.variant}>{config.label}</Badge>
 }
 
 interface StoreListProps {
@@ -291,16 +283,13 @@ interface StoreListProps {
 }
 
 export function StoreList({ studioSlug, isLoading = false }: StoreListProps) {
-  const router = useRouter()
-  const searchParams = useSearchParams()
-
   const [activeTab, setActiveTab] = React.useState<'products' | 'orders'>('products')
   const [products, setProducts] = React.useState<Product[]>(mockProducts)
   const [orders, setOrders] = React.useState<Order[]>(mockOrders)
   const [searchQuery, setSearchQuery] = React.useState('')
   const [statusFilter, setStatusFilter] = React.useState<string>('all')
   const [typeFilter, setTypeFilter] = React.useState<string>('all')
-  const [sortBy, setSortBy] = React.useState<string>('createdAt')
+  const [sortBy] = React.useState<string>('createdAt')
   const [sortOrder, setSortOrder] = React.useState<'asc' | 'desc'>('desc')
   const [viewMode, setViewMode] = React.useState<'table' | 'grid'>('table')
   const [selectedItems, setSelectedItems] = React.useState<string[]>([])
@@ -367,18 +356,34 @@ export function StoreList({ studioSlug, isLoading = false }: StoreListProps) {
     return result
   }, [orders, searchQuery, statusFilter, sortBy, sortOrder])
 
+  const [deleteProductConfirm, setDeleteProductConfirm] = React.useState<string | null>(null)
+  const [deleteOrderConfirm, setDeleteOrderConfirm] = React.useState<string | null>(null)
+  const [bulkDeleteConfirm, setBulkDeleteConfirm] = React.useState(false)
+
   const handleProductDelete = (id: string) => {
-    if (confirm('Are you sure you want to delete this product?')) {
-      setProducts(prev => prev.filter(p => p.id !== id))
-      setSelectedItems(prev => prev.filter(g => g !== id))
-    }
+    setDeleteProductConfirm(id)
+  }
+
+  const confirmProductDelete = (id: string) => {
+    setProducts(prev => prev.filter(p => p.id !== id))
+    setSelectedItems(prev => prev.filter(g => g !== id))
+    setDeleteProductConfirm(null)
   }
 
   const handleOrderDelete = (id: string) => {
-    if (confirm('Are you sure you want to delete this order?')) {
-      setOrders(prev => prev.filter(o => o.id !== id))
-      setSelectedItems(prev => prev.filter(g => g !== id))
-    }
+    setDeleteOrderConfirm(id)
+  }
+
+  const confirmOrderDelete = (id: string) => {
+    setOrders(prev => prev.filter(o => o.id !== id))
+    setSelectedItems(prev => prev.filter(g => g !== id))
+    setDeleteOrderConfirm(null)
+  }
+
+  const confirmBulkDelete = () => {
+    setProducts(prev => prev.filter(p => !selectedItems.includes(p.id)))
+    setSelectedItems([])
+    setBulkDeleteConfirm(false)
   }
 
   const toggleSelect = (id: string) => {
@@ -422,55 +427,47 @@ export function StoreList({ studioSlug, isLoading = false }: StoreListProps) {
   return (
     <div className="space-y-6">
       {/* Stats Row */}
-      <div className="grid gap-4 md:grid-cols-4">
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">Total Revenue</p>
-                <p className="text-2xl font-bold">${totalRevenue.toLocaleString()}</p>
-              </div>
-              <DollarSign className="h-8 w-8 text-muted-foreground/50" />
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">Total Sales</p>
-                <p className="text-2xl font-bold">{totalSales}</p>
-              </div>
-              <ShoppingCart className="h-8 w-8 text-muted-foreground/50" />
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">Active Products</p>
-                <p className="text-2xl font-bold">{activeProducts}</p>
-              </div>
-              <Package className="h-8 w-8 text-muted-foreground/50" />
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">Pending Orders</p>
-                <p className="text-2xl font-bold text-destructive">{pendingOrders}</p>
-              </div>
-              <AlertCircle className="h-8 w-8 text-muted-foreground/50" />
-            </div>
-          </CardContent>
-        </Card>
+      <div className="grid grid-cols-2 sm:grid-cols-4 divide-y sm:divide-y-0 sm:divide-x divide-border border border-border">
+        <div className="px-5 py-5">
+          <div className="flex items-center justify-between">
+            <span className="label-caption">Total revenue</span>
+            <DollarSign className="h-4 w-4 text-muted-foreground/60" strokeWidth={1.5} />
+          </div>
+          <div className="mt-2 font-mono text-2xl font-medium text-foreground tabular-nums">
+            ${totalRevenue.toLocaleString()}
+          </div>
+        </div>
+        <div className="px-5 py-5">
+          <div className="flex items-center justify-between">
+            <span className="label-caption">Total sales</span>
+            <ShoppingCart className="h-4 w-4 text-muted-foreground/60" strokeWidth={1.5} />
+          </div>
+          <div className="mt-2 font-mono text-2xl font-medium text-foreground tabular-nums">
+            {totalSales}
+          </div>
+        </div>
+        <div className="px-5 py-5">
+          <div className="flex items-center justify-between">
+            <span className="label-caption">Active products</span>
+            <Package className="h-4 w-4 text-muted-foreground/60" strokeWidth={1.5} />
+          </div>
+          <div className="mt-2 font-mono text-2xl font-medium text-foreground tabular-nums">
+            {activeProducts}
+          </div>
+        </div>
+        <div className="px-5 py-5">
+          <div className="flex items-center justify-between">
+            <span className="label-caption">Pending orders</span>
+            <AlertCircle className="h-4 w-4 text-muted-foreground/60" strokeWidth={1.5} />
+          </div>
+          <div className="mt-2 font-mono text-2xl font-medium text-destructive tabular-nums">
+            {pendingOrders}
+          </div>
+        </div>
       </div>
 
       {/* Tabs */}
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
+      <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as typeof activeTab)}>
         <TabsList className="w-full sm:w-auto">
           <TabsTrigger value="products">Products ({products.length})</TabsTrigger>
           <TabsTrigger value="orders">Orders ({orders.length})</TabsTrigger>
@@ -481,7 +478,7 @@ export function StoreList({ studioSlug, isLoading = false }: StoreListProps) {
             {/* Page Header */}
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
               <div>
-                <h1 className="text-display-md font-display font-bold text-foreground">Products</h1>
+                <h1 className="text-display-md font-display font-semibold text-foreground">Products</h1>
                 <p className="text-body text-muted-foreground mt-1">Manage your store products and inventory</p>
               </div>
               <Link href={`/dashboard/${studioSlug}/store/products/new`}>
@@ -572,12 +569,7 @@ export function StoreList({ studioSlug, isLoading = false }: StoreListProps) {
                       }}>
                         Archive
                       </Button>
-                      <Button variant="destructive" size="sm" onClick={() => {
-                        if (confirm(`Delete ${selectedItems.length} products?`)) {
-                          setProducts(prev => prev.filter(p => !selectedItems.includes(p.id)))
-                          setSelectedItems([])
-                        }
-                      }}>
+                      <Button variant="destructive" size="sm" onClick={() => setBulkDeleteConfirm(true)}>
                         <Trash2 className="h-3.5 w-3.5 mr-1.5" />
                         Delete
                       </Button>
@@ -599,7 +591,8 @@ export function StoreList({ studioSlug, isLoading = false }: StoreListProps) {
                             type="checkbox"
                             checked={selectedItems.length === filteredProducts.length && filteredProducts.length > 0}
                             onChange={() => toggleSelectAll(filteredProducts)}
-                            className="rounded border-input"
+                            aria-label="Select all products"
+                            className="h-4 w-4 rounded border-input text-primary focus:ring-2 focus:ring-primary"
                           />
                         </TableHead>
                         <TableHead>Product</TableHead>
@@ -628,19 +621,15 @@ export function StoreList({ studioSlug, isLoading = false }: StoreListProps) {
                                 type="checkbox"
                                 checked={selectedItems.includes(product.id)}
                                 onChange={() => toggleSelect(product.id)}
-                                className="rounded border-input"
+                                aria-label={`Select ${product.name}`}
+                                className="h-4 w-4 rounded border-input text-primary focus:ring-2 focus:ring-primary"
                               />
                             </TableCell>
                             <TableCell>
-                              <div className="flex items-center gap-3">
-                                <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center">
-                                  {getTypeIcon(product.type)}
-                                </div>
-                                <div>
-                                  <p className="font-medium">{product.name}</p>
-                                  <p className="text-sm text-muted-foreground truncate max-w-[200px]">{product.description}</p>
-                                  {product.sku && <p className="text-xs text-muted-foreground font-mono">{product.sku}</p>}
-                                </div>
+                              <div>
+                                <p className="font-medium">{product.name}</p>
+                                <p className="text-sm text-muted-foreground truncate max-w-[200px]">{product.description}</p>
+                                {product.sku && <p className="text-xs text-muted-foreground font-mono">{product.sku}</p>}
                               </div>
                             </TableCell>
                             <TableCell className="hidden md:table-cell">
@@ -650,7 +639,7 @@ export function StoreList({ studioSlug, isLoading = false }: StoreListProps) {
                               {getProductStatusBadge(product.status)}
                               {product.featured && <Badge variant="secondary" className="ml-1 text-xs">Featured</Badge>}
                             </TableCell>
-                            <TableCell className="hidden lg:table-cell font-medium">
+                            <TableCell className="hidden lg:table-cell font-mono tabular-nums text-sm font-medium">
                               {product.salePrice ? (
                                 <>
                                   <span className="line-through text-muted-foreground">${product.price.toLocaleString()}</span>
@@ -660,13 +649,13 @@ export function StoreList({ studioSlug, isLoading = false }: StoreListProps) {
                                 <span>${product.price.toLocaleString()}</span>
                               )}
                             </TableCell>
-                            <TableCell className="hidden xl:table-cell text-sm text-muted-foreground">
+                            <TableCell className="hidden xl:table-cell text-sm text-muted-foreground font-mono tabular-nums">
                               {product.inventory !== null ? product.inventory : '∞'}
                             </TableCell>
                             <TableCell className="hidden xl:table-cell text-sm text-muted-foreground">
                               {product.salesCount} sold
                             </TableCell>
-                            <TableCell className="text-right hidden xl:table-cell font-medium">
+                            <TableCell className="text-right hidden xl:table-cell font-mono tabular-nums text-sm font-medium">
                               ${product.revenue.toLocaleString()}
                             </TableCell>
                             <TableCell>
@@ -725,11 +714,9 @@ export function StoreList({ studioSlug, isLoading = false }: StoreListProps) {
                               type="checkbox"
                               checked={selectedItems.includes(product.id)}
                               onChange={() => toggleSelect(product.id)}
-                              className="rounded border-input mt-1"
+                              aria-label={`Select ${product.name}`}
+                              className="h-4 w-4 rounded border-input text-primary focus:ring-2 focus:ring-primary mt-1"
                             />
-                            <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center">
-                              {getTypeIcon(product.type)}
-                            </div>
                             <div className="min-w-0">
                               <h3 className="font-semibold truncate">{product.name}</h3>
                               <div className="flex items-center gap-2 mt-1">
@@ -766,7 +753,7 @@ export function StoreList({ studioSlug, isLoading = false }: StoreListProps) {
                       <CardContent className="space-y-3 pb-4">
                         <p className="text-sm text-muted-foreground line-clamp-2">{product.description}</p>
                         <div className="flex items-center justify-between">
-                          <div className="font-bold text-lg">
+                          <div className="font-mono tabular-nums font-medium text-lg">
                             {product.salePrice ? (
                               <>
                                 <span className="line-through text-muted-foreground text-sm">${product.price.toLocaleString()}</span>
@@ -806,7 +793,7 @@ export function StoreList({ studioSlug, isLoading = false }: StoreListProps) {
             {/* Page Header */}
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
               <div>
-                <h1 className="text-display-md font-display font-bold text-foreground">Orders</h1>
+                <h1 className="text-display-md font-display font-semibold text-foreground">Orders</h1>
                 <p className="text-body text-muted-foreground mt-1">Manage customer orders and fulfillment</p>
               </div>
             </div>
@@ -822,7 +809,8 @@ export function StoreList({ studioSlug, isLoading = false }: StoreListProps) {
                           type="checkbox"
                           checked={selectedItems.length === filteredOrders.length && filteredOrders.length > 0}
                           onChange={() => toggleSelectAll(filteredOrders)}
-                          className="rounded border-input"
+                          aria-label="Select all orders"
+                          className="h-4 w-4 rounded border-input text-primary focus:ring-2 focus:ring-primary"
                         />
                       </TableHead>
                       <TableHead>Order #</TableHead>
@@ -850,7 +838,8 @@ export function StoreList({ studioSlug, isLoading = false }: StoreListProps) {
                               type="checkbox"
                               checked={selectedItems.includes(order.id)}
                               onChange={() => toggleSelect(order.id)}
-                              className="rounded border-input"
+                              aria-label={`Select order ${order.orderNumber}`}
+                              className="h-4 w-4 rounded border-input text-primary focus:ring-2 focus:ring-primary"
                             />
                           </TableCell>
                           <TableCell>
@@ -881,7 +870,7 @@ export function StoreList({ studioSlug, isLoading = false }: StoreListProps) {
                               {order.paymentStatus}
                             </Badge>
                           </TableCell>
-                          <TableCell className="text-right hidden xl:table-cell font-medium">
+                          <TableCell className="text-right hidden xl:table-cell font-mono tabular-nums text-sm font-medium">
                             ${order.total.toLocaleString()}
                           </TableCell>
                           <TableCell>
@@ -911,7 +900,7 @@ export function StoreList({ studioSlug, isLoading = false }: StoreListProps) {
                                   <DropdownMenuItem onClick={() => {
                                     setOrders(prev => prev.map(o => o.id === order.id ? { ...o, status: 'delivered' as const } : o))
                                   }}>
-                                    <CheckCircle className="mr-2 h-4 w-4 text-green-600" />
+                                    <CheckCircle className="mr-2 h-4 w-4 text-success" />
                                     Mark Delivered
                                   </DropdownMenuItem>
                                 )}
@@ -947,6 +936,54 @@ export function StoreList({ studioSlug, isLoading = false }: StoreListProps) {
           <Button variant="outline" size="sm" disabled>Next</Button>
         </div>
       </div>
+
+      {/* Delete product confirmation */}
+      <Dialog open={!!deleteProductConfirm} onOpenChange={(open) => !open && setDeleteProductConfirm(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Delete product</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete this product? This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteProductConfirm(null)}>Cancel</Button>
+            <Button variant="destructive" onClick={() => deleteProductConfirm && confirmProductDelete(deleteProductConfirm)}>Delete</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete order confirmation */}
+      <Dialog open={!!deleteOrderConfirm} onOpenChange={(open) => !open && setDeleteOrderConfirm(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Delete order</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete this order? This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteOrderConfirm(null)}>Cancel</Button>
+            <Button variant="destructive" onClick={() => deleteOrderConfirm && confirmOrderDelete(deleteOrderConfirm)}>Delete</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Bulk delete confirmation */}
+      <Dialog open={bulkDeleteConfirm} onOpenChange={setBulkDeleteConfirm}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Delete {selectedItems.length} product{selectedItems.length !== 1 ? 's' : ''}</DialogTitle>
+            <DialogDescription>
+              This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setBulkDeleteConfirm(false)}>Cancel</Button>
+            <Button variant="destructive" onClick={confirmBulkDelete}>Delete</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

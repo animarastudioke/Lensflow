@@ -1,10 +1,6 @@
 'use client'
 
 import * as React from 'react'
-import { useRouter } from 'next/navigation'
-import Link from 'next/link'
-import { cn } from '@/lib/utils'
-import { format } from 'date-fns'
 import {
   Card,
   CardContent,
@@ -35,66 +31,18 @@ import {
   CreditCard,
   Zap,
   Database,
-  User,
-  Mail,
-  Key,
   Save,
   Loader2,
   CheckCircle,
-  Camera,
-  Upload,
-  Trash2,
-  Edit,
-  Eye,
-  Download,
-  Share2,
-  Plus,
-  Minus,
-  Calendar,
-  Cloud,
-  Lock,
-  Unlock,
-  Wifi,
-  WifiOff,
-  Sun,
-  HelpCircle,
-  Info,
-  ChevronDown,
-  ChevronUp,
-  Monitor,
-  LogOut,
-  Calculator,
-  MessageSquare,
-  Instagram,
-  Facebook,
-  Twitter,
-  Pinterest,
-  Youtube,
-  Tiktok,
-  Linkedin,
-  Globe,
 } from 'lucide-react'
 import { Label } from '@/components/ui/label'
-import { Switch } from '@/components/ui/switch'
-import { Separator } from '@/components/ui/separator'
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Textarea } from '@/components/ui/textarea'
-import { Badge } from '@/components/ui/badge'
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-  DialogFooter,
-} from '@/components/ui/dialog'
 
 interface SettingsPageProps {
   studioSlug: string
 }
 
 export function SettingsPage({ studioSlug }: SettingsPageProps) {
-  const router = useRouter()
   const [activeTab, setActiveTab] = React.useState<string>('general')
   const [isSaving, setIsSaving] = React.useState(false)
   const [saveStatus, setSaveStatus] = React.useState<'idle' | 'success' | 'error'>('idle')
@@ -124,7 +72,7 @@ export function SettingsPage({ studioSlug }: SettingsPageProps) {
       {/* Page Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-display-sm font-display font-bold">Settings</h1>
+          <h1 className="text-display-sm font-display font-semibold">Settings</h1>
           <p className="text-body text-muted-foreground mt-1">Manage your studio preferences and configuration</p>
         </div>
         <Button onClick={handleSave} disabled={isSaving}>
@@ -135,7 +83,7 @@ export function SettingsPage({ studioSlug }: SettingsPageProps) {
             </>
           ) : saveStatus === 'success' ? (
             <>
-              <CheckCircle className="h-4 w-4 mr-2 text-green-500" />
+              <CheckCircle className="h-4 w-4 mr-2 text-success" />
               Saved
             </>
           ) : (

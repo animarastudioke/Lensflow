@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { getAuthUser } from '@/lib/auth'
 import { z } from 'zod'
 
 const shareSettingsSchema = z.object({

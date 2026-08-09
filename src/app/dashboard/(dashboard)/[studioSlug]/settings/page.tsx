@@ -18,7 +18,7 @@ export async function generateMetadata({
   }
 }
 
-export default async function SettingsPageRoute({ params, searchParams }: SettingsPageProps) {
+export default async function SettingsPageRoute({ params }: SettingsPageProps) {
   const { studioSlug } = await params
   const user = await getAuthUserServer()
 

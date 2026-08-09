@@ -1,17 +1,20 @@
 'use client'
 
 import * as React from 'react'
-import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
-import { cn } from '@/lib/utils'
-import { format } from 'date-fns'
 import {
   Card,
   CardContent,
-  CardDescription,
   CardHeader,
-  CardTitle,
 } from '@/components/ui/card'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
@@ -24,17 +27,12 @@ import {
 import {
   Plus,
   Search,
-  Filter,
   Globe,
   Eye,
   MoreVertical,
   Trash2,
-  Edit,
   ExternalLink,
-  Palette,
   Layout,
-  Image as ImageIcon,
-  Settings,
   CheckCircle,
   XCircle,
   Copy,
@@ -60,10 +58,6 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
-import { Separator } from '@/components/ui/separator'
-import { Switch } from '@/components/ui/switch'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 
 interface Website {
   id: string
@@ -193,12 +187,12 @@ const mockWebsites: Website[] = [
 
 function getStatusBadge(status: Website['status']) {
   const statusConfig = {
-    published: { label: 'Published', className: 'bg-green-100 text-green-800' },
-    draft: { label: 'Draft', className: 'bg-gray-100 text-gray-800' },
-    archived: { label: 'Archived', className: 'bg-gray-100 text-gray-600' },
+    published: { label: 'Published', variant: 'success' as const },
+    draft: { label: 'Draft', variant: 'secondary' as const },
+    archived: { label: 'Archived', variant: 'secondary' as const },
   }
   const config = statusConfig[status]
-  return <Badge className={config.className}>{config.label}</Badge>
+  return <Badge variant={config.variant}>{config.label}</Badge>
 }
 
 interface WebsiteListProps {
@@ -207,13 +201,10 @@ interface WebsiteListProps {
 }
 
 export function WebsiteList({ studioSlug, isLoading = false }: WebsiteListProps) {
-  const router = useRouter()
-  const searchParams = useSearchParams()
-
   const [websites, setWebsites] = React.useState<Website[]>(mockWebsites)
   const [searchQuery, setSearchQuery] = React.useState('')
   const [statusFilter, setStatusFilter] = React.useState<string>('all')
-  const [sortBy, setSortBy] = React.useState<string>('updatedAt')
+  const [sortBy] = React.useState<string>('updatedAt')
   const [sortOrder, setSortOrder] = React.useState<'asc' | 'desc'>('desc')
   const [viewMode, setViewMode] = React.useState<'table' | 'grid'>('table')
   const [selectedWebsites, setSelectedWebsites] = React.useState<string[]>([])
@@ -247,11 +238,23 @@ export function WebsiteList({ studioSlug, isLoading = false }: WebsiteListProps)
     return result
   }, [websites, searchQuery, statusFilter, sortBy, sortOrder])
 
+  const [deleteConfirm, setDeleteConfirm] = React.useState<string | null>(null)
+  const [bulkDeleteConfirm, setBulkDeleteConfirm] = React.useState(false)
+
   const handleDelete = (id: string) => {
-    if (confirm('Are you sure you want to delete this website?')) {
-      setWebsites(prev => prev.filter(w => w.id !== id))
-      setSelectedWebsites(prev => prev.filter(g => g !== id))
-    }
+    setDeleteConfirm(id)
+  }
+
+  const confirmDelete = (id: string) => {
+    setWebsites(prev => prev.filter(w => w.id !== id))
+    setSelectedWebsites(prev => prev.filter(g => g !== id))
+    setDeleteConfirm(null)
+  }
+
+  const confirmBulkDelete = () => {
+    setWebsites(prev => prev.filter(w => !selectedWebsites.includes(w.id)))
+    setSelectedWebsites([])
+    setBulkDeleteConfirm(false)
   }
 
   const handlePublish = (id: string) => {
@@ -321,57 +324,49 @@ export function WebsiteList({ studioSlug, isLoading = false }: WebsiteListProps)
   return (
     <div className="space-y-6">
       {/* Stats Row */}
-      <div className="grid gap-4 md:grid-cols-4">
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">Total Visits</p>
-                <p className="text-2xl font-bold">{totalVisits.toLocaleString()}</p>
-              </div>
-              <Globe className="h-8 w-8 text-muted-foreground/50" />
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">Unique Visitors</p>
-                <p className="text-2xl font-bold">{totalVisitors.toLocaleString()}</p>
-              </div>
-              <Users className="h-8 w-8 text-muted-foreground/50" />
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">Published Sites</p>
-                <p className="text-2xl font-bold">{publishedCount}</p>
-              </div>
-              <CheckCircle className="h-8 w-8 text-muted-foreground/50" />
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">Total Sites</p>
-                <p className="text-2xl font-bold">{websites.length}</p>
-              </div>
-              <Layout className="h-8 w-8 text-muted-foreground/50" />
-            </div>
-          </CardContent>
-        </Card>
+      <div className="grid grid-cols-2 sm:grid-cols-4 divide-y sm:divide-y-0 sm:divide-x divide-border border border-border">
+        <div className="px-5 py-5">
+          <div className="flex items-center justify-between">
+            <span className="label-caption">Total visits</span>
+            <Globe className="h-4 w-4 text-muted-foreground/60" strokeWidth={1.5} />
+          </div>
+          <div className="mt-2 font-mono text-2xl font-medium text-foreground tabular-nums">
+            {totalVisits.toLocaleString()}
+          </div>
+        </div>
+        <div className="px-5 py-5">
+          <div className="flex items-center justify-between">
+            <span className="label-caption">Unique visitors</span>
+            <Users className="h-4 w-4 text-muted-foreground/60" strokeWidth={1.5} />
+          </div>
+          <div className="mt-2 font-mono text-2xl font-medium text-foreground tabular-nums">
+            {totalVisitors.toLocaleString()}
+          </div>
+        </div>
+        <div className="px-5 py-5">
+          <div className="flex items-center justify-between">
+            <span className="label-caption">Published sites</span>
+            <CheckCircle className="h-4 w-4 text-muted-foreground/60" strokeWidth={1.5} />
+          </div>
+          <div className="mt-2 font-mono text-2xl font-medium text-foreground tabular-nums">
+            {publishedCount}
+          </div>
+        </div>
+        <div className="px-5 py-5">
+          <div className="flex items-center justify-between">
+            <span className="label-caption">Total sites</span>
+            <Layout className="h-4 w-4 text-muted-foreground/60" strokeWidth={1.5} />
+          </div>
+          <div className="mt-2 font-mono text-2xl font-medium text-foreground tabular-nums">
+            {websites.length}
+          </div>
+        </div>
       </div>
 
       {/* Page Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-display-md font-display font-bold text-foreground">Website Builder</h1>
+          <h1 className="text-display-md font-display font-semibold text-foreground">Website Builder</h1>
           <p className="text-body text-muted-foreground mt-1">Create and manage your portfolio websites</p>
         </div>
         <Link href={`/dashboard/${studioSlug}/website/new`}>
@@ -457,12 +452,7 @@ export function WebsiteList({ studioSlug, isLoading = false }: WebsiteListProps)
                   <XCircle className="h-3.5 w-3.5 mr-1.5" />
                   Unpublish
                 </Button>
-                <Button variant="destructive" size="sm" onClick={() => {
-                  if (confirm(`Delete ${selectedWebsites.length} websites?`)) {
-                    setWebsites(prev => prev.filter(w => !selectedWebsites.includes(w.id)))
-                    setSelectedWebsites([])
-                  }
-                }}>
+                <Button variant="destructive" size="sm" onClick={() => setBulkDeleteConfirm(true)}>
                   <Trash2 className="h-3.5 w-3.5 mr-1.5" />
                   Delete
                 </Button>
@@ -484,7 +474,8 @@ export function WebsiteList({ studioSlug, isLoading = false }: WebsiteListProps)
                       type="checkbox"
                       checked={selectedWebsites.length === filteredWebsites.length && filteredWebsites.length > 0}
                       onChange={toggleSelectAll}
-                      className="rounded border-input"
+                      aria-label="Select all websites"
+                      className="h-4 w-4 rounded border-input text-primary focus:ring-2 focus:ring-primary"
                     />
                   </TableHead>
                   <TableHead>Website</TableHead>
@@ -513,20 +504,16 @@ export function WebsiteList({ studioSlug, isLoading = false }: WebsiteListProps)
                           type="checkbox"
                           checked={selectedWebsites.includes(website.id)}
                           onChange={() => toggleSelect(website.id)}
-                          className="rounded border-input"
+                          aria-label={`Select ${website.name}`}
+                          className="h-4 w-4 rounded border-input text-primary focus:ring-2 focus:ring-primary"
                         />
                       </TableCell>
                       <TableCell>
-                        <div className="flex items-center gap-3">
-                          <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center">
-                            <Globe className="h-5 w-5 text-primary" />
-                          </div>
-                          <div>
-                            <p className="font-medium">{website.name}</p>
-                            <p className="text-sm text-muted-foreground">
-                              {website.templateName} • {website.pages.length} pages
-                            </p>
-                          </div>
+                        <div>
+                          <p className="font-medium">{website.name}</p>
+                          <p className="text-sm text-muted-foreground">
+                            {website.templateName} • {website.pages.length} pages
+                          </p>
                         </div>
                       </TableCell>
                       <TableCell className="hidden md:table-cell">
@@ -548,10 +535,10 @@ export function WebsiteList({ studioSlug, isLoading = false }: WebsiteListProps)
                       <TableCell className="hidden lg:table-cell text-sm text-muted-foreground">
                         {website.pages.filter(p => p.isPublished).length}/{website.pages.length} published
                       </TableCell>
-                      <TableCell className="hidden xl:table-cell text-sm text-muted-foreground">
+                      <TableCell className="hidden xl:table-cell text-sm text-muted-foreground font-mono tabular-nums">
                         {website.visits.toLocaleString()}
                       </TableCell>
-                      <TableCell className="hidden xl:table-cell text-sm text-muted-foreground">
+                      <TableCell className="hidden xl:table-cell text-sm text-muted-foreground font-mono tabular-nums">
                         {website.uniqueVisitors.toLocaleString()}
                       </TableCell>
                       <TableCell>
@@ -589,7 +576,7 @@ export function WebsiteList({ studioSlug, isLoading = false }: WebsiteListProps)
                               <DropdownMenuSeparator />
                               {website.status === 'draft' && (
                                 <DropdownMenuItem onClick={() => handlePublish(website.id)}>
-                                  <CheckCircle className="mr-2 h-4 w-4 text-green-600" />
+                                  <CheckCircle className="mr-2 h-4 w-4 text-success" />
                                   Publish
                                 </DropdownMenuItem>
                               )}
@@ -646,11 +633,9 @@ export function WebsiteList({ studioSlug, isLoading = false }: WebsiteListProps)
                         type="checkbox"
                         checked={selectedWebsites.includes(website.id)}
                         onChange={() => toggleSelect(website.id)}
-                        className="rounded border-input mt-1"
+                        aria-label={`Select ${website.name}`}
+                        className="h-4 w-4 rounded border-input text-primary focus:ring-2 focus:ring-primary mt-1"
                       />
-                      <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center">
-                        <Globe className="h-5 w-5 text-primary" />
-                      </div>
                       <div className="min-w-0">
                         <h3 className="font-semibold truncate">{website.name}</h3>
                         <div className="flex items-center gap-2 mt-1">
@@ -705,11 +690,11 @@ export function WebsiteList({ studioSlug, isLoading = false }: WebsiteListProps)
                   <div className="flex items-center gap-4 text-sm text-muted-foreground">
                     <div className="flex items-center gap-1">
                       <Eye className="h-3.5 w-3.5" />
-                      <span>{website.visits.toLocaleString()} visits</span>
+                      <span className="font-mono tabular-nums">{website.visits.toLocaleString()}</span> visits
                     </div>
                     <div className="flex items-center gap-1">
                       <Users className="h-3.5 w-3.5" />
-                      <span>{website.uniqueVisitors.toLocaleString()} visitors</span>
+                      <span className="font-mono tabular-nums">{website.uniqueVisitors.toLocaleString()}</span> visitors
                     </div>
                   </div>
                   <div className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -748,6 +733,38 @@ export function WebsiteList({ studioSlug, isLoading = false }: WebsiteListProps)
           <Button variant="outline" size="sm" disabled>Next</Button>
         </div>
       </div>
+
+      {/* Delete confirmation */}
+      <Dialog open={!!deleteConfirm} onOpenChange={(open) => !open && setDeleteConfirm(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Delete website</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete this website? This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteConfirm(null)}>Cancel</Button>
+            <Button variant="destructive" onClick={() => deleteConfirm && confirmDelete(deleteConfirm)}>Delete</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Bulk delete confirmation */}
+      <Dialog open={bulkDeleteConfirm} onOpenChange={setBulkDeleteConfirm}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Delete {selectedWebsites.length} website{selectedWebsites.length !== 1 ? 's' : ''}</DialogTitle>
+            <DialogDescription>
+              This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setBulkDeleteConfirm(false)}>Cancel</Button>
+            <Button variant="destructive" onClick={confirmBulkDelete}>Delete</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

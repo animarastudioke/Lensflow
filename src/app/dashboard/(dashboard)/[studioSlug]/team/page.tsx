@@ -18,7 +18,7 @@ export async function generateMetadata({
   }
 }
 
-export default async function TeamPage({ params, searchParams }: TeamPageProps) {
+export default async function TeamPage({ params }: TeamPageProps) {
   const { studioSlug } = await params
   const user = await getAuthUserServer()
 

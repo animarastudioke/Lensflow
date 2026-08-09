@@ -5,20 +5,6 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from '@/components/ui/collapsible'
-import {
-  NavigationMenu,
-  NavigationMenuContent,
-  NavigationMenuItem,
-  NavigationMenuLink,
-  NavigationMenuList,
-  NavigationMenuTrigger,
-  NavigationMenuIndicator,
-} from '@/components/ui/navigation-menu'
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet'
 import {
   LayoutDashboard,
@@ -37,16 +23,11 @@ import {
   Building2,
   Briefcase,
   Megaphone,
-  Heart,
   NotepadText,
-  Shield,
-  Crown,
   LogOut,
-  HelpCircle,
-  ChevronDown,
-  ChevronUp,
+  User,
 } from 'lucide-react'
-import { useAuthUser, UserRole } from '@/lib/auth/hooks'
+import { useAuthUser, type UserRole } from '@/lib/auth/hooks'
 
 interface SidebarProps {
   studioSlug: string
@@ -198,10 +179,10 @@ export function Sidebar({ studioSlug }: SidebarProps) {
             {!collapsed && (
               <Link
                 href={`/dashboard/${studioSlug}`}
-                className="flex items-center gap-2 font-bold text-xl text-foreground"
+                className="flex items-center gap-2 font-display text-xl italic text-foreground"
                 aria-label="LensFlow Dashboard"
               >
-                <Building2 className="h-7 w-7 text-primary" />
+                <Building2 className="h-6 w-6 text-primary" strokeWidth={1.5} />
                 <span className="truncate">LensFlow</span>
               </Link>
             )}
@@ -211,7 +192,7 @@ export function Sidebar({ studioSlug }: SidebarProps) {
                 className="flex items-center justify-center"
                 aria-label="LensFlow Dashboard"
               >
-                <Building2 className="h-7 w-7 text-primary" />
+                <Building2 className="h-6 w-6 text-primary" strokeWidth={1.5} />
               </Link>
             )}
             <Button
@@ -237,9 +218,9 @@ export function Sidebar({ studioSlug }: SidebarProps) {
                     <Link
                       href={item.href(studioSlug)}
                       className={cn(
-                        'flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all duration-200',
+                        'flex items-center gap-3 rounded-md px-3 py-2.5 text-sm font-medium transition-colors duration-150',
                         isActive
-                          ? 'bg-primary text-primary-foreground shadow-sm'
+                          ? 'bg-primary text-primary-foreground'
                           : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground',
                         collapsed && 'justify-center'
                       )}
@@ -288,7 +269,7 @@ export function MobileSidebarTrigger({ studioSlug }: { studioSlug: string }) {
         <Button
           variant="ghost"
           size="icon"
-          className="lg:hidden fixed top-4 left-4 z-50 h-10 w-10 rounded-lg bg-background shadow-lg border border-border"
+          className="lg:hidden fixed top-4 left-4 z-50 h-10 w-10 rounded-md bg-background border border-border"
           aria-label="Open navigation menu"
         >
           <Menu className="h-5 w-5" />
@@ -300,9 +281,9 @@ export function MobileSidebarTrigger({ studioSlug }: { studioSlug: string }) {
           <div className="flex h-16 items-center justify-between px-4 border-b border-border">
             <Link
               href={`/dashboard/${studioSlug}`}
-              className="flex items-center gap-2 font-bold text-xl text-foreground"
+              className="flex items-center gap-2 font-display text-xl italic text-foreground"
             >
-              <Building2 className="h-7 w-7 text-primary" />
+              <Building2 className="h-6 w-6 text-primary" strokeWidth={1.5} />
               <span>LensFlow</span>
             </Link>
           </div>
