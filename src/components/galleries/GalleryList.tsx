@@ -480,7 +480,7 @@ export function GalleryList({ studioSlug, initialGalleries = [], isLoading = fal
                     checked={selectedGalleries.length === filteredGalleries.length && filteredGalleries.length > 0}
                     onChange={toggleSelectAll}
                     aria-label="Select all galleries"
-                    className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-2 focus:ring-primary"
+                    className="h-4 w-4 rounded border-input text-primary focus:ring-2 focus:ring-primary"
                   />
                 </TableHead>
                 <TableHead>
@@ -591,7 +591,7 @@ export function GalleryList({ studioSlug, initialGalleries = [], isLoading = fal
                         checked={selectedGalleries.includes(gallery.id)}
                         onChange={() => toggleSelect(gallery.id)}
                         aria-label={`Select ${gallery.name}`}
-                        className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-2 focus:ring-primary"
+                        className="h-4 w-4 rounded border-input text-primary focus:ring-2 focus:ring-primary"
                       />
                     </TableCell>
                     <TableCell>
