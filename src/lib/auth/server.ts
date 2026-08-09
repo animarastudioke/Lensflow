@@ -90,7 +90,7 @@ export async function getUserStudiios(): Promise<string[]> {
   const supabase = createClient()
 
   const { data: memberships } = await supabase
-    .from('team_members')
+    .from('studio_members')
     .select('studio_id')
     .eq('user_id', user.id)
     .eq('status', 'active')
