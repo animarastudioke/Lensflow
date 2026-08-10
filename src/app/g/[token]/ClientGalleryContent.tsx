@@ -63,6 +63,8 @@ interface GalleryData {
   watermark_enabled: boolean
   password_protected: boolean
   share_token: string
+  layout_type: 'grid' | 'masonry' | 'justified'
+  homepage_design: 'classic' | 'minimal' | 'fullscreen' | 'magazine'
   studio?: {
     name: string
     slug: string
@@ -142,7 +144,6 @@ export function ClientGalleryContent({
 
   const [showPassword] = React.useState(requirePassword)
   const [password, setPassword] = React.useState('')
-  const [viewMode] = React.useState<'grid' | 'masonry'>('grid')
   const [, setSelectedMedia] = React.useState<string | null>(null)
   const [lightboxIndex, setLightboxIndex] = React.useState(0)
   const [showLightbox, setShowLightbox] = React.useState(false)
@@ -313,6 +314,36 @@ export function ClientGalleryContent({
         coverImage: gallery.cover_image,
       }
 
+  const renderMediaOverlay = (item: MediaItem) => (
+    <>
+      <div className="absolute inset-0 bg-black/30 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+        <Button variant="secondary" size="icon" className="h-10 w-10">
+          <Eye className="h-5 w-5" />
+        </Button>
+      </div>
+
+      {item.isFavorite && (
+        <div className="absolute top-1 right-1">
+          <Heart className="h-5 w-5 text-red-500 fill-current drop-shadow" />
+        </div>
+      )}
+
+      {item.type === 'video' && (
+        <div className="absolute bottom-1 right-1 bg-black/50 text-white px-2 py-1 rounded text-xs flex items-center gap-1">
+          <Download className="h-3 w-3" />
+          Video
+        </div>
+      )}
+
+      {item.commentCount > 0 && (
+        <div className="absolute bottom-1 left-1 bg-black/50 text-white px-2 py-1 rounded text-xs flex items-center gap-1">
+          <Share2 className="h-3 w-3" />
+          {item.commentCount}
+        </div>
+      )}
+    </>
+  )
+
   const renderMediaGrid = () => {
     const filteredMedia = albums.length > 0 && albums.find(a => a.id === searchParams.get('album'))
       ? media.filter(m => m.albumId === searchParams.get('album'))
@@ -320,7 +351,7 @@ export function ClientGalleryContent({
 
     if (filteredMedia.length === 0) {
       return (
-        <div className="col-span-full text-center py-12">
+        <div className="text-center py-12">
           <div className="h-12 w-12 mx-auto text-muted-foreground/50 mb-4">
             <Grid className="h-12 w-12" />
           </div>
@@ -329,49 +360,76 @@ export function ClientGalleryContent({
       )
     }
 
-    return filteredMedia.map((item, index) => (
-      <div
-        key={item.id}
-        className={cn(
-          'relative group overflow-hidden rounded-xl bg-muted transition-all duration-200 cursor-pointer',
-          viewMode === 'grid' ? 'aspect-square' : undefined
-        )}
-        onClick={() => openLightbox(index)}
-      >
-        <div className="absolute inset-0 bg-black/30 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-          <Button variant="secondary" size="icon" className="h-10 w-10">
-            <Eye className="h-5 w-5" />
-          </Button>
+    const layoutType = gallery?.layout_type || 'grid'
+
+    if (layoutType === 'masonry') {
+      return (
+        <div className="columns-2 sm:columns-3 md:columns-4 lg:columns-5 gap-3 px-4">
+          {filteredMedia.map((item, index) => (
+            <div
+              key={item.id}
+              className="relative group mb-3 break-inside-avoid overflow-hidden rounded-xl bg-muted transition-all duration-200 cursor-pointer"
+              onClick={() => openLightbox(index)}
+            >
+              <img
+                src={item.thumbnailUrl}
+                alt={item.filename}
+                className="w-full h-auto object-cover transition-transform duration-300 group-hover:scale-105"
+                style={item.width && item.height ? { aspectRatio: `${item.width} / ${item.height}` } : undefined}
+                loading="lazy"
+              />
+              {renderMediaOverlay(item)}
+            </div>
+          ))}
         </div>
+      )
+    }
 
-        <img
-          src={item.thumbnailUrl}
-          alt={item.filename}
-          className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
-          loading="lazy"
-        />
+    if (layoutType === 'justified') {
+      return (
+        <div className="flex flex-wrap gap-3 px-4">
+          {filteredMedia.map((item, index) => {
+            const ratio = item.width && item.height ? item.width / item.height : 1
+            return (
+              <div
+                key={item.id}
+                className="relative group overflow-hidden rounded-xl bg-muted transition-all duration-200 cursor-pointer grow"
+                style={{ height: 220, width: 220 * ratio, flexBasis: 220 * ratio }}
+                onClick={() => openLightbox(index)}
+              >
+                <img
+                  src={item.thumbnailUrl}
+                  alt={item.filename}
+                  className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+                  loading="lazy"
+                />
+                {renderMediaOverlay(item)}
+              </div>
+            )
+          })}
+        </div>
+      )
+    }
 
-        {item.isFavorite && (
-          <div className="absolute top-1 right-1">
-            <Heart className="h-5 w-5 text-red-500 fill-current drop-shadow" />
+    return (
+      <div className="grid gap-3 px-4 grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
+        {filteredMedia.map((item, index) => (
+          <div
+            key={item.id}
+            className="relative group aspect-square overflow-hidden rounded-xl bg-muted transition-all duration-200 cursor-pointer"
+            onClick={() => openLightbox(index)}
+          >
+            <img
+              src={item.thumbnailUrl}
+              alt={item.filename}
+              className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+              loading="lazy"
+            />
+            {renderMediaOverlay(item)}
           </div>
-        )}
-
-        {item.type === 'video' && (
-          <div className="absolute bottom-1 right-1 bg-black/50 text-white px-2 py-1 rounded text-xs flex items-center gap-1">
-            <Download className="h-3 w-3" />
-            Video
-          </div>
-        )}
-
-        {item.commentCount > 0 && (
-          <div className="absolute bottom-1 left-1 bg-black/50 text-white px-2 py-1 rounded text-xs flex items-center gap-1">
-            <Share2 className="h-3 w-3" />
-            {item.commentCount}
-          </div>
-        )}
+        ))}
       </div>
-    ))
+    )
   }
 
   const renderAlbums = () => {
@@ -422,43 +480,146 @@ export function ClientGalleryContent({
     )
   }
 
+  const shareDownloadButtons = (variant: 'ghost' | 'secondary' = 'ghost') => (
+    <div className="flex items-center gap-2 shrink-0">
+      <Button variant={variant} size="icon" onClick={shareGallery} aria-label="Share gallery">
+        <Share2 className="h-5 w-5" />
+      </Button>
+      {gallery.allow_download && (
+        <Button variant={variant} size="icon" aria-label="Download all">
+          <Download className="h-5 w-5" />
+        </Button>
+      )}
+    </div>
+  )
+
+  const renderHeader = () => {
+    const design = gallery.homepage_design || 'classic'
+
+    if (design === 'minimal') {
+      return (
+        <header className="text-center py-10 px-4 border-b border-border">
+          {branding.logo && (
+            <img src={branding.logo} alt={branding.name} className="h-8 w-auto mx-auto mb-3" />
+          )}
+          <h1 className="font-display font-semibold text-2xl">{gallery.name}</h1>
+          {gallery.description && (
+            <p className="text-sm text-muted-foreground mt-2 max-w-md mx-auto">{gallery.description}</p>
+          )}
+          {gallery.client_name && (
+            <p className="text-sm text-muted-foreground mt-1">{gallery.client_name}</p>
+          )}
+          <div className="flex items-center justify-center gap-2 mt-4">
+            {shareDownloadButtons('ghost')}
+          </div>
+        </header>
+      )
+    }
+
+    if (design === 'fullscreen') {
+      return (
+        <header className="relative h-[50vh] min-h-[360px] flex items-end overflow-hidden">
+          {branding.coverImage ? (
+            <img
+              src={branding.coverImage}
+              alt={gallery.name}
+              className="absolute inset-0 h-full w-full object-cover"
+            />
+          ) : (
+            <div className="absolute inset-0 bg-gradient-to-br from-primary/40 to-primary/10" />
+          )}
+          <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent" />
+          <div className="relative z-10 w-full p-6 md:p-10 flex items-end justify-between gap-4 flex-wrap">
+            <div>
+              <h1 className="font-display font-bold text-3xl md:text-4xl text-white">{gallery.name}</h1>
+              {gallery.description && (
+                <p className="text-white/80 mt-1 max-w-lg">{gallery.description}</p>
+              )}
+              {gallery.client_name && (
+                <p className="text-white/70 text-sm mt-2">{gallery.client_name}</p>
+              )}
+            </div>
+            {shareDownloadButtons('secondary')}
+          </div>
+        </header>
+      )
+    }
+
+    if (design === 'magazine') {
+      const collage = [media[0]?.thumbnailUrl, media[1]?.thumbnailUrl, media[2]?.thumbnailUrl, branding.coverImage]
+        .filter((src): src is string => !!src)
+        .slice(0, 3)
+
+      return (
+        <header className="p-4 md:p-6">
+          {collage.length > 0 && (
+            <div
+              className={cn(
+                'grid gap-2 rounded-xl overflow-hidden mb-4 h-[280px] md:h-[360px]',
+                collage.length === 1 ? 'grid-cols-1' : 'grid-cols-3 grid-rows-2'
+              )}
+            >
+              {collage.length === 1 ? (
+                <img src={collage[0]} alt={gallery.name} className="h-full w-full object-cover" />
+              ) : (
+                <>
+                  <img src={collage[0]} alt={gallery.name} className="col-span-2 row-span-2 h-full w-full object-cover" />
+                  {collage[1] && <img src={collage[1]} alt={gallery.name} className="h-full w-full object-cover" />}
+                  {collage[2] && <img src={collage[2]} alt={gallery.name} className="h-full w-full object-cover" />}
+                </>
+              )}
+            </div>
+          )}
+          <div className="flex items-center justify-between gap-4 flex-wrap">
+            <div>
+              <h1 className="font-display font-bold text-2xl">{gallery.name}</h1>
+              {gallery.description && (
+                <p className="text-muted-foreground mt-1">{gallery.description}</p>
+              )}
+              {gallery.client_name && (
+                <p className="text-sm text-muted-foreground mt-1">{gallery.client_name}</p>
+              )}
+            </div>
+            {shareDownloadButtons('ghost')}
+          </div>
+        </header>
+      )
+    }
+
+    // Classic (default)
+    return (
+      <header className="flex flex-col md:flex-row items-center justify-between gap-4 p-4 border-b border-border">
+        <div className="flex items-center gap-4">
+          {branding.logo ? (
+            <img src={branding.logo} alt={branding.name} className="h-10 w-auto" />
+          ) : (
+            <div className="h-10 w-10 rounded-lg bg-primary flex items-center justify-center">
+              <span className="text-primary-foreground font-bold text-lg">
+                {branding.name?.charAt(0) || 'L'}
+              </span>
+            </div>
+          )}
+          <div>
+            <h1 className="font-display font-bold text-xl">{gallery.name}</h1>
+            {gallery.description && (
+              <p className="text-sm text-muted-foreground line-clamp-1">{gallery.description}</p>
+            )}
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          {gallery.client_name && (
+            <span className="text-sm text-muted-foreground mr-2">{gallery.client_name}</span>
+          )}
+          {shareDownloadButtons('ghost')}
+        </div>
+      </header>
+    )
+  }
+
   return (
     <div className="space-y-6" style={style as React.CSSProperties}>
       {/* Branding Header */}
-      {!embed && (
-        <header className="flex flex-col md:flex-row items-center justify-between gap-4 p-4 border-b border-border">
-          <div className="flex items-center gap-4">
-            {branding.logo ? (
-              <img src={branding.logo} alt={branding.name} className="h-10 w-auto" />
-            ) : (
-              <div className="h-10 w-10 rounded-lg bg-primary flex items-center justify-center">
-                <span className="text-primary-foreground font-bold text-lg">
-                  {branding.name?.charAt(0) || 'L'}
-                </span>
-              </div>
-            )}
-            <div>
-              <h1 className="font-display font-bold text-xl">{gallery.name}</h1>
-              {gallery.description && (
-                <p className="text-sm text-muted-foreground line-clamp-1">{gallery.description}</p>
-              )}
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            {gallery.client_name && (
-              <span className="text-sm text-muted-foreground mr-2">{gallery.client_name}</span>
-            )}
-            <Button variant="ghost" size="icon" onClick={shareGallery} aria-label="Share gallery">
-              <Share2 className="h-5 w-5" />
-            </Button>
-            {gallery.allow_download && (
-              <Button variant="ghost" size="icon" aria-label="Download all">
-                <Download className="h-5 w-5" />
-              </Button>
-            )}
-          </div>
-        </header>
-      )}
+      {!embed && renderHeader()}
 
       {/* Gallery Info */}
       {!embed && (
@@ -480,12 +641,7 @@ export function ClientGalleryContent({
       {!embed && renderAlbums()}
 
       {/* Media Grid */}
-      <div className={cn(
-        'grid gap-3 px-4',
-        viewMode === 'grid' ? 'grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6' : 'grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4'
-      )}>
-        {renderMediaGrid()}
-      </div>
+      {renderMediaGrid()}
 
       {/* Lightbox */}
       {showLightbox && media.length > 0 && media[lightboxIndex] && (
