@@ -164,7 +164,7 @@ export function Sidebar({ studioSlug, collapsed, onCollapsedChange }: SidebarPro
       {/* Desktop sidebar */}
       <aside
         className={cn(
-          'fixed left-0 top-0 z-40 h-screen bg-card border-r border-border transition-all duration-300',
+          'hidden lg:block fixed left-0 top-0 z-40 h-screen bg-card border-r border-border transition-all duration-300',
           collapsed ? 'w-20' : 'w-64'
         )}
         aria-label="Main navigation"
