@@ -1,10 +1,8 @@
 import { createBrowserClient as createBrowserClientFn } from '@supabase/ssr'
+import { getSupabaseUrl, getSupabaseAnonKey } from './env'
 
 export function createBrowserSupabaseClient() {
-  return createBrowserClientFn(
-    process.env['NEXT_PUBLIC_SUPABASE_URL'] || 'https://placeholder.supabase.co',
-    process.env['NEXT_PUBLIC_SUPABASE_ANON_KEY'] || 'placeholder-anon-key'
-  )
+  return createBrowserClientFn(getSupabaseUrl(), getSupabaseAnonKey())
 }
 
 export const createBrowserClient = createBrowserSupabaseClient
