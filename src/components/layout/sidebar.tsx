@@ -31,6 +31,8 @@ import { useAuthUser, type UserRole } from '@/lib/auth/hooks'
 
 interface SidebarProps {
   studioSlug: string
+  collapsed: boolean
+  onCollapsedChange: (collapsed: boolean) => void
 }
 
 const navigation = [
@@ -151,10 +153,9 @@ function hasAccess(userRole: UserRole | undefined, item: typeof navigation[0]): 
   return true
 }
 
-export function Sidebar({ studioSlug }: SidebarProps) {
+export function Sidebar({ studioSlug, collapsed, onCollapsedChange }: SidebarProps) {
   const pathname = usePathname()
   const { user } = useAuthUser()
-  const [collapsed, setCollapsed] = React.useState(false)
 
   const accessibleNavigation = navigation.filter((item) => hasAccess(user?.role, item))
 
@@ -164,7 +165,7 @@ export function Sidebar({ studioSlug }: SidebarProps) {
       <aside
         className={cn(
           'fixed left-0 top-0 z-40 h-screen bg-card border-r border-border transition-all duration-300',
-          collapsed ? 'w-20' : 'w-72'
+          collapsed ? 'w-20' : 'w-64'
         )}
         aria-label="Main navigation"
       >
@@ -199,7 +200,7 @@ export function Sidebar({ studioSlug }: SidebarProps) {
               variant="ghost"
               size="icon"
               className={cn('h-8 w-8 transition-all duration-300', collapsed && 'rotate-180')}
-              onClick={() => setCollapsed(!collapsed)}
+              onClick={() => onCollapsedChange(!collapsed)}
               aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
               aria-expanded={!collapsed}
             >
@@ -275,7 +276,7 @@ export function MobileSidebarTrigger({ studioSlug }: { studioSlug: string }) {
           <Menu className="h-5 w-5" />
         </Button>
       </SheetTrigger>
-      <SheetContent side="left" className="w-72 p-0">
+      <SheetContent side="left" className="w-64 p-0">
         <div className="flex h-full flex-col">
           {/* Header */}
           <div className="flex h-16 items-center justify-between px-4 border-b border-border">
