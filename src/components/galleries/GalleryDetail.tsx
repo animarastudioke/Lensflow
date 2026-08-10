@@ -39,7 +39,6 @@ import {
   Upload,
   User,
   Calendar,
-  MapPin,
   Eye,
   Square,
   Settings,
@@ -77,230 +76,53 @@ interface GalleryImage {
   width: number
   height: number
   size: number
-  mimeType: string
-  caption?: string
-  tags: string[]
+  mimeType: 'image' | 'video'
   isFavorite: boolean
   sortOrder: number
   uploadedAt: string
 }
 
-interface Album {
+interface GalleryAlbum {
   id: string
   name: string
   description?: string
-  coverImageId?: string
+  coverImageUrl?: string
   imageCount: number
-  isPublic: boolean
   sortOrder: number
   createdAt: string
 }
 
-interface Gallery {
+export interface Gallery {
   id: string
   name: string
-  slug: string
   description?: string
-  coverImageId?: string
-  status: 'draft' | 'published' | 'archived' | 'expired'
-  type: 'client' | 'portfolio' | 'store' | 'proofing'
-  visibility: 'private' | 'unlisted' | 'public' | 'password'
-  password?: string
-  expiresAt?: string
+  status: 'draft' | 'published' | 'archived' | 'private'
+  type: 'wedding' | 'portrait' | 'commercial' | 'event' | 'other'
+  passwordProtected: boolean
+  expiryDays?: number
   downloadEnabled: boolean
   watermarkEnabled: boolean
   allowFavorites: boolean
   allowComments: boolean
   requireEmail: boolean
-  sortBy: 'custom' | 'date' | 'name' | 'favorites'
-  sortOrder: 'asc' | 'desc'
   images: GalleryImage[]
-  albums: Album[]
+  albums: GalleryAlbum[]
   clientId?: string
   clientName?: string
   clientEmail?: string
   shootDate?: string
-  location?: string
+  shareToken: string
   settings: {
-    theme: string
     primaryColor: string
     logoUrl?: string
-    customCss?: string
-    shareMessage?: string
   }
   stats: {
     views: number
     downloads: number
     favorites: number
-    shares: number
   }
   createdAt: string
   updatedAt: string
-}
-
-const mockGallery: Gallery = {
-  id: '1',
-  name: 'Sarah & Marcus Wedding',
-  slug: 'sarah-marcus-wedding',
-  description: 'A beautiful wedding ceremony at the botanical gardens',
-  status: 'published',
-  type: 'client',
-  visibility: 'unlisted',
-  downloadEnabled: true,
-  watermarkEnabled: true,
-  allowFavorites: true,
-  allowComments: true,
-  requireEmail: false,
-  sortBy: 'custom',
-  sortOrder: 'asc',
-  clientId: '1',
-  clientName: 'Sarah Chen',
-  clientEmail: 'sarah.chen@email.com',
-  shootDate: '2024-06-15',
-  location: 'Brooklyn Botanical Garden, NYC',
-  settings: {
-    theme: 'minimal',
-    primaryColor: '#3B82F6',
-    shareMessage: 'Check out our wedding photos!',
-  },
-  images: [
-    {
-      id: 'img-1',
-      filename: 'wedding-001.jpg',
-      url: 'https://images.unsplash.com/photo-1519741497674-611481863552?w=1200',
-      thumbnailUrl: 'https://images.unsplash.com/photo-1519741497674-611481863552?w=400',
-      width: 4000,
-      height: 3000,
-      size: 5200000,
-      mimeType: 'image/jpeg',
-      caption: 'First look moment',
-      tags: ['ceremony', 'first-look', 'emotional'],
-      isFavorite: true,
-      sortOrder: 1,
-      uploadedAt: '2024-06-16T10:00:00Z',
-    },
-    {
-      id: 'img-2',
-      filename: 'wedding-002.jpg',
-      url: 'https://images.unsplash.com/photo-1518174728327-4e8f3bdfb34f?w=1200',
-      thumbnailUrl: 'https://images.unsplash.com/photo-1518174728327-4e8f3bdfb34f?w=400',
-      width: 4000,
-      height: 3000,
-      size: 4800000,
-      mimeType: 'image/jpeg',
-      caption: 'Ceremony view',
-      tags: ['ceremony', 'venue', 'wide'],
-      isFavorite: false,
-      sortOrder: 2,
-      uploadedAt: '2024-06-16T10:05:00Z',
-    },
-    {
-      id: 'img-3',
-      filename: 'wedding-003.jpg',
-      url: 'https://images.unsplash.com/photo-1537608706774-6c2422397335?w=1200',
-      thumbnailUrl: 'https://images.unsplash.com/photo-1537608706774-6c2422397335?w=400',
-      width: 3000,
-      height: 4000,
-      size: 5500000,
-      mimeType: 'image/jpeg',
-      caption: 'Bridal portrait',
-      tags: ['portrait', 'bride', 'details'],
-      isFavorite: true,
-      sortOrder: 3,
-      uploadedAt: '2024-06-16T10:10:00Z',
-    },
-    {
-      id: 'img-4',
-      filename: 'wedding-004.jpg',
-      url: 'https://images.unsplash.com/photo-1519225421980-715cb0215a67?w=1200',
-      thumbnailUrl: 'https://images.unsplash.com/photo-1519225421980-715cb0215a67?w=400',
-      width: 4000,
-      height: 3000,
-      size: 5100000,
-      mimeType: 'image/jpeg',
-      caption: 'Reception decor',
-      tags: ['reception', 'decor', 'details'],
-      isFavorite: false,
-      sortOrder: 4,
-      uploadedAt: '2024-06-16T10:15:00Z',
-    },
-    {
-      id: 'img-5',
-      filename: 'wedding-005.jpg',
-      url: 'https://images.unsplash.com/photo-1583939003579-782e4bb033e1?w=1200',
-      thumbnailUrl: 'https://images.unsplash.com/photo-1583939003579-782e4bb033e1?w=400',
-      width: 3000,
-      height: 4000,
-      size: 4900000,
-      mimeType: 'image/jpeg',
-      caption: 'First dance',
-      tags: ['reception', 'first-dance', 'couple'],
-      isFavorite: true,
-      sortOrder: 5,
-      uploadedAt: '2024-06-16T10:20:00Z',
-    },
-    {
-      id: 'img-6',
-      filename: 'wedding-006.jpg',
-      url: 'https://images.unsplash.com/photo-1537101871380-782c8b6b6b3b?w=1200',
-      thumbnailUrl: 'https://images.unsplash.com/photo-1537101871380-782c8b6b6b3b?w=400',
-      width: 4000,
-      height: 3000,
-      size: 5300000,
-      mimeType: 'image/jpeg',
-      caption: 'Wedding cake',
-      tags: ['reception', 'cake', 'details'],
-      isFavorite: false,
-      sortOrder: 6,
-      uploadedAt: '2024-06-16T10:25:00Z',
-    },
-  ],
-  albums: [
-    {
-      id: 'album-1',
-      name: 'Getting Ready',
-      description: 'Pre-ceremony preparations',
-      imageCount: 25,
-      isPublic: true,
-      sortOrder: 1,
-      createdAt: '2024-06-16T10:00:00Z',
-    },
-    {
-      id: 'album-2',
-      name: 'Ceremony',
-      description: 'The wedding ceremony',
-      imageCount: 45,
-      isPublic: true,
-      sortOrder: 2,
-      createdAt: '2024-06-16T10:00:00Z',
-    },
-    {
-      id: 'album-3',
-      name: 'Portraits',
-      description: 'Couple and bridal party portraits',
-      imageCount: 30,
-      isPublic: true,
-      sortOrder: 3,
-      createdAt: '2024-06-16T10:00:00Z',
-    },
-    {
-      id: 'album-4',
-      name: 'Reception',
-      description: 'Reception and celebration',
-      imageCount: 60,
-      isPublic: true,
-      sortOrder: 4,
-      createdAt: '2024-06-16T10:00:00Z',
-    },
-  ],
-  stats: {
-    views: 1247,
-    downloads: 89,
-    favorites: 234,
-    shares: 12,
-  },
-  createdAt: '2024-06-16T09:00:00Z',
-  updatedAt: '2024-06-20T15:30:00Z',
 }
 
 function getStatusBadge(status: Gallery['status']) {
@@ -308,7 +130,7 @@ function getStatusBadge(status: Gallery['status']) {
     draft: { label: 'Draft', className: 'bg-gray-100 text-gray-800' },
     published: { label: 'Published', className: 'bg-green-100 text-green-800' },
     archived: { label: 'Archived', className: 'bg-gray-100 text-gray-600' },
-    expired: { label: 'Expired', className: 'bg-red-100 text-red-800' },
+    private: { label: 'Private', className: 'bg-amber-100 text-amber-800' },
   }
   const config = statusConfig[status]
   return <Badge className={config.className}>{config.label}</Badge>
@@ -316,40 +138,25 @@ function getStatusBadge(status: Gallery['status']) {
 
 function getTypeBadge(type: Gallery['type']) {
   const typeConfig = {
-    client: { label: 'Client', className: 'bg-blue-100 text-blue-800' },
-    portfolio: { label: 'Portfolio', className: 'bg-purple-100 text-purple-800' },
-    store: { label: 'Store', className: 'bg-green-100 text-green-800' },
-    proofing: { label: 'Proofing', className: 'bg-orange-100 text-orange-800' },
+    wedding: { label: 'Wedding', className: 'bg-pink-100 text-pink-800' },
+    portrait: { label: 'Portrait', className: 'bg-blue-100 text-blue-800' },
+    commercial: { label: 'Commercial', className: 'bg-purple-100 text-purple-800' },
+    event: { label: 'Event', className: 'bg-orange-100 text-orange-800' },
+    other: { label: 'Other', className: 'bg-gray-100 text-gray-800' },
   }
   const config = typeConfig[type]
   return <Badge className={config.className}>{config.label}</Badge>
 }
 
-function getVisibilityBadge(visibility: Gallery['visibility']) {
-  const visibilityConfig = {
-    private: { label: 'Private', icon: '🔒' },
-    unlisted: { label: 'Unlisted', icon: '🔗' },
-    public: { label: 'Public', icon: '🌐' },
-    password: { label: 'Password', icon: '🔐' },
-  }
-  const config = visibilityConfig[visibility]
-  return (
-    <Badge variant="outline" className="gap-1">
-      <span>{config.icon}</span>
-      {config.label}
-    </Badge>
-  )
-}
-
 interface GalleryDetailProps {
   studioSlug: string
-  galleryId: string
+  initialGallery: Gallery
 }
 
-export function GalleryDetail({ studioSlug, galleryId: _galleryId }: GalleryDetailProps) {
+export function GalleryDetail({ studioSlug, initialGallery }: GalleryDetailProps) {
   const router = useRouter()
 
-  const [gallery, setGallery] = React.useState<Gallery>(mockGallery)
+  const [gallery, setGallery] = React.useState<Gallery>(initialGallery)
   const [activeTab, setActiveTab] = React.useState<'images' | 'albums' | 'settings' | 'analytics'>('images')
   const [viewMode, setViewMode] = React.useState<'grid' | 'list' | 'masonry'>('grid')
   const [selectedImages, setSelectedImages] = React.useState<string[]>([])
@@ -466,7 +273,12 @@ export function GalleryDetail({ studioSlug, galleryId: _galleryId }: GalleryDeta
               <h1 className="text-display-sm font-display font-bold">{gallery.name}</h1>
               {getStatusBadge(gallery.status)}
               {getTypeBadge(gallery.type)}
-              {getVisibilityBadge(gallery.visibility)}
+              {gallery.passwordProtected && (
+                <Badge variant="outline" className="gap-1">
+                  <span>🔐</span>
+                  Password protected
+                </Badge>
+              )}
             </div>
             {gallery.description && (
               <p className="text-muted-foreground text-sm mt-1">{gallery.description}</p>
@@ -505,12 +317,6 @@ export function GalleryDetail({ studioSlug, galleryId: _galleryId }: GalleryDeta
             <div className="flex items-center gap-2">
               <Calendar className="h-4 w-4" />
               <span>{format(new Date(gallery.shootDate), 'MMM d, yyyy')}</span>
-            </div>
-          )}
-          {gallery.location && (
-            <div className="flex items-center gap-2">
-              <MapPin className="h-4 w-4" />
-              <span>{gallery.location}</span>
             </div>
           )}
           <div className="flex items-center gap-2">
@@ -692,7 +498,7 @@ export function GalleryDetail({ studioSlug, galleryId: _galleryId }: GalleryDeta
                       </div>
                       <Image
                         src={image.thumbnailUrl}
-                        alt={image.caption || image.filename}
+                        alt={image.filename}
                         fill
                         className="object-cover transition-transform duration-300 group-hover:scale-105"
                         sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, (max-width: 1280px) 20vw, 16vw"
@@ -730,7 +536,6 @@ export function GalleryDetail({ studioSlug, galleryId: _galleryId }: GalleryDeta
                       <TableHead>File Name</TableHead>
                       <TableHead>Dimensions</TableHead>
                       <TableHead>Size</TableHead>
-                      <TableHead className="hidden md:table-cell">Tags</TableHead>
                       <TableHead className="hidden lg:table-cell">Uploaded</TableHead>
                       <TableHead className="w-48">Actions</TableHead>
                     </TableRow>
@@ -757,29 +562,10 @@ export function GalleryDetail({ studioSlug, galleryId: _galleryId }: GalleryDeta
                           </div>
                         </TableCell>
                         <TableCell>
-                          <div>
-                            <p className="font-medium truncate max-w-[200px]">{image.filename}</p>
-                            {image.caption && (
-                              <p className="text-sm text-muted-foreground truncate max-w-[200px]">{image.caption}</p>
-                            )}
-                          </div>
+                          <p className="font-medium truncate max-w-[200px]">{image.filename}</p>
                         </TableCell>
                         <TableCell className="font-mono text-sm">{image.width} × {image.height}</TableCell>
                         <TableCell className="text-sm">{(image.size / 1024 / 1024).toFixed(1)} MB</TableCell>
-                        <TableCell className="hidden md:table-cell">
-                          <div className="flex flex-wrap gap-1">
-                            {image.tags.slice(0, 3).map((tag) => (
-                              <Badge key={tag} variant="outline" className="text-xs">
-                                {tag}
-                              </Badge>
-                            ))}
-                            {image.tags.length > 3 && (
-                              <Badge variant="outline" className="text-xs">
-                                +{image.tags.length - 3}
-                              </Badge>
-                            )}
-                          </div>
-                        </TableCell>
                         <TableCell className="hidden lg:table-cell text-sm text-muted-foreground">
                           {format(new Date(image.uploadedAt), 'MMM d, yyyy')}
                         </TableCell>
@@ -878,9 +664,9 @@ export function GalleryDetail({ studioSlug, galleryId: _galleryId }: GalleryDeta
                     />
                     <Image
                       src={image.thumbnailUrl}
-                      alt={image.caption || image.filename}
+                      alt={image.filename}
                       width={400}
-                      height={Math.round((400 / image.width) * image.height)}
+                      height={Math.round((400 / (image.width || 1)) * image.height)}
                       className="w-full h-auto object-cover transition-transform duration-300 hover:scale-[1.02]"
                     />
                     {image.isFavorite && (
@@ -918,9 +704,9 @@ export function GalleryDetail({ studioSlug, galleryId: _galleryId }: GalleryDeta
               gallery.albums.map((album) => (
                 <Card key={album.id} className="card-hover">
                   <div className="aspect-video bg-muted relative overflow-hidden">
-                    {album.coverImageId ? (
+                    {album.coverImageUrl ? (
                       <Image
-                        src={gallery.images.find((i) => i.id === album.coverImageId)?.thumbnailUrl || ''}
+                        src={album.coverImageUrl}
                         alt={album.name}
                         fill
                         className="object-cover"
@@ -943,9 +729,6 @@ export function GalleryDetail({ studioSlug, galleryId: _galleryId }: GalleryDeta
                           <p className="text-sm text-muted-foreground line-clamp-1">{album.description}</p>
                         )}
                       </div>
-                      <Badge variant={album.isPublic ? 'default' : 'outline'}>
-                        {album.isPublic ? 'Public' : 'Private'}
-                      </Badge>
                     </div>
                     <div className="flex items-center gap-2 mt-3 pt-3 border-t">
                       <Button variant="ghost" size="sm" className="flex-1">
@@ -986,8 +769,8 @@ export function GalleryDetail({ studioSlug, galleryId: _galleryId }: GalleryDeta
                   <Input defaultValue={gallery.name} />
                 </div>
                 <div className="space-y-2">
-                  <Label>Slug</Label>
-                  <Input defaultValue={gallery.slug} />
+                  <Label>Public Link</Label>
+                  <Input readOnly value={`/g/${gallery.shareToken}`} />
                 </div>
                 <div className="md:col-span-2 space-y-2">
                   <Label>Description</Label>
@@ -1010,6 +793,7 @@ export function GalleryDetail({ studioSlug, galleryId: _galleryId }: GalleryDeta
                     <SelectContent>
                       <SelectItem value="draft">Draft</SelectItem>
                       <SelectItem value="published">Published</SelectItem>
+                      <SelectItem value="private">Private</SelectItem>
                       <SelectItem value="archived">Archived</SelectItem>
                     </SelectContent>
                   </Select>
@@ -1021,28 +805,19 @@ export function GalleryDetail({ studioSlug, galleryId: _galleryId }: GalleryDeta
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="client">Client</SelectItem>
-                      <SelectItem value="portfolio">Portfolio</SelectItem>
-                      <SelectItem value="store">Store</SelectItem>
-                      <SelectItem value="proofing">Proofing</SelectItem>
+                      <SelectItem value="wedding">Wedding</SelectItem>
+                      <SelectItem value="portrait">Portrait</SelectItem>
+                      <SelectItem value="commercial">Commercial</SelectItem>
+                      <SelectItem value="event">Event</SelectItem>
+                      <SelectItem value="other">Other</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
-                <div className="space-y-2">
-                  <Label>Visibility</Label>
-                  <Select defaultValue={gallery.visibility}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="private">Private</SelectItem>
-                      <SelectItem value="unlisted">Unlisted</SelectItem>
-                      <SelectItem value="public">Public</SelectItem>
-                      <SelectItem value="password">Password Protected</SelectItem>
-                    </SelectContent>
-                  </Select>
+                <div className="flex items-center gap-2 pt-6">
+                  <Switch defaultChecked={gallery.passwordProtected} />
+                  <Label>Password Protected</Label>
                 </div>
-                {gallery.visibility === 'password' && (
+                {gallery.passwordProtected && (
                   <div className="space-y-2">
                     <Label>Password</Label>
                     <Input type="password" placeholder="Enter password" />
@@ -1057,26 +832,12 @@ export function GalleryDetail({ studioSlug, galleryId: _galleryId }: GalleryDeta
               <h3 className="text-heading font-semibold">Display Options</h3>
               <div className="grid gap-4 md:grid-cols-3">
                 <div className="space-y-2">
-                  <Label>Theme</Label>
-                  <Select defaultValue={gallery.settings.theme}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="minimal">Minimal</SelectItem>
-                      <SelectItem value="classic">Classic</SelectItem>
-                      <SelectItem value="modern">Modern</SelectItem>
-                      <SelectItem value="masonry">Masonry</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
                   <Label>Primary Color</Label>
                   <Input type="color" defaultValue={gallery.settings.primaryColor} />
                 </div>
                 <div className="space-y-2">
                   <Label>Sort By</Label>
-                  <Select defaultValue={gallery.sortBy}>
+                  <Select value={sortBy} onValueChange={(value) => setSortBy(value as typeof sortBy)}>
                     <SelectTrigger>
                       <SelectValue />
                     </SelectTrigger>
@@ -1119,10 +880,10 @@ export function GalleryDetail({ studioSlug, galleryId: _galleryId }: GalleryDeta
               <h3 className="text-heading font-semibold">Expiration</h3>
               <div className="flex items-center gap-4">
                 <div className="flex items-center gap-2">
-                  <Switch />
-                  <Label>Set Expiration Date</Label>
+                  <Switch defaultChecked={gallery.expiryDays != null} />
+                  <Label>Expire gallery link</Label>
                 </div>
-                <Input type="date" className="w-[200px]" />
+                <Input type="number" min={1} placeholder="Days" defaultValue={gallery.expiryDays} className="w-[200px]" />
               </div>
             </div>
 
@@ -1136,7 +897,7 @@ export function GalleryDetail({ studioSlug, galleryId: _galleryId }: GalleryDeta
         {/* Analytics Tab */}
         <TabsContent value="analytics" className="flex-1 overflow-auto">
           <div className="space-y-6 max-w-4xl">
-            <div className="grid gap-4 md:grid-cols-4">
+            <div className="grid gap-4 md:grid-cols-3">
               <Card>
                 <CardContent className="pt-6">
                   <div className="flex items-center justify-between">
@@ -1170,110 +931,13 @@ export function GalleryDetail({ studioSlug, galleryId: _galleryId }: GalleryDeta
                   </div>
                 </CardContent>
               </Card>
-              <Card>
-                <CardContent className="pt-6">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm text-muted-foreground">Shares</p>
-                      <p className="text-3xl font-bold">{gallery.stats.shares.toLocaleString()}</p>
-                    </div>
-                    <Share2 className="h-8 w-8 text-muted-foreground/50" />
-                  </div>
-                </CardContent>
-              </Card>
             </div>
 
             <Card>
               <CardHeader>
-                <CardTitle>Views Over Time</CardTitle>
-                <CardDescription>Gallery view statistics for the last 30 days</CardDescription>
+                <CardTitle>More analytics coming soon</CardTitle>
+                <CardDescription>Views over time, top images, and traffic sources will appear here once we start tracking per-visit activity.</CardDescription>
               </CardHeader>
-              <CardContent>
-                <div className="h-64 flex items-end justify-between gap-2">
-                  {Array.from({ length: 30 }).map((_, i) => (
-                    <div
-                      key={i}
-                      className="flex-1 bg-primary/20 rounded-t transition-all hover:bg-primary"
-                      style={{ height: `${Math.random() * 80 + 20}%` }}
-                      title={`Day ${i + 1}: ${Math.floor(Math.random() * 100)} views`}
-                    />
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle>Top Images</CardTitle>
-                <CardDescription>Most viewed and favorited images</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Image</TableHead>
-                      <TableHead>Views</TableHead>
-                      <TableHead>Favorites</TableHead>
-                      <TableHead>Downloads</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {gallery.images.slice(0, 5).map((image) => (
-                      <TableRow key={image.id}>
-                        <TableCell>
-                          <div className="flex items-center gap-3">
-                            <div className="h-12 w-12 rounded overflow-hidden">
-                              <Image
-                                src={image.thumbnailUrl}
-                                alt={image.filename}
-                                fill
-                                className="object-cover"
-                              />
-                            </div>
-                            <div>
-                              <p className="font-medium truncate max-w-[200px]">{image.filename}</p>
-                            </div>
-                          </div>
-                        </TableCell>
-                        <TableCell>{Math.floor(Math.random() * 500)}</TableCell>
-                        <TableCell>{image.isFavorite ? Math.floor(Math.random() * 50) : 0}</TableCell>
-                        <TableCell>{Math.floor(Math.random() * 20)}</TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle>Traffic Sources</CardTitle>
-                <CardDescription>Where your gallery visitors are coming from</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  {[
-                    { source: 'Direct Link', visits: 542, percentage: 43 },
-                    { source: 'Email', visits: 312, percentage: 25 },
-                    { source: 'Social Media', visits: 187, percentage: 15 },
-                    { source: 'Search', visits: 124, percentage: 10 },
-                    { source: 'Referral', visits: 82, percentage: 7 },
-                  ].map((item) => (
-                    <div key={item.source} className="space-y-1">
-                      <div className="flex justify-between text-sm">
-                        <span>{item.source}</span>
-                        <span className="font-medium">{item.visits} ({item.percentage}%)</span>
-                      </div>
-                      <div className="h-2 bg-muted rounded-full overflow-hidden">
-                        <div
-                          className="h-full bg-primary rounded-full transition-all"
-                          style={{ width: `${item.percentage}%` }}
-                        />
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
             </Card>
           </div>
         </TabsContent>

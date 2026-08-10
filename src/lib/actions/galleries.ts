@@ -37,6 +37,46 @@ export interface Gallery {
   updated_at: string
 }
 
+export interface GalleryMediaRow {
+  id: string
+  filename: string
+  url: string
+  thumbnail_url: string | null
+  type: 'image' | 'video'
+  size: number | null
+  width: number | null
+  height: number | null
+  is_favorite: boolean
+  created_at: string
+}
+
+export interface GalleryAlbumRow {
+  id: string
+  name: string
+  description: string | null
+  cover_image: string | null
+  media_count: number
+  order: number
+  created_at: string
+}
+
+export interface GalleryShareSettingsRow {
+  password_protected: boolean
+  allow_download: boolean
+  allow_comments: boolean
+  allow_favorites: boolean
+  require_email: boolean
+  brand_color: string | null
+  brand_logo: string | null
+}
+
+export interface GalleryDetailRow extends Gallery {
+  client: { id: string; name: string; email: string } | null
+  share_settings: GalleryShareSettingsRow | GalleryShareSettingsRow[] | null
+  albums: GalleryAlbumRow[]
+  media: GalleryMediaRow[]
+}
+
 export interface ShareSettings {
   link_name?: string
   password_protected: boolean
@@ -400,7 +440,7 @@ export async function deleteGallery(galleryId: string, studioSlug: string) {
   return { success: true }
 }
 
-export async function getGallery(galleryId: string, studioSlug: string) {
+export async function getGallery(galleryId: string, studioSlug: string): Promise<GalleryDetailRow | null> {
   const supabase = await createClient()
 
   const { data: studio } = await supabase
@@ -418,13 +458,13 @@ export async function getGallery(galleryId: string, studioSlug: string) {
       client:clients(id, name, email),
       share_settings:gallery_share_settings(*),
       albums:gallery_albums(id, name, description, cover_image, media_count, order, created_at),
-      media:media(id, filename, url, thumbnail_url, type, size, width, height, metadata, is_favorite, comment_count, created_at, album_id)
+      media:media(id, filename, url, thumbnail_url, type, size, width, height, is_favorite, created_at)
     `)
     .eq('id', galleryId)
     .eq('studio_id', studio.id)
     .single()
 
-  return gallery
+  return (gallery as unknown as GalleryDetailRow) ?? null
 }
 
 export async function getGalleryByToken(shareToken: string) {
