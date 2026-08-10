@@ -187,8 +187,8 @@ interface GalleryListProps {
   isLoading?: boolean
 }
 
-export function GalleryList({ studioSlug, initialGalleries = [], isLoading = false }: GalleryListProps) {
-  const [galleries, setGalleries] = React.useState<Gallery[]>(initialGalleries.length > 0 ? initialGalleries : mockGalleries)
+export function GalleryList({ studioSlug, initialGalleries, isLoading = false }: GalleryListProps) {
+  const [galleries, setGalleries] = React.useState<Gallery[]>(initialGalleries ?? mockGalleries)
   const [searchQuery, setSearchQuery] = React.useState('')
   const [statusFilter, setStatusFilter] = React.useState<string>('all')
   const [typeFilter, setTypeFilter] = React.useState<string>('all')

@@ -2,6 +2,7 @@ import { Metadata } from 'next'
 import { getAuthUserServer } from '@/lib/auth'
 import { DashboardLayout } from '@/components/layout/dashboard-layout'
 import { GalleryList } from '@/components/galleries/GalleryList'
+import { getGalleries } from '@/lib/actions/galleries'
 
 interface GalleriesPageProps {
   params: Promise<{ studioSlug: string }>
@@ -26,9 +27,28 @@ export default async function GalleriesPage({ params }: GalleriesPageProps) {
     return null // Layout handles redirect
   }
 
-  // In production, fetch galleries from database
-  // For now, pass empty array to use mock data in component
-  const initialGalleries: any[] = []
+  const { galleries } = await getGalleries(studioSlug)
+  const initialGalleries = galleries.map((g: any) => ({
+    id: g.id,
+    name: g.name,
+    description: g.description ?? undefined,
+    coverImage: g.cover_image ?? undefined,
+    status: g.status,
+    type: g.type,
+    clientId: g.client_id ?? undefined,
+    clientName: g.client?.name ?? undefined,
+    shootDate: g.shoot_date ?? undefined,
+    mediaCount: g.media_count,
+    viewCount: g.view_count,
+    downloadCount: g.download_count,
+    createdAt: g.created_at,
+    updatedAt: g.updated_at,
+    shareToken: g.share_token,
+    passwordProtected: g.password_protected,
+    expiresAt: g.expiry_days
+      ? new Date(new Date(g.created_at).getTime() + g.expiry_days * 24 * 60 * 60 * 1000).toISOString()
+      : undefined,
+  }))
 
   return (
     <DashboardLayout studioSlug={studioSlug} studioName="My Studio">
