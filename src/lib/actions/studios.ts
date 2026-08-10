@@ -90,3 +90,91 @@ export async function checkSlugAvailable(slug: string): Promise<boolean> {
 
   return !data
 }
+
+export async function getStudioForSettings(studioSlug: string): Promise<{ id: string; name: string; ownerId: string } | null> {
+  const supabase = await createClient()
+
+  const { data: studio } = await supabase
+    .from('studios')
+    .select('id, name, owner_id')
+    .eq('slug', studioSlug)
+    .single()
+
+  if (!studio) return null
+
+  return { id: studio.id, name: studio.name, ownerId: studio.owner_id }
+}
+
+async function deleteStudioStorageObjects(studioId: string) {
+  const supabase = await createClient()
+  const bucket = supabase.storage.from('gallery-media')
+
+  const { data: galleryFolders } = await bucket.list(studioId, { limit: 1000 })
+  if (!galleryFolders) return
+
+  const pathsToRemove: string[] = []
+
+  for (const folder of galleryFolders) {
+    const galleryPath = `${studioId}/${folder.name}`
+
+    const { data: galleryFiles } = await bucket.list(galleryPath, { limit: 1000 })
+    for (const item of galleryFiles ?? []) {
+      if (item.id) {
+        pathsToRemove.push(`${galleryPath}/${item.name}`)
+      }
+    }
+
+    const { data: thumbFiles } = await bucket.list(`${galleryPath}/thumbs`, { limit: 1000 })
+    for (const item of thumbFiles ?? []) {
+      pathsToRemove.push(`${galleryPath}/thumbs/${item.name}`)
+    }
+  }
+
+  if (pathsToRemove.length > 0) {
+    await bucket.remove(pathsToRemove)
+  }
+}
+
+export async function deleteStudio(
+  studioSlug: string,
+  confirmName: string
+): Promise<{ error: string } | undefined> {
+  const supabase = await createClient()
+
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) {
+    return { error: 'Unauthorized' }
+  }
+
+  const { data: studio } = await supabase
+    .from('studios')
+    .select('id, name, owner_id')
+    .eq('slug', studioSlug)
+    .single()
+
+  if (!studio) {
+    return { error: 'Studio not found' }
+  }
+
+  if (studio.owner_id !== user.id) {
+    return { error: 'Only the studio owner can delete this studio' }
+  }
+
+  if (confirmName.trim() !== studio.name.trim()) {
+    return { error: 'Studio name does not match' }
+  }
+
+  await deleteStudioStorageObjects(studio.id)
+
+  const { error: deleteError } = await supabase
+    .from('studios')
+    .delete()
+    .eq('id', studio.id)
+
+  if (deleteError) {
+    console.error('Delete studio error:', deleteError)
+    return { error: 'Failed to delete studio' }
+  }
+
+  redirect('/dashboard/new')
+}

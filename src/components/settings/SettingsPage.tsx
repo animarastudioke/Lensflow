@@ -51,10 +51,7 @@ import {
   ImageIcon,
   Smartphone,
   Monitor,
-  Key,
   Download,
-  RefreshCw,
-  Copy,
   Trash2,
   AlertTriangle,
   Check,
@@ -74,9 +71,12 @@ import {
 } from '@/components/ui/table'
 import { CURRENCIES } from '@/lib/currencies'
 import { toast } from 'sonner'
+import { deleteStudio } from '@/lib/actions/studios'
 
 interface SettingsPageProps {
   studioSlug: string
+  studioName: string
+  isOwner: boolean
 }
 
 function NotificationRow({
@@ -133,11 +133,13 @@ function IntegrationCard({
   )
 }
 
-export function SettingsPage({ studioSlug }: SettingsPageProps) {
+export function SettingsPage({ studioSlug, studioName, isOwner }: SettingsPageProps) {
   const [activeTab, setActiveTab] = React.useState<string>('general')
   const [isSaving, setIsSaving] = React.useState(false)
   const [saveStatus, setSaveStatus] = React.useState<'idle' | 'success' | 'error'>('idle')
-  const [apiKeyVisible, setApiKeyVisible] = React.useState(false)
+  const [deleteConfirmText, setDeleteConfirmText] = React.useState('')
+  const [isDeletingStudio, setIsDeletingStudio] = React.useState(false)
+  const [deleteDialogOpen, setDeleteDialogOpen] = React.useState(false)
 
   const handleSave = async () => {
     setIsSaving(true)
@@ -147,6 +149,25 @@ export function SettingsPage({ studioSlug }: SettingsPageProps) {
     setIsSaving(false)
     setSaveStatus('success')
     setTimeout(() => setSaveStatus('idle'), 3000)
+  }
+
+  const handleDeleteStudio = async () => {
+    setIsDeletingStudio(true)
+    try {
+      const result = await deleteStudio(studioSlug, deleteConfirmText)
+      if (result?.error) {
+        toast.error(result.error)
+        setIsDeletingStudio(false)
+      }
+      // On success, deleteStudio redirects (throws NEXT_REDIRECT) and this component unmounts.
+    } catch (err) {
+      if (err instanceof Error && err.message !== 'NEXT_REDIRECT') {
+        toast.error(err.message || 'Failed to delete studio')
+        setIsDeletingStudio(false)
+      } else if (!(err instanceof Error)) {
+        throw err
+      }
+    }
   }
 
   const tabs = [
@@ -661,39 +682,6 @@ export function SettingsPage({ studioSlug }: SettingsPageProps) {
         <TabsContent value="advanced" className="space-y-6">
           <Card>
             <CardHeader>
-              <CardTitle>API Access</CardTitle>
-              <CardDescription>Use this key to access the LensFlow API</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <div className="flex items-center gap-2 max-w-lg">
-                <Input
-                  readOnly
-                  value={apiKeyVisible ? 'lf_live_9f2a1c7e4b3d8f6a0e5c2b1d9a7f4e6c' : '••••••••••••••••••••••••••••••••'}
-                  className="font-mono"
-                />
-                <Button variant="outline" size="sm" onClick={() => setApiKeyVisible((v) => !v)}>
-                  {apiKeyVisible ? 'Hide' : 'Show'}
-                </Button>
-                <Button
-                  variant="outline"
-                  size="icon"
-                  onClick={() => {
-                    navigator.clipboard.writeText('lf_live_9f2a1c7e4b3d8f6a0e5c2b1d9a7f4e6c')
-                    toast.success('API key copied')
-                  }}
-                >
-                  <Copy className="h-4 w-4" />
-                </Button>
-              </div>
-              <Button variant="outline" size="sm">
-                <RefreshCw className="h-4 w-4 mr-2" />
-                Regenerate key
-              </Button>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
               <CardTitle>Export Data</CardTitle>
               <CardDescription>Download all your studio data as a ZIP archive</CardDescription>
             </CardHeader>
@@ -703,22 +691,6 @@ export function SettingsPage({ studioSlug }: SettingsPageProps) {
                 Request data export
               </Button>
               <p className="text-sm text-muted-foreground mt-2">Includes galleries, clients, invoices, and contracts. We&apos;ll email a download link.</p>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Webhooks</CardTitle>
-              <CardDescription>Notify an external URL when events happen in your studio</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="flex items-center gap-2 max-w-lg">
-                <Input placeholder="https://yourapp.com/webhooks/lensflow" />
-                <Button variant="outline" size="sm">
-                  <Key className="h-4 w-4 mr-2" />
-                  Add
-                </Button>
-              </div>
             </CardContent>
           </Card>
 
@@ -735,10 +707,19 @@ export function SettingsPage({ studioSlug }: SettingsPageProps) {
                 <div>
                   <p className="text-sm font-medium text-foreground">Delete this studio</p>
                   <p className="text-sm text-muted-foreground">Permanently deletes all galleries, clients, and data</p>
+                  {!isOwner && (
+                    <p className="text-sm text-destructive mt-1">Only the studio owner can delete this studio</p>
+                  )}
                 </div>
-                <AlertDialog>
+                <AlertDialog
+                  open={deleteDialogOpen}
+                  onOpenChange={(open) => {
+                    setDeleteDialogOpen(open)
+                    if (!open) setDeleteConfirmText('')
+                  }}
+                >
                   <AlertDialogTrigger asChild>
-                    <Button variant="destructive" size="sm">
+                    <Button variant="destructive" size="sm" disabled={!isOwner}>
                       <Trash2 className="h-4 w-4 mr-2" />
                       Delete studio
                     </Button>
@@ -747,17 +728,40 @@ export function SettingsPage({ studioSlug }: SettingsPageProps) {
                     <AlertDialogHeader>
                       <AlertDialogTitle>Delete this studio?</AlertDialogTitle>
                       <AlertDialogDescription>
-                        This will permanently delete all galleries, clients, bookings, invoices, and other
-                        data for this studio. This action cannot be undone.
+                        This will permanently delete all galleries, photos, clients, bookings, invoices, quotes,
+                        contracts, and other data for <strong>{studioName}</strong>. This action cannot be undone.
                       </AlertDialogDescription>
                     </AlertDialogHeader>
+                    <div className="space-y-2">
+                      <Label htmlFor="delete-confirm">
+                        Type <strong>{studioName}</strong> to confirm
+                      </Label>
+                      <Input
+                        id="delete-confirm"
+                        value={deleteConfirmText}
+                        onChange={(e) => setDeleteConfirmText(e.target.value)}
+                        placeholder={studioName}
+                        autoComplete="off"
+                      />
+                    </div>
                     <AlertDialogFooter>
-                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                      <AlertDialogCancel disabled={isDeletingStudio}>Cancel</AlertDialogCancel>
                       <AlertDialogAction
                         className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                        onClick={() => toast.error('Studio deletion is not available yet')}
+                        disabled={deleteConfirmText !== studioName || isDeletingStudio}
+                        onClick={(e) => {
+                          e.preventDefault()
+                          handleDeleteStudio()
+                        }}
                       >
-                        Delete studio
+                        {isDeletingStudio ? (
+                          <>
+                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                            Deleting...
+                          </>
+                        ) : (
+                          'Delete studio'
+                        )}
                       </AlertDialogAction>
                     </AlertDialogFooter>
                   </AlertDialogContent>
