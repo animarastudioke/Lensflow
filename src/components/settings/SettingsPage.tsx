@@ -24,6 +24,17 @@ import {
   TabsTrigger,
 } from '@/components/ui/tabs'
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog'
+import {
   Settings,
   Palette,
   Bell,
@@ -34,18 +45,99 @@ import {
   Save,
   Loader2,
   CheckCircle,
+  Upload,
+  Instagram,
+  Facebook,
+  ImageIcon,
+  Smartphone,
+  Monitor,
+  Key,
+  Download,
+  RefreshCw,
+  Copy,
+  Trash2,
+  AlertTriangle,
+  Check,
 } from 'lucide-react'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
+import { Switch } from '@/components/ui/switch'
+import { Badge } from '@/components/ui/badge'
+import { Separator } from '@/components/ui/separator'
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table'
+import { CURRENCIES } from '@/lib/currencies'
+import { toast } from 'sonner'
 
 interface SettingsPageProps {
   studioSlug: string
+}
+
+function NotificationRow({
+  title,
+  description,
+  defaultChecked = true,
+}: {
+  title: string
+  description: string
+  defaultChecked?: boolean
+}) {
+  return (
+    <div className="flex items-center justify-between gap-4 py-3">
+      <div>
+        <p className="text-sm font-medium text-foreground">{title}</p>
+        <p className="text-sm text-muted-foreground">{description}</p>
+      </div>
+      <Switch defaultChecked={defaultChecked} />
+    </div>
+  )
+}
+
+function IntegrationCard({
+  name,
+  description,
+  connected = false,
+}: {
+  name: string
+  description: string
+  connected?: boolean
+}) {
+  return (
+    <div className="flex items-start justify-between gap-4 rounded-lg border border-border p-4">
+      <div className="flex items-start gap-3 min-w-0">
+        <div className="h-10 w-10 shrink-0 rounded-lg bg-muted flex items-center justify-center">
+          <Zap className="h-5 w-5 text-muted-foreground" />
+        </div>
+        <div className="min-w-0">
+          <p className="text-sm font-medium text-foreground">{name}</p>
+          <p className="text-sm text-muted-foreground">{description}</p>
+        </div>
+      </div>
+      {connected ? (
+        <Badge variant="success" className="shrink-0 gap-1">
+          <Check className="h-3 w-3" />
+          Connected
+        </Badge>
+      ) : (
+        <Button variant="outline" size="sm" className="shrink-0">
+          Connect
+        </Button>
+      )}
+    </div>
+  )
 }
 
 export function SettingsPage({ studioSlug }: SettingsPageProps) {
   const [activeTab, setActiveTab] = React.useState<string>('general')
   const [isSaving, setIsSaving] = React.useState(false)
   const [saveStatus, setSaveStatus] = React.useState<'idle' | 'success' | 'error'>('idle')
+  const [apiKeyVisible, setApiKeyVisible] = React.useState(false)
 
   const handleSave = async () => {
     setIsSaving(true)
@@ -109,6 +201,8 @@ export function SettingsPage({ studioSlug }: SettingsPageProps) {
             </TabsTrigger>
           ))}
         </TabsList>
+
+        {/* General */}
         <TabsContent value="general" className="space-y-6">
           <Card>
             <CardHeader>
@@ -197,14 +291,15 @@ export function SettingsPage({ studioSlug }: SettingsPageProps) {
                     <SelectTrigger>
                       <SelectValue />
                     </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="USD">USD ($)</SelectItem>
-                      <SelectItem value="EUR">EUR (€)</SelectItem>
-                      <SelectItem value="GBP">GBP (£)</SelectItem>
-                      <SelectItem value="CAD">CAD ($)</SelectItem>
-                      <SelectItem value="AUD">AUD ($)</SelectItem>
+                    <SelectContent className="max-h-72">
+                      {CURRENCIES.map((currency) => (
+                        <SelectItem key={currency.code} value={currency.code}>
+                          {currency.code} ({currency.symbol}) — {currency.name}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
+                  <p className="text-sm text-muted-foreground">Used for invoices, quotes, and your store</p>
                 </div>
                 <div className="md:col-span-2 space-y-2">
                   <Label>Default Payment Terms</Label>
@@ -222,6 +317,451 @@ export function SettingsPage({ studioSlug }: SettingsPageProps) {
                     </SelectContent>
                   </Select>
                 </div>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Branding */}
+        <TabsContent value="branding" className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Logo</CardTitle>
+              <CardDescription>Shown in your dashboard and on client-facing galleries</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="flex items-center gap-6">
+                <div className="h-20 w-20 rounded-lg bg-primary flex items-center justify-center text-primary-foreground font-display text-2xl font-semibold shrink-0">
+                  A
+                </div>
+                <div className="space-y-2">
+                  <Button variant="outline" size="sm">
+                    <Upload className="h-4 w-4 mr-2" />
+                    Upload logo
+                  </Button>
+                  <p className="text-sm text-muted-foreground">PNG or SVG, at least 256x256px</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Brand Colors</CardTitle>
+              <CardDescription>Used across your galleries, invoices, and client-facing pages</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="grid gap-6 md:grid-cols-2">
+                <div className="space-y-2">
+                  <Label>Primary Color</Label>
+                  <div className="flex items-center gap-3">
+                    <Input type="color" defaultValue="#3B82F6" className="h-10 w-16 p-1" />
+                    <Input defaultValue="#3B82F6" className="flex-1 font-mono" />
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label>Accent Color</Label>
+                  <div className="flex items-center gap-3">
+                    <Input type="color" defaultValue="#F43F5E" className="h-10 w-16 p-1" />
+                    <Input defaultValue="#F43F5E" className="flex-1 font-mono" />
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Default Gallery Cover</CardTitle>
+              <CardDescription>Used when a gallery doesn&apos;t have photos yet</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="flex items-center gap-6">
+                <div className="h-20 w-32 rounded-lg bg-muted flex items-center justify-center shrink-0">
+                  <ImageIcon className="h-6 w-6 text-muted-foreground" />
+                </div>
+                <Button variant="outline" size="sm">
+                  <Upload className="h-4 w-4 mr-2" />
+                  Upload cover image
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Social Media</CardTitle>
+              <CardDescription>Linked from your public studio page</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label className="flex items-center gap-2"><Instagram className="h-4 w-4" /> Instagram</Label>
+                <Input placeholder="https://instagram.com/yourstudio" />
+              </div>
+              <div className="space-y-2">
+                <Label className="flex items-center gap-2"><Facebook className="h-4 w-4" /> Facebook</Label>
+                <Input placeholder="https://facebook.com/yourstudio" />
+              </div>
+              <div className="space-y-2">
+                <Label>Pinterest</Label>
+                <Input placeholder="https://pinterest.com/yourstudio" />
+              </div>
+              <div className="space-y-2">
+                <Label>TikTok</Label>
+                <Input placeholder="https://tiktok.com/@yourstudio" />
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Notifications */}
+        <TabsContent value="notifications" className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Email Notifications</CardTitle>
+              <CardDescription>Choose what you get notified about</CardDescription>
+            </CardHeader>
+            <CardContent className="divide-y divide-border">
+              <NotificationRow
+                title="New booking inquiry"
+                description="When a client requests a new session"
+              />
+              <NotificationRow
+                title="Gallery viewed"
+                description="The first time a client opens a gallery you shared"
+              />
+              <NotificationRow
+                title="Photo favorited"
+                description="When a client favorites photos in a gallery"
+                defaultChecked={false}
+              />
+              <NotificationRow
+                title="Payment received"
+                description="When an invoice is paid"
+              />
+              <NotificationRow
+                title="Contract signed"
+                description="When a client signs a contract"
+              />
+              <NotificationRow
+                title="Quote accepted or declined"
+                description="When a client responds to a quote"
+              />
+              <NotificationRow
+                title="Weekly summary"
+                description="A recap of bookings, revenue, and gallery activity"
+                defaultChecked={false}
+              />
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Notification Email</CardTitle>
+              <CardDescription>Where studio notifications are sent</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-2 max-w-md">
+                <Label>Email address</Label>
+                <Input type="email" defaultValue="hello@animarastudio.com" />
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Security */}
+        <TabsContent value="security" className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Password</CardTitle>
+              <CardDescription>Change your account password</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4 max-w-md">
+              <div className="space-y-2">
+                <Label>Current password</Label>
+                <Input type="password" placeholder="••••••••" />
+              </div>
+              <div className="space-y-2">
+                <Label>New password</Label>
+                <Input type="password" placeholder="••••••••" />
+              </div>
+              <div className="space-y-2">
+                <Label>Confirm new password</Label>
+                <Input type="password" placeholder="••••••••" />
+              </div>
+              <Button variant="outline" size="sm">Update password</Button>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Two-Factor Authentication</CardTitle>
+              <CardDescription>Add an extra layer of security to your account</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-foreground">Authenticator app</p>
+                  <p className="text-sm text-muted-foreground">Not enabled</p>
+                </div>
+                <Switch />
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Active Sessions</CardTitle>
+              <CardDescription>Devices currently signed in to your account</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex items-center justify-between gap-4 py-2">
+                <div className="flex items-center gap-3">
+                  <Monitor className="h-5 w-5 text-muted-foreground" />
+                  <div>
+                    <p className="text-sm font-medium text-foreground">Windows · Chrome</p>
+                    <p className="text-sm text-muted-foreground">Nairobi, Kenya</p>
+                  </div>
+                </div>
+                <Badge variant="success">This device</Badge>
+              </div>
+              <Separator />
+              <div className="flex items-center justify-between gap-4 py-2">
+                <div className="flex items-center gap-3">
+                  <Smartphone className="h-5 w-5 text-muted-foreground" />
+                  <div>
+                    <p className="text-sm font-medium text-foreground">iPhone · Safari</p>
+                    <p className="text-sm text-muted-foreground">Last active 2 days ago</p>
+                  </div>
+                </div>
+                <Button variant="ghost" size="sm">Sign out</Button>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Billing */}
+        <TabsContent value="billing" className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Current Plan</CardTitle>
+              <CardDescription>Manage your LensFlow subscription</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="font-display text-xl font-semibold">Pro Plan</span>
+                    <Badge>Active</Badge>
+                  </div>
+                  <p className="text-sm text-muted-foreground mt-1">$49/month · Renews Sep 10, 2026</p>
+                </div>
+                <Button variant="outline" size="sm">Change plan</Button>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Payment Method</CardTitle>
+              <CardDescription>Used for your monthly subscription</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="flex items-center justify-between gap-4">
+                <div className="flex items-center gap-3">
+                  <div className="h-9 w-13 rounded border border-border bg-muted flex items-center justify-center px-2">
+                    <span className="text-xs font-semibold">VISA</span>
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-foreground">•••• •••• •••• 4242</p>
+                    <p className="text-sm text-muted-foreground">Expires 08/2028</p>
+                  </div>
+                </div>
+                <Button variant="outline" size="sm">Update</Button>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Billing History</CardTitle>
+              <CardDescription>Past invoices for your LensFlow subscription</CardDescription>
+            </CardHeader>
+            <CardContent className="p-0">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Date</TableHead>
+                    <TableHead>Amount</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead className="text-right">Receipt</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {[
+                    { date: 'Aug 1, 2026', amount: '$49.00' },
+                    { date: 'Jul 1, 2026', amount: '$49.00' },
+                    { date: 'Jun 1, 2026', amount: '$49.00' },
+                  ].map((row) => (
+                    <TableRow key={row.date}>
+                      <TableCell>{row.date}</TableCell>
+                      <TableCell className="font-mono">{row.amount}</TableCell>
+                      <TableCell><Badge variant="success">Paid</Badge></TableCell>
+                      <TableCell className="text-right">
+                        <Button variant="ghost" size="icon">
+                          <Download className="h-4 w-4" />
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Integrations */}
+        <TabsContent value="integrations" className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Connected Apps</CardTitle>
+              <CardDescription>Connect the tools you already use</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <IntegrationCard
+                name="Stripe"
+                description="Accept online payments for invoices and store orders"
+                connected
+              />
+              <IntegrationCard
+                name="Google Calendar"
+                description="Sync bookings and sessions two-way"
+              />
+              <IntegrationCard
+                name="Mailchimp"
+                description="Sync clients to email marketing lists"
+              />
+              <IntegrationCard
+                name="Zapier"
+                description="Connect LensFlow to thousands of other apps"
+              />
+              <IntegrationCard
+                name="QuickBooks"
+                description="Sync invoices and payments to your books"
+              />
+              <IntegrationCard
+                name="Slack"
+                description="Get studio notifications in a Slack channel"
+              />
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Advanced */}
+        <TabsContent value="advanced" className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>API Access</CardTitle>
+              <CardDescription>Use this key to access the LensFlow API</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="flex items-center gap-2 max-w-lg">
+                <Input
+                  readOnly
+                  value={apiKeyVisible ? 'lf_live_9f2a1c7e4b3d8f6a0e5c2b1d9a7f4e6c' : '••••••••••••••••••••••••••••••••'}
+                  className="font-mono"
+                />
+                <Button variant="outline" size="sm" onClick={() => setApiKeyVisible((v) => !v)}>
+                  {apiKeyVisible ? 'Hide' : 'Show'}
+                </Button>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={() => {
+                    navigator.clipboard.writeText('lf_live_9f2a1c7e4b3d8f6a0e5c2b1d9a7f4e6c')
+                    toast.success('API key copied')
+                  }}
+                >
+                  <Copy className="h-4 w-4" />
+                </Button>
+              </div>
+              <Button variant="outline" size="sm">
+                <RefreshCw className="h-4 w-4 mr-2" />
+                Regenerate key
+              </Button>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Export Data</CardTitle>
+              <CardDescription>Download all your studio data as a ZIP archive</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Button variant="outline" size="sm">
+                <Download className="h-4 w-4 mr-2" />
+                Request data export
+              </Button>
+              <p className="text-sm text-muted-foreground mt-2">Includes galleries, clients, invoices, and contracts. We&apos;ll email a download link.</p>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Webhooks</CardTitle>
+              <CardDescription>Notify an external URL when events happen in your studio</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="flex items-center gap-2 max-w-lg">
+                <Input placeholder="https://yourapp.com/webhooks/lensflow" />
+                <Button variant="outline" size="sm">
+                  <Key className="h-4 w-4 mr-2" />
+                  Add
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="border-destructive/50">
+            <CardHeader>
+              <CardTitle className="text-destructive flex items-center gap-2">
+                <AlertTriangle className="h-5 w-5" />
+                Danger Zone
+              </CardTitle>
+              <CardDescription>These actions are permanent and cannot be undone</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex items-center justify-between gap-4 rounded-lg border border-destructive/30 p-4">
+                <div>
+                  <p className="text-sm font-medium text-foreground">Delete this studio</p>
+                  <p className="text-sm text-muted-foreground">Permanently deletes all galleries, clients, and data</p>
+                </div>
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button variant="destructive" size="sm">
+                      <Trash2 className="h-4 w-4 mr-2" />
+                      Delete studio
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Delete this studio?</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        This will permanently delete all galleries, clients, bookings, invoices, and other
+                        data for this studio. This action cannot be undone.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                      <AlertDialogAction
+                        className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                        onClick={() => toast.error('Studio deletion is not available yet')}
+                      >
+                        Delete studio
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
               </div>
             </CardContent>
           </Card>
