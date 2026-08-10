@@ -193,11 +193,12 @@ function getTypeLabel(type: Booking['type']) {
 
 interface BookingListProps {
   studioSlug: string
+  initialBookings?: Booking[]
   isLoading?: boolean
 }
 
-export function BookingList({ studioSlug, isLoading = false }: BookingListProps) {
-  const [bookings, setBookings] = React.useState<Booking[]>(mockBookings)
+export function BookingList({ studioSlug, initialBookings, isLoading = false }: BookingListProps) {
+  const [bookings, setBookings] = React.useState<Booking[]>(initialBookings ?? mockBookings)
   const [searchQuery, setSearchQuery] = React.useState('')
   const [statusFilter, setStatusFilter] = React.useState<string>('all')
   const [typeFilter, setTypeFilter] = React.useState<string>('all')

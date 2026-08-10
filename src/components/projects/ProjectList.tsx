@@ -201,11 +201,12 @@ function getTypeLabel(type: Project['type']) {
 
 interface ProjectListProps {
   studioSlug: string
+  initialProjects?: Project[]
   isLoading?: boolean
 }
 
-export function ProjectList({ studioSlug, isLoading = false }: ProjectListProps) {
-  const [projects, setProjects] = React.useState<Project[]>(mockProjects)
+export function ProjectList({ studioSlug, initialProjects, isLoading = false }: ProjectListProps) {
+  const [projects, setProjects] = React.useState<Project[]>(initialProjects ?? mockProjects)
   const [searchQuery, setSearchQuery] = React.useState('')
   const [statusFilter, setStatusFilter] = React.useState<string>('all')
   const [typeFilter, setTypeFilter] = React.useState<string>('all')
