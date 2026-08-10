@@ -35,6 +35,7 @@ export default async function UploadGalleryPage({ params }: UploadGalleryPagePro
   return (
     <UploadGalleryFlow
       studioSlug={studioSlug}
+      studioId={gallery.studio_id}
       galleryId={gallery.id}
       galleryName={gallery.name}
       initialLayoutType={gallery.layout_type}

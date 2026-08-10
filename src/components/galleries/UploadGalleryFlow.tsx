@@ -16,11 +16,13 @@ import {
   AlignJustify,
 } from 'lucide-react'
 import { toast } from 'sonner'
-import { uploadGalleryMedia, updateGalleryLayout } from '@/lib/actions/galleries'
+import { finalizeGalleryMediaUpload, updateGalleryLayout } from '@/lib/actions/galleries'
 import type { GalleryLayoutType } from '@/lib/actions/galleries'
+import { createBrowserSupabaseClient } from '@/lib/supabase/client'
 
 interface UploadGalleryFlowProps {
   studioSlug: string
+  studioId: string
   galleryId: string
   galleryName: string
   initialLayoutType: GalleryLayoutType
@@ -36,6 +38,7 @@ type Step = 'upload' | 'layout'
 
 export function UploadGalleryFlow({
   studioSlug,
+  studioId,
   galleryId,
   galleryName,
   initialLayoutType,
@@ -55,16 +58,44 @@ export function UploadGalleryFlow({
     setIsUploading(true)
     setUploadError(null)
 
-    const formData = new FormData()
-    files.forEach((file) => formData.append('files', file))
+    const supabase = createBrowserSupabaseClient()
+    const uploaded: { path: string; filename: string }[] = []
 
-    const result = await uploadGalleryMedia(galleryId, studioSlug, formData)
+    for (const file of files) {
+      const baseName = file.name.replace(/\.[^/.]+$/, '').replace(/[^a-zA-Z0-9-_]/g, '_')
+      const ext = file.name.match(/\.[^/.]+$/)?.[0] || ''
+      const path = `${studioId}/${galleryId}/originals/${crypto.randomUUID()}-${baseName}${ext}`
+
+      const { error } = await supabase.storage
+        .from('gallery-media')
+        .upload(path, file, { contentType: file.type, upsert: false })
+
+      if (error) {
+        console.error('Direct upload error:', error)
+        continue
+      }
+
+      uploaded.push({ path, filename: file.name })
+    }
+
+    if (uploaded.length === 0) {
+      setUploadError('Failed to upload photos. Please try again.')
+      toast.error('Failed to upload photos. Please try again.')
+      setIsUploading(false)
+      return
+    }
+
+    const result = await finalizeGalleryMediaUpload(galleryId, studioSlug, uploaded)
 
     if ('error' in result) {
       setUploadError(result.error)
       toast.error(result.error)
       setIsUploading(false)
       return
+    }
+
+    if (result.uploaded < files.length) {
+      toast.warning(`${result.uploaded} of ${files.length} photos uploaded successfully`)
     }
 
     setUploadedCount(result.uploaded)

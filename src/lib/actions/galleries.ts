@@ -787,10 +787,15 @@ export async function getGalleries(studioSlug: string, options?: {
 const MAX_UPLOAD_DIMENSION = 2400
 const THUMBNAIL_WIDTH = 600
 
-export async function uploadGalleryMedia(
+// Photos are uploaded directly from the browser to Supabase Storage (bypassing this
+// server action) because Vercel Serverless Functions hard-cap request bodies at 4.5MB,
+// well under the size of real photos. This action only receives the resulting storage
+// paths and does the sharp processing server-side by downloading from Storage, which is
+// not subject to that inbound request-body limit.
+export async function finalizeGalleryMediaUpload(
   galleryId: string,
   studioSlug: string,
-  formData: FormData
+  uploads: { path: string; filename: string }[]
 ): Promise<{ success: true; uploaded: number } | { error: string }> {
   const supabase = await createClient()
 
@@ -826,10 +831,11 @@ export async function uploadGalleryMedia(
     return { error: 'Gallery not found' }
   }
 
-  const files = formData.getAll('files').filter((f): f is File => f instanceof File)
-  if (files.length === 0) {
+  if (uploads.length === 0) {
     return { error: 'No files provided' }
   }
+
+  const expectedPrefix = `${membership.studio_id}/${galleryId}/originals/`
 
   const rows: {
     gallery_id: string
@@ -842,11 +848,19 @@ export async function uploadGalleryMedia(
     height: number
   }[] = []
 
-  for (const file of files) {
-    if (!file.type.startsWith('image/')) continue
+  for (const upload of uploads) {
+    if (!upload.path.startsWith(expectedPrefix)) continue
 
-    const arrayBuffer = await file.arrayBuffer()
-    const buffer = Buffer.from(arrayBuffer)
+    const { data: original, error: downloadError } = await supabase.storage
+      .from('gallery-media')
+      .download(upload.path)
+
+    if (downloadError || !original) {
+      console.error('Gallery media download error:', downloadError)
+      continue
+    }
+
+    const buffer = Buffer.from(await original.arrayBuffer())
     const image = sharp(buffer)
     const metadata = await image.metadata()
 
@@ -860,7 +874,7 @@ export async function uploadGalleryMedia(
       .webp({ quality: 80 })
       .toBuffer()
 
-    const baseName = file.name.replace(/\.[^/.]+$/, '').replace(/[^a-zA-Z0-9-_]/g, '_')
+    const baseName = upload.filename.replace(/\.[^/.]+$/, '').replace(/[^a-zA-Z0-9-_]/g, '_')
     const uid = crypto.randomUUID()
     const fullPath = `${membership.studio_id}/${galleryId}/${uid}-${baseName}.webp`
     const thumbPath = `${membership.studio_id}/${galleryId}/thumbs/${uid}-${baseName}.webp`
@@ -889,7 +903,7 @@ export async function uploadGalleryMedia(
 
     rows.push({
       gallery_id: galleryId,
-      filename: file.name,
+      filename: upload.filename,
       url: fullUrlData.publicUrl,
       thumbnail_url: thumbUrlData.publicUrl,
       type: 'image',
@@ -897,6 +911,8 @@ export async function uploadGalleryMedia(
       width: metadata.width ?? 0,
       height: metadata.height ?? 0,
     })
+
+    await supabase.storage.from('gallery-media').remove([upload.path])
   }
 
   if (rows.length === 0) {
