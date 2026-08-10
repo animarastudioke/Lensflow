@@ -149,6 +149,8 @@ export async function createGallery(formData: FormData) {
     throw new Error('Unauthorized')
   }
 
+  const studioSlug = formData.get('studio_slug') as string
+
   // Get user's studio
   const { data: membership } = await supabase
     .from('studio_members')
@@ -237,11 +239,15 @@ export async function createGallery(formData: FormData) {
     .insert({
       gallery_id: gallery.id,
       link_name: validated.name,
-      ...validated,
+      password_protected: validated.password_protected,
+      password_hash: passwordHash,
+      allow_download: validated.allow_download,
+      allow_comments: validated.allow_comments,
+      allow_favorites: validated.allow_favorites,
     })
 
-  revalidatePath(`/dashboard/${membership.studio_id}/galleries`)
-  redirect(`/dashboard/${membership.studio_id}/galleries/${gallery.id}`)
+  revalidatePath(`/dashboard/${studioSlug}/galleries`)
+  redirect(`/dashboard/${studioSlug}/galleries/${gallery.id}`)
 }
 
 export async function updateGallery(formData: FormData) {

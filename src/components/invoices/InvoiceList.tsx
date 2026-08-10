@@ -207,11 +207,12 @@ function getStatusBadge(status: Invoice['status']) {
 
 interface InvoiceListProps {
   studioSlug: string
+  initialInvoices?: Invoice[]
   isLoading?: boolean
 }
 
-export function InvoiceList({ studioSlug, isLoading = false }: InvoiceListProps) {
-  const [invoices, setInvoices] = React.useState<Invoice[]>(mockInvoices)
+export function InvoiceList({ studioSlug, initialInvoices, isLoading = false }: InvoiceListProps) {
+  const [invoices, setInvoices] = React.useState<Invoice[]>(initialInvoices ?? mockInvoices)
   const [searchQuery, setSearchQuery] = React.useState('')
   const [statusFilter, setStatusFilter] = React.useState<string>('all')
   const [sortBy] = React.useState<string>('issueDate')
