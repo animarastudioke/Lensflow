@@ -152,7 +152,7 @@ export function SettingsPage({ studioSlug }: SettingsPageProps) {
                 <div className="md:col-span-2 space-y-2">
                   <Label>Address</Label>
                   <Textarea
-                    defaultValue="123 Creative Ave, Suite 100\nNew York, NY 10001\nUnited States"
+                    defaultValue={'123 Creative Ave, Suite 100\nNew York, NY 10001\nUnited States'}
                     rows={3}
                     placeholder="Studio address"
                   />
