@@ -2,6 +2,7 @@ import { Metadata } from 'next'
 import Link from 'next/link'
 import { cn } from '@/lib/utils'
 import { getAuthUserServer } from '@/lib/auth'
+import { getUpcomingBookings } from '@/lib/actions/bookings'
 import { DashboardLayout } from '@/components/layout/dashboard-layout'
 import {
   Card,
@@ -40,13 +41,6 @@ export async function generateMetadata({
 async function getDashboardData(studioSlug: string) {
   // In production, this would fetch from database
   // For now, return mock data structure
-  interface UpcomingBooking {
-    id: string
-    clientName: string
-    startDateTime: string
-    status: string
-  }
-
   interface ActivityItem {
     id: string
     message: string
@@ -86,8 +80,19 @@ async function getDashboardData(studioSlug: string) {
       { title: 'Create Invoice', description: 'Bill a client for services', icon: DollarSign, href: `/dashboard/${studioSlug}/invoices/new` },
       { title: 'Add Product', description: 'Add items to your store', icon: Store, href: `/dashboard/${studioSlug}/store/products/new` },
     ] as QuickAction[],
-    upcomingBookings: [] as UpcomingBooking[],
   }
+}
+
+async function getUpcoming(studioSlug: string) {
+  const bookings = await getUpcomingBookings(studioSlug)
+  return bookings.map(b => ({
+    id: b.id,
+    clientName: b.client?.name || b.session_name,
+    startDateTime: b.session_date
+      ? `${b.session_date}T${b.start_time || '00:00:00'}`
+      : b.created_at,
+    status: b.status,
+  }))
 }
 
 async function getStudioInfo(studioSlug: string) {
@@ -106,9 +111,10 @@ export default async function DashboardPage({ params }: DashboardPageProps) {
     return null // Layout handles redirect
   }
 
-  const [dashboardData, studioInfo] = await Promise.all([
+  const [dashboardData, studioInfo, upcomingBookings] = await Promise.all([
     getDashboardData(studioSlug),
     getStudioInfo(studioSlug),
+    getUpcoming(studioSlug),
   ])
 
   return (
@@ -193,7 +199,7 @@ export default async function DashboardPage({ params }: DashboardPageProps) {
                 </Link>
               </CardHeader>
               <CardContent>
-                {dashboardData.upcomingBookings.length === 0 ? (
+                {upcomingBookings.length === 0 ? (
                   <div className="text-center py-8">
                     <Calendar className="h-12 w-12 mx-auto text-muted-foreground/50 mb-3" />
                     <p className="text-sm text-muted-foreground mb-2">No upcoming bookings</p>
@@ -206,7 +212,7 @@ export default async function DashboardPage({ params }: DashboardPageProps) {
                   </div>
                 ) : (
                   <ul className="space-y-3">
-                    {dashboardData.upcomingBookings.map((booking) => (
+                    {upcomingBookings.map((booking) => (
                       <li key={booking.id} className="flex items-center justify-between text-sm">
                         <div>
                           <p className="font-medium">{booking.clientName}</p>
