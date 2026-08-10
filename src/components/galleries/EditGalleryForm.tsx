@@ -22,24 +22,38 @@ import {
 } from '@/components/ui/select'
 import { ArrowLeft, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
-import { createGallery } from '@/lib/actions/galleries'
+import { updateGallery } from '@/lib/actions/galleries'
 
-interface NewGalleryFormProps {
+interface EditGalleryFormProps {
   studioSlug: string
   clients: { id: string; name: string }[]
+  initialValues: {
+    id: string
+    name: string
+    description: string
+    type: string
+    shootDate: string
+    clientId: string
+    status: string
+    passwordProtected: boolean
+    allowDownload: boolean
+    allowComments: boolean
+    allowFavorites: boolean
+    watermarkEnabled: boolean
+  }
 }
 
-export function NewGalleryForm({ studioSlug, clients }: NewGalleryFormProps) {
+export function EditGalleryForm({ studioSlug, clients, initialValues }: EditGalleryFormProps) {
   const [isSubmitting, setIsSubmitting] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
-  const [type, setType] = React.useState('wedding')
-  const [status, setStatus] = React.useState('draft')
-  const [clientId, setClientId] = React.useState<string>('none')
-  const [passwordProtected, setPasswordProtected] = React.useState(false)
-  const [allowDownload, setAllowDownload] = React.useState(true)
-  const [allowFavorites, setAllowFavorites] = React.useState(true)
-  const [allowComments, setAllowComments] = React.useState(true)
-  const [watermarkEnabled, setWatermarkEnabled] = React.useState(false)
+  const [type, setType] = React.useState(initialValues.type)
+  const [status, setStatus] = React.useState(initialValues.status)
+  const [clientId, setClientId] = React.useState(initialValues.clientId)
+  const [passwordProtected, setPasswordProtected] = React.useState(initialValues.passwordProtected)
+  const [allowDownload, setAllowDownload] = React.useState(initialValues.allowDownload)
+  const [allowFavorites, setAllowFavorites] = React.useState(initialValues.allowFavorites)
+  const [allowComments, setAllowComments] = React.useState(initialValues.allowComments)
+  const [watermarkEnabled, setWatermarkEnabled] = React.useState(initialValues.watermarkEnabled)
 
   const onSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
@@ -47,11 +61,14 @@ export function NewGalleryForm({ studioSlug, clients }: NewGalleryFormProps) {
     setIsSubmitting(true)
 
     const formData = new FormData(e.currentTarget)
+    formData.set('id', initialValues.id)
     formData.set('studio_slug', studioSlug)
     formData.set('type', type)
     formData.set('status', status)
     if (clientId !== 'none') {
       formData.set('client_id', clientId)
+    } else {
+      formData.set('client_id', '')
     }
     formData.set('password_protected', String(passwordProtected))
     formData.set('allow_download', String(allowDownload))
@@ -60,11 +77,11 @@ export function NewGalleryForm({ studioSlug, clients }: NewGalleryFormProps) {
     formData.set('watermark_enabled', String(watermarkEnabled))
 
     try {
-      await createGallery(formData)
+      await updateGallery(formData)
     } catch (err) {
       if (err instanceof Error && err.message !== 'NEXT_REDIRECT') {
-        setError(err.message || 'Failed to create gallery')
-        toast.error(err.message || 'Failed to create gallery')
+        setError(err.message || 'Failed to update gallery')
+        toast.error(err.message || 'Failed to update gallery')
         setIsSubmitting(false)
       } else if (!(err instanceof Error)) {
         throw err
@@ -76,14 +93,14 @@ export function NewGalleryForm({ studioSlug, clients }: NewGalleryFormProps) {
     <div className="max-w-2xl mx-auto space-y-6">
       <div>
         <Link
-          href={`/dashboard/${studioSlug}/galleries`}
+          href={`/dashboard/${studioSlug}/galleries/${initialValues.id}`}
           className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground mb-4"
         >
           <ArrowLeft className="h-4 w-4" />
-          Back to galleries
+          Back to gallery
         </Link>
-        <h1 className="text-display-md font-display font-semibold text-foreground">New Gallery</h1>
-        <p className="text-body text-muted-foreground mt-1">Set up a new client gallery</p>
+        <h1 className="text-display-md font-display font-semibold text-foreground">Edit Gallery</h1>
+        <p className="text-body text-muted-foreground mt-1">Update this gallery's details</p>
       </div>
 
       <form onSubmit={onSubmit}>
@@ -95,12 +112,12 @@ export function NewGalleryForm({ studioSlug, clients }: NewGalleryFormProps) {
           <CardContent className="space-y-6">
             <div className="space-y-2">
               <Label htmlFor="name">Gallery name</Label>
-              <Input id="name" name="name" placeholder="Smith Wedding" required maxLength={100} />
+              <Input id="name" name="name" defaultValue={initialValues.name} required maxLength={100} />
             </div>
 
             <div className="space-y-2">
               <Label htmlFor="description">Description</Label>
-              <Textarea id="description" name="description" placeholder="Optional notes about this shoot" rows={3} maxLength={1000} />
+              <Textarea id="description" name="description" defaultValue={initialValues.description} rows={3} maxLength={1000} />
             </div>
 
             <div className="grid gap-6 sm:grid-cols-2">
@@ -121,7 +138,7 @@ export function NewGalleryForm({ studioSlug, clients }: NewGalleryFormProps) {
               </div>
               <div className="space-y-2">
                 <Label htmlFor="shoot_date">Shoot date</Label>
-                <Input id="shoot_date" name="shoot_date" type="date" />
+                <Input id="shoot_date" name="shoot_date" type="date" defaultValue={initialValues.shootDate} />
               </div>
             </div>
 
@@ -175,7 +192,7 @@ export function NewGalleryForm({ studioSlug, clients }: NewGalleryFormProps) {
             {passwordProtected && (
               <div className="space-y-2 pl-7">
                 <Label htmlFor="password">Password</Label>
-                <Input id="password" name="password" type="text" placeholder="Enter a password" required={passwordProtected} />
+                <Input id="password" name="password" type="text" placeholder="Leave blank to keep current password" />
               </div>
             )}
             <label className="flex items-center gap-3 text-sm">
@@ -204,14 +221,14 @@ export function NewGalleryForm({ studioSlug, clients }: NewGalleryFormProps) {
             {isSubmitting ? (
               <>
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                Creating...
+                Saving...
               </>
             ) : (
-              'Create gallery'
+              'Save changes'
             )}
           </Button>
           <Button type="button" variant="outline" asChild>
-            <Link href={`/dashboard/${studioSlug}/galleries`}>Cancel</Link>
+            <Link href={`/dashboard/${studioSlug}/galleries/${initialValues.id}`}>Cancel</Link>
           </Button>
         </div>
       </form>

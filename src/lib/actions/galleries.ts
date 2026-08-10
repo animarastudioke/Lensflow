@@ -4,10 +4,13 @@ import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { z } from 'zod'
+import sharp from 'sharp'
 
 // Types
 export type GalleryType = 'wedding' | 'portrait' | 'commercial' | 'event' | 'other'
 export type GalleryStatus = 'draft' | 'published' | 'archived' | 'private'
+export type GalleryLayoutType = 'grid' | 'masonry' | 'justified'
+export type GalleryHomepageDesign = 'classic' | 'minimal' | 'fullscreen' | 'magazine'
 
 export interface Gallery {
   id: string
@@ -33,6 +36,8 @@ export interface Gallery {
   media_count: number
   view_count: number
   download_count: number
+  layout_type: GalleryLayoutType
+  homepage_design: GalleryHomepageDesign
   created_at: string
   updated_at: string
 }
@@ -332,22 +337,22 @@ export async function updateGallery(formData: FormData) {
 
   const rawData = {
     id,
-    name: formData.get('name') || existing.name,
-    description: formData.get('description') === '' ? null : (formData.get('description') as string) || existing.description,
-    type: formData.get('type') as GalleryType || existing.type,
-    shoot_date: formData.get('shoot_date') || existing.shoot_date,
-    client_id: formData.get('client_id') || existing.client_id,
-    status: formData.get('status') as GalleryStatus || existing.status,
+    name: (formData.get('name') as string) || existing.name,
+    description: (formData.get('description') as string) || existing.description || undefined,
+    type: (formData.get('type') as GalleryType) || existing.type,
+    shoot_date: (formData.get('shoot_date') as string) || existing.shoot_date || undefined,
+    client_id: (formData.get('client_id') as string) || existing.client_id || undefined,
+    status: (formData.get('status') as GalleryStatus) || existing.status,
     password_protected: formData.get('password_protected') === 'true',
-    password: formData.get('password') || undefined,
+    password: (formData.get('password') as string) || undefined,
     allow_download: formData.get('allow_download') !== 'false',
     allow_comments: formData.get('allow_comments') !== 'false',
     allow_favorites: formData.get('allow_favorites') !== 'false',
     watermark_enabled: formData.get('watermark_enabled') === 'true',
-    expiry_days: formData.get('expiry_days') ? Number(formData.get('expiry_days')) : existing.expiry_days,
-    seo_title: formData.get('seo_title') || existing.seo_title,
-    seo_description: formData.get('seo_description') || existing.seo_description,
-    custom_domain: formData.get('custom_domain') || existing.custom_domain,
+    expiry_days: formData.get('expiry_days') ? Number(formData.get('expiry_days')) : (existing.expiry_days ?? undefined),
+    seo_title: (formData.get('seo_title') as string) || existing.seo_title || undefined,
+    seo_description: (formData.get('seo_description') as string) || existing.seo_description || undefined,
+    custom_domain: (formData.get('custom_domain') as string) || existing.custom_domain || undefined,
   }
 
   const validated = galleryUpdateSchema.parse(rawData)
@@ -764,4 +769,196 @@ export async function getGalleries(studioSlug: string, options?: {
   }
 
   return { galleries: galleries || [], total: count || 0 }
+}
+
+// Media upload
+
+const MAX_UPLOAD_DIMENSION = 2400
+const THUMBNAIL_WIDTH = 600
+
+export async function uploadGalleryMedia(
+  galleryId: string,
+  studioSlug: string,
+  formData: FormData
+): Promise<{ success: true; uploaded: number } | { error: string }> {
+  const supabase = await createClient()
+
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) {
+    return { error: 'Unauthorized' }
+  }
+
+  const { data: membership } = await supabase
+    .from('studio_members')
+    .select('studio_id, role')
+    .eq('user_id', user.id)
+    .eq('status', 'active')
+    .single()
+
+  if (!membership) {
+    return { error: 'No active studio membership' }
+  }
+
+  const hasPermission = await checkGalleryPermission(membership.studio_id, user.id, 'galleries.edit')
+  if (!hasPermission) {
+    return { error: 'Insufficient permissions to upload media' }
+  }
+
+  const { data: gallery } = await supabase
+    .from('galleries')
+    .select('id, cover_image, media_count')
+    .eq('id', galleryId)
+    .eq('studio_id', membership.studio_id)
+    .single()
+
+  if (!gallery) {
+    return { error: 'Gallery not found' }
+  }
+
+  const files = formData.getAll('files').filter((f): f is File => f instanceof File)
+  if (files.length === 0) {
+    return { error: 'No files provided' }
+  }
+
+  const rows: {
+    gallery_id: string
+    filename: string
+    url: string
+    thumbnail_url: string
+    type: 'image'
+    size: number
+    width: number
+    height: number
+  }[] = []
+
+  for (const file of files) {
+    if (!file.type.startsWith('image/')) continue
+
+    const arrayBuffer = await file.arrayBuffer()
+    const buffer = Buffer.from(arrayBuffer)
+    const image = sharp(buffer)
+    const metadata = await image.metadata()
+
+    const fullBuffer = await image
+      .resize({ width: MAX_UPLOAD_DIMENSION, height: MAX_UPLOAD_DIMENSION, fit: 'inside', withoutEnlargement: true })
+      .webp({ quality: 90 })
+      .toBuffer()
+
+    const thumbBuffer = await sharp(buffer)
+      .resize({ width: THUMBNAIL_WIDTH, withoutEnlargement: true })
+      .webp({ quality: 80 })
+      .toBuffer()
+
+    const baseName = file.name.replace(/\.[^/.]+$/, '').replace(/[^a-zA-Z0-9-_]/g, '_')
+    const uid = crypto.randomUUID()
+    const fullPath = `${membership.studio_id}/${galleryId}/${uid}-${baseName}.webp`
+    const thumbPath = `${membership.studio_id}/${galleryId}/thumbs/${uid}-${baseName}.webp`
+
+    const { error: fullUploadError } = await supabase.storage
+      .from('gallery-media')
+      .upload(fullPath, fullBuffer, { contentType: 'image/webp', upsert: false })
+
+    if (fullUploadError) {
+      console.error('Gallery media upload error:', fullUploadError)
+      continue
+    }
+
+    const { error: thumbUploadError } = await supabase.storage
+      .from('gallery-media')
+      .upload(thumbPath, thumbBuffer, { contentType: 'image/webp', upsert: false })
+
+    if (thumbUploadError) {
+      console.error('Gallery media thumbnail upload error:', thumbUploadError)
+    }
+
+    const { data: fullUrlData } = supabase.storage.from('gallery-media').getPublicUrl(fullPath)
+    const { data: thumbUrlData } = supabase.storage.from('gallery-media').getPublicUrl(
+      thumbUploadError ? fullPath : thumbPath
+    )
+
+    rows.push({
+      gallery_id: galleryId,
+      filename: file.name,
+      url: fullUrlData.publicUrl,
+      thumbnail_url: thumbUrlData.publicUrl,
+      type: 'image',
+      size: fullBuffer.byteLength,
+      width: metadata.width ?? 0,
+      height: metadata.height ?? 0,
+    })
+  }
+
+  if (rows.length === 0) {
+    return { error: 'No valid image files were uploaded' }
+  }
+
+  const { error: insertError } = await supabase.from('media').insert(rows)
+
+  if (insertError) {
+    console.error('Insert media rows error:', insertError)
+    return { error: 'Failed to save uploaded media' }
+  }
+
+  const firstUploadedUrl = rows[0]?.url
+
+  await supabase
+    .from('galleries')
+    .update({
+      media_count: gallery.media_count + rows.length,
+      cover_image: gallery.cover_image ?? firstUploadedUrl,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', galleryId)
+
+  revalidatePath(`/dashboard/${studioSlug}/galleries/${galleryId}`)
+
+  return { success: true, uploaded: rows.length }
+}
+
+export async function updateGalleryDisplay(
+  galleryId: string,
+  studioSlug: string,
+  layoutType: GalleryLayoutType,
+  homepageDesign: GalleryHomepageDesign
+) {
+  const supabase = await createClient()
+
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) {
+    throw new Error('Unauthorized')
+  }
+
+  const { data: membership } = await supabase
+    .from('studio_members')
+    .select('studio_id')
+    .eq('user_id', user.id)
+    .eq('status', 'active')
+    .single()
+
+  if (!membership) {
+    throw new Error('No active studio membership')
+  }
+
+  const hasPermission = await checkGalleryPermission(membership.studio_id, user.id, 'galleries.edit')
+  if (!hasPermission) {
+    throw new Error('Insufficient permissions to edit gallery')
+  }
+
+  const { error } = await supabase
+    .from('galleries')
+    .update({
+      layout_type: layoutType,
+      homepage_design: homepageDesign,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', galleryId)
+    .eq('studio_id', membership.studio_id)
+
+  if (error) {
+    console.error('Update gallery display error:', error)
+    throw new Error('Failed to save display settings')
+  }
+
+  revalidatePath(`/dashboard/${studioSlug}/galleries/${galleryId}`)
+  redirect(`/dashboard/${studioSlug}/galleries/${galleryId}`)
 }
