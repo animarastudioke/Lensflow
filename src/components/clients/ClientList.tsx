@@ -184,8 +184,8 @@ function getStatusBadge(status: Client['status']) {
   return <Badge variant={config.variant}>{config.label}</Badge>
 }
 
-export function ClientList({ studioSlug, initialClients = [], isLoading = false }: ClientListProps) {
-  const [clients, setClients] = React.useState<Client[]>(initialClients.length > 0 ? initialClients : mockClients)
+export function ClientList({ studioSlug, initialClients, isLoading = false }: ClientListProps) {
+  const [clients, setClients] = React.useState<Client[]>(initialClients ?? mockClients)
   const [searchQuery, setSearchQuery] = React.useState('')
   const [statusFilter, setStatusFilter] = React.useState<string>('all')
   const [sortBy, setSortBy] = React.useState<string>('createdAt')
