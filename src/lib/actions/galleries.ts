@@ -10,7 +10,7 @@ import sharp from 'sharp'
 export type GalleryType = 'wedding' | 'portrait' | 'commercial' | 'event' | 'other'
 export type GalleryStatus = 'draft' | 'published' | 'archived' | 'private'
 export type GalleryLayoutType = 'grid' | 'masonry' | 'justified'
-export type GalleryHomepageDesign = 'classic' | 'minimal' | 'fullscreen' | 'magazine'
+export type GalleryCoverTemplate = 'novel' | 'vintage' | 'frame' | 'stripe' | 'divider' | 'journal' | 'stamp' | 'outline'
 
 export interface Gallery {
   id: string
@@ -37,7 +37,7 @@ export interface Gallery {
   view_count: number
   download_count: number
   layout_type: GalleryLayoutType
-  homepage_design: GalleryHomepageDesign
+  cover_template: GalleryCoverTemplate
   created_at: string
   updated_at: string
 }
@@ -71,13 +71,23 @@ export interface GalleryShareSettingsRow {
   allow_comments: boolean
   allow_favorites: boolean
   require_email: boolean
+  custom_branding: boolean
+  brand_name: string | null
   brand_color: string | null
   brand_logo: string | null
+  cover_image: string | null
+}
+
+export interface GalleryStudioRow {
+  name: string
+  logo_url: string | null
+  brand_color: string | null
 }
 
 export interface GalleryDetailRow extends Gallery {
   client: { id: string; name: string; email: string } | null
   share_settings: GalleryShareSettingsRow | GalleryShareSettingsRow[] | null
+  studio: GalleryStudioRow | null
   albums: GalleryAlbumRow[]
   media: GalleryMediaRow[]
 }
@@ -462,6 +472,7 @@ export async function getGallery(galleryId: string, studioSlug: string): Promise
       *,
       client:clients(id, name, email),
       share_settings:gallery_share_settings(*),
+      studio:studios(name, logo_url, brand_color),
       albums:gallery_albums(id, name, description, cover_image, media_count, order, created_at),
       media:media(id, filename, url, thumbnail_url, type, size, width, height, is_favorite, created_at)
     `)
@@ -915,12 +926,7 @@ export async function uploadGalleryMedia(
   return { success: true, uploaded: rows.length }
 }
 
-export async function updateGalleryDisplay(
-  galleryId: string,
-  studioSlug: string,
-  layoutType: GalleryLayoutType,
-  homepageDesign: GalleryHomepageDesign
-) {
+async function requireGalleryEditMembership() {
   const supabase = await createClient()
 
   const { data: { user } } = await supabase.auth.getUser()
@@ -944,21 +950,55 @@ export async function updateGalleryDisplay(
     throw new Error('Insufficient permissions to edit gallery')
   }
 
+  return { supabase, studioId: membership.studio_id }
+}
+
+export async function updateGalleryLayout(
+  galleryId: string,
+  studioSlug: string,
+  layoutType: GalleryLayoutType
+) {
+  const { supabase, studioId } = await requireGalleryEditMembership()
+
   const { error } = await supabase
     .from('galleries')
-    .update({
-      layout_type: layoutType,
-      homepage_design: homepageDesign,
-      updated_at: new Date().toISOString(),
-    })
+    .update({ layout_type: layoutType, updated_at: new Date().toISOString() })
     .eq('id', galleryId)
-    .eq('studio_id', membership.studio_id)
+    .eq('studio_id', studioId)
 
   if (error) {
-    console.error('Update gallery display error:', error)
-    throw new Error('Failed to save display settings')
+    console.error('Update gallery layout error:', error)
+    throw new Error('Failed to save photo layout')
   }
 
   revalidatePath(`/dashboard/${studioSlug}/galleries/${galleryId}`)
-  redirect(`/dashboard/${studioSlug}/galleries/${galleryId}`)
+  redirect(`/dashboard/${studioSlug}/galleries/${galleryId}/design`)
+}
+
+export async function updateGalleryCoverTemplate(
+  galleryId: string,
+  studioSlug: string,
+  coverTemplate: GalleryCoverTemplate
+): Promise<{ success: true } | { error: string }> {
+  let supabase, studioId: string
+  try {
+    ;({ supabase, studioId } = await requireGalleryEditMembership())
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : 'Unauthorized' }
+  }
+
+  const { error } = await supabase
+    .from('galleries')
+    .update({ cover_template: coverTemplate, updated_at: new Date().toISOString() })
+    .eq('id', galleryId)
+    .eq('studio_id', studioId)
+
+  if (error) {
+    console.error('Update gallery cover template error:', error)
+    return { error: 'Failed to save cover template' }
+  }
+
+  revalidatePath(`/dashboard/${studioSlug}/galleries/${galleryId}`)
+  revalidatePath(`/dashboard/${studioSlug}/galleries/${galleryId}/design`)
+  return { success: true }
 }

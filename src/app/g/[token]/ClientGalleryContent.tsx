@@ -12,6 +12,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Loader2, Eye, Download, Heart, Share2, ChevronLeft, ChevronRight, X, Grid, Info, Lock, Calendar } from 'lucide-react'
 import { format } from 'date-fns'
 import { toast } from 'sonner'
+import { GalleryCoverPreview, type CoverTemplate } from '@/components/galleries/GalleryCoverPreview'
 
 interface MediaItem {
   id: string
@@ -64,7 +65,7 @@ interface GalleryData {
   password_protected: boolean
   share_token: string
   layout_type: 'grid' | 'masonry' | 'justified'
-  homepage_design: 'classic' | 'minimal' | 'fullscreen' | 'magazine'
+  cover_template: CoverTemplate
   studio?: {
     name: string
     slug: string
@@ -480,141 +481,34 @@ export function ClientGalleryContent({
     )
   }
 
-  const shareDownloadButtons = (variant: 'ghost' | 'secondary' = 'ghost') => (
-    <div className="flex items-center gap-2 shrink-0">
-      <Button variant={variant} size="icon" onClick={shareGallery} aria-label="Share gallery">
-        <Share2 className="h-5 w-5" />
-      </Button>
-      {gallery.allow_download && (
-        <Button variant={variant} size="icon" aria-label="Download all">
-          <Download className="h-5 w-5" />
+  const renderHeader = () => (
+    <header className="relative h-[420px] md:h-[480px] border-b border-border">
+      <GalleryCoverPreview
+        template={gallery.cover_template || 'novel'}
+        data={{
+          name: gallery.name,
+          description: gallery.description,
+          clientName: gallery.client_name,
+          dateLabel: gallery.shoot_date ? format(new Date(gallery.shoot_date), 'MMM d, yyyy') : undefined,
+          coverImageUrl: branding.coverImage,
+          secondaryImageUrl: media[1]?.thumbnailUrl,
+          logoUrl: branding.logo,
+          brandName: branding.name || 'LensFlow',
+          brandColor: branding.color || '#3b82f6',
+        }}
+      />
+      <div className="absolute top-4 right-4 flex items-center gap-2">
+        <Button variant="secondary" size="icon" className="bg-white/90 hover:bg-white shadow-sm" onClick={shareGallery} aria-label="Share gallery">
+          <Share2 className="h-4 w-4" />
         </Button>
-      )}
-    </div>
+        {gallery.allow_download && (
+          <Button variant="secondary" size="icon" className="bg-white/90 hover:bg-white shadow-sm" aria-label="Download all">
+            <Download className="h-4 w-4" />
+          </Button>
+        )}
+      </div>
+    </header>
   )
-
-  const renderHeader = () => {
-    const design = gallery.homepage_design || 'classic'
-
-    if (design === 'minimal') {
-      return (
-        <header className="text-center py-10 px-4 border-b border-border">
-          {branding.logo && (
-            <img src={branding.logo} alt={branding.name} className="h-8 w-auto mx-auto mb-3" />
-          )}
-          <h1 className="font-display font-semibold text-2xl">{gallery.name}</h1>
-          {gallery.description && (
-            <p className="text-sm text-muted-foreground mt-2 max-w-md mx-auto">{gallery.description}</p>
-          )}
-          {gallery.client_name && (
-            <p className="text-sm text-muted-foreground mt-1">{gallery.client_name}</p>
-          )}
-          <div className="flex items-center justify-center gap-2 mt-4">
-            {shareDownloadButtons('ghost')}
-          </div>
-        </header>
-      )
-    }
-
-    if (design === 'fullscreen') {
-      return (
-        <header className="relative h-[50vh] min-h-[360px] flex items-end overflow-hidden">
-          {branding.coverImage ? (
-            <img
-              src={branding.coverImage}
-              alt={gallery.name}
-              className="absolute inset-0 h-full w-full object-cover"
-            />
-          ) : (
-            <div className="absolute inset-0 bg-gradient-to-br from-primary/40 to-primary/10" />
-          )}
-          <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent" />
-          <div className="relative z-10 w-full p-6 md:p-10 flex items-end justify-between gap-4 flex-wrap">
-            <div>
-              <h1 className="font-display font-bold text-3xl md:text-4xl text-white">{gallery.name}</h1>
-              {gallery.description && (
-                <p className="text-white/80 mt-1 max-w-lg">{gallery.description}</p>
-              )}
-              {gallery.client_name && (
-                <p className="text-white/70 text-sm mt-2">{gallery.client_name}</p>
-              )}
-            </div>
-            {shareDownloadButtons('secondary')}
-          </div>
-        </header>
-      )
-    }
-
-    if (design === 'magazine') {
-      const collage = [media[0]?.thumbnailUrl, media[1]?.thumbnailUrl, media[2]?.thumbnailUrl, branding.coverImage]
-        .filter((src): src is string => !!src)
-        .slice(0, 3)
-
-      return (
-        <header className="p-4 md:p-6">
-          {collage.length > 0 && (
-            <div
-              className={cn(
-                'grid gap-2 rounded-xl overflow-hidden mb-4 h-[280px] md:h-[360px]',
-                collage.length === 1 ? 'grid-cols-1' : 'grid-cols-3 grid-rows-2'
-              )}
-            >
-              {collage.length === 1 ? (
-                <img src={collage[0]} alt={gallery.name} className="h-full w-full object-cover" />
-              ) : (
-                <>
-                  <img src={collage[0]} alt={gallery.name} className="col-span-2 row-span-2 h-full w-full object-cover" />
-                  {collage[1] && <img src={collage[1]} alt={gallery.name} className="h-full w-full object-cover" />}
-                  {collage[2] && <img src={collage[2]} alt={gallery.name} className="h-full w-full object-cover" />}
-                </>
-              )}
-            </div>
-          )}
-          <div className="flex items-center justify-between gap-4 flex-wrap">
-            <div>
-              <h1 className="font-display font-bold text-2xl">{gallery.name}</h1>
-              {gallery.description && (
-                <p className="text-muted-foreground mt-1">{gallery.description}</p>
-              )}
-              {gallery.client_name && (
-                <p className="text-sm text-muted-foreground mt-1">{gallery.client_name}</p>
-              )}
-            </div>
-            {shareDownloadButtons('ghost')}
-          </div>
-        </header>
-      )
-    }
-
-    // Classic (default)
-    return (
-      <header className="flex flex-col md:flex-row items-center justify-between gap-4 p-4 border-b border-border">
-        <div className="flex items-center gap-4">
-          {branding.logo ? (
-            <img src={branding.logo} alt={branding.name} className="h-10 w-auto" />
-          ) : (
-            <div className="h-10 w-10 rounded-lg bg-primary flex items-center justify-center">
-              <span className="text-primary-foreground font-bold text-lg">
-                {branding.name?.charAt(0) || 'L'}
-              </span>
-            </div>
-          )}
-          <div>
-            <h1 className="font-display font-bold text-xl">{gallery.name}</h1>
-            {gallery.description && (
-              <p className="text-sm text-muted-foreground line-clamp-1">{gallery.description}</p>
-            )}
-          </div>
-        </div>
-        <div className="flex items-center gap-2">
-          {gallery.client_name && (
-            <span className="text-sm text-muted-foreground mr-2">{gallery.client_name}</span>
-          )}
-          {shareDownloadButtons('ghost')}
-        </div>
-      </header>
-    )
-  }
 
   return (
     <div className="space-y-6" style={style as React.CSSProperties}>

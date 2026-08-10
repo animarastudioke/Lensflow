@@ -5,6 +5,8 @@ import { cn } from '@/lib/utils'
 import { Sidebar, MobileSidebarTrigger } from './sidebar'
 import { Header } from './header'
 
+const SIDEBAR_COLLAPSED_KEY = 'lensflow:sidebar-collapsed'
+
 interface DashboardLayoutProps {
   children: React.ReactNode
   studioSlug: string
@@ -14,13 +16,25 @@ interface DashboardLayoutProps {
 export function DashboardLayout({ children, studioSlug, studioName }: DashboardLayoutProps) {
   const [sidebarCollapsed, setSidebarCollapsed] = React.useState(false)
 
+  React.useEffect(() => {
+    const stored = window.localStorage.getItem(SIDEBAR_COLLAPSED_KEY)
+    if (stored !== null) {
+      setSidebarCollapsed(stored === 'true')
+    }
+  }, [])
+
+  const handleCollapsedChange = (collapsed: boolean) => {
+    setSidebarCollapsed(collapsed)
+    window.localStorage.setItem(SIDEBAR_COLLAPSED_KEY, String(collapsed))
+  }
+
   return (
     <div className="min-h-screen bg-background">
       {/* Mobile sidebar trigger */}
       <MobileSidebarTrigger studioSlug={studioSlug} />
 
       {/* Desktop sidebar */}
-      <Sidebar studioSlug={studioSlug} collapsed={sidebarCollapsed} onCollapsedChange={setSidebarCollapsed} />
+      <Sidebar studioSlug={studioSlug} collapsed={sidebarCollapsed} onCollapsedChange={handleCollapsedChange} />
 
       {/* Main content */}
       <div

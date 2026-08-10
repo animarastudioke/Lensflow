@@ -38,7 +38,6 @@ export default async function UploadGalleryPage({ params }: UploadGalleryPagePro
       galleryId={gallery.id}
       galleryName={gallery.name}
       initialLayoutType={gallery.layout_type}
-      initialHomepageDesign={gallery.homepage_design}
     />
   )
 }

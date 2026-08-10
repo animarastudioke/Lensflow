@@ -28,6 +28,7 @@ import {
   Trash2,
   Edit,
   Share2,
+  Palette,
   Download,
   ArrowLeft,
   Image as ImageIcon,
@@ -291,6 +292,12 @@ export function GalleryDetail({ studioSlug, initialGallery }: GalleryDetailProps
             <Link href={`/dashboard/${studioSlug}/galleries/${gallery.id}/edit`}>
               <Edit className="h-4 w-4 mr-2" />
               Edit Gallery
+            </Link>
+          </Button>
+          <Button variant="outline" size="sm" asChild>
+            <Link href={`/dashboard/${studioSlug}/galleries/${gallery.id}/design`}>
+              <Palette className="h-4 w-4 mr-2" />
+              Design
             </Link>
           </Button>
           <Button variant="outline" size="sm" onClick={() => {}}>
