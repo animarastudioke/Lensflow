@@ -1,6 +1,5 @@
 import { Metadata } from 'next'
 import { getAuthUserServer } from '@/lib/auth'
-import { DashboardLayout } from '@/components/layout/dashboard-layout'
 import { WebsiteList } from '@/components/website/WebsiteList'
 
 interface WebsitePageProps {
@@ -26,9 +25,5 @@ export default async function WebsitePage({ params }: WebsitePageProps) {
     return null
   }
 
-  return (
-    <DashboardLayout studioSlug={studioSlug} studioName="My Studio">
-      <WebsiteList studioSlug={studioSlug} />
-    </DashboardLayout>
-  )
+  return <WebsiteList studioSlug={studioSlug} />
 }

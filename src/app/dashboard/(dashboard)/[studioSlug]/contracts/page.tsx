@@ -1,6 +1,5 @@
 import { Metadata } from 'next'
 import { getAuthUserServer } from '@/lib/auth'
-import { DashboardLayout } from '@/components/layout/dashboard-layout'
 import { ContractList } from '@/components/contracts/ContractList'
 
 interface ContractsPageProps {
@@ -26,9 +25,5 @@ export default async function ContractsPage({ params }: ContractsPageProps) {
     return null
   }
 
-  return (
-    <DashboardLayout studioSlug={studioSlug} studioName="My Studio">
-      <ContractList studioSlug={studioSlug} />
-    </DashboardLayout>
-  )
+  return <ContractList studioSlug={studioSlug} />
 }

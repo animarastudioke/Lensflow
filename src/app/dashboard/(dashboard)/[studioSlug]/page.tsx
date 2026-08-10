@@ -3,7 +3,6 @@ import Link from 'next/link'
 import { cn } from '@/lib/utils'
 import { getAuthUserServer } from '@/lib/auth'
 import { getUpcomingBookings } from '@/lib/actions/bookings'
-import { DashboardLayout } from '@/components/layout/dashboard-layout'
 import {
   Card,
   CardContent,
@@ -118,8 +117,7 @@ export default async function DashboardPage({ params }: DashboardPageProps) {
   ])
 
   return (
-    <DashboardLayout studioSlug={studioSlug} studioName={studioInfo.name}>
-      <div className="space-y-6">
+    <div className="space-y-6">
         {/* Page Header */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
@@ -264,6 +262,5 @@ export default async function DashboardPage({ params }: DashboardPageProps) {
           </div>
         </div>
       </div>
-    </DashboardLayout>
   )
 }

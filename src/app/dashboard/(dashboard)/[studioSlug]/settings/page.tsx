@@ -1,6 +1,5 @@
 import { Metadata } from 'next'
 import { getAuthUserServer } from '@/lib/auth'
-import { DashboardLayout } from '@/components/layout/dashboard-layout'
 import { SettingsPage } from '@/components/settings/SettingsPage'
 
 interface SettingsPageProps {
@@ -26,9 +25,5 @@ export default async function SettingsPageRoute({ params }: SettingsPageProps) {
     return null
   }
 
-  return (
-    <DashboardLayout studioSlug={studioSlug} studioName="My Studio">
-      <SettingsPage studioSlug={studioSlug} />
-    </DashboardLayout>
-  )
+  return <SettingsPage studioSlug={studioSlug} />
 }

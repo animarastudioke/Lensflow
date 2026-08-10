@@ -1,6 +1,5 @@
 import { Metadata } from 'next'
 import { getAuthUserServer } from '@/lib/auth'
-import { DashboardLayout } from '@/components/layout/dashboard-layout'
 import { ClientList } from '@/components/clients/ClientList'
 import { getClients } from '@/lib/actions/clients'
 
@@ -49,9 +48,5 @@ export default async function ClientsPage({ params }: ClientsPageProps) {
     updatedAt: c.updated_at,
   }))
 
-  return (
-    <DashboardLayout studioSlug={studioSlug} studioName="My Studio">
-      <ClientList studioSlug={studioSlug} initialClients={initialClients} />
-    </DashboardLayout>
-  )
+  return <ClientList studioSlug={studioSlug} initialClients={initialClients} />
 }

@@ -1,6 +1,5 @@
 import { Metadata } from 'next'
 import { getAuthUserServer } from '@/lib/auth'
-import { DashboardLayout } from '@/components/layout/dashboard-layout'
 import { GalleryDetail } from '@/components/galleries/GalleryDetail'
 
 interface GalleryDetailPageProps {
@@ -25,9 +24,5 @@ export default async function GalleryDetailPage({ params }: GalleryDetailPagePro
     return null
   }
 
-  return (
-    <DashboardLayout studioSlug={studioSlug} studioName="My Studio">
-      <GalleryDetail studioSlug={studioSlug} galleryId={galleryId} />
-    </DashboardLayout>
-  )
+  return <GalleryDetail studioSlug={studioSlug} galleryId={galleryId} />
 }

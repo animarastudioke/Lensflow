@@ -1,6 +1,5 @@
 import { Metadata } from 'next'
 import { getAuthUserServer } from '@/lib/auth'
-import { DashboardLayout } from '@/components/layout/dashboard-layout'
 import { TeamList } from '@/components/team/TeamList'
 
 interface TeamPageProps {
@@ -26,9 +25,5 @@ export default async function TeamPage({ params }: TeamPageProps) {
     return null
   }
 
-  return (
-    <DashboardLayout studioSlug={studioSlug} studioName="My Studio">
-      <TeamList studioSlug={studioSlug} />
-    </DashboardLayout>
-  )
+  return <TeamList studioSlug={studioSlug} />
 }

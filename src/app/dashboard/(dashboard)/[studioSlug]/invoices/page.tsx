@@ -1,6 +1,5 @@
 import { Metadata } from 'next'
 import { getAuthUserServer } from '@/lib/auth'
-import { DashboardLayout } from '@/components/layout/dashboard-layout'
 import { InvoiceList } from '@/components/invoices/InvoiceList'
 
 interface InvoicesPageProps {
@@ -26,9 +25,5 @@ export default async function InvoicesPage({ params }: InvoicesPageProps) {
     return null
   }
 
-  return (
-    <DashboardLayout studioSlug={studioSlug} studioName="My Studio">
-      <InvoiceList studioSlug={studioSlug} />
-    </DashboardLayout>
-  )
+  return <InvoiceList studioSlug={studioSlug} />
 }

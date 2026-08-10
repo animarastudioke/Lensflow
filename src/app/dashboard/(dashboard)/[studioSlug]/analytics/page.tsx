@@ -1,6 +1,5 @@
 import { Metadata } from 'next'
 import { getAuthUserServer } from '@/lib/auth'
-import { DashboardLayout } from '@/components/layout/dashboard-layout'
 import { AnalyticsDashboard } from '@/components/analytics/AnalyticsDashboard'
 
 interface AnalyticsPageProps {
@@ -26,9 +25,5 @@ export default async function AnalyticsPage({ params }: AnalyticsPageProps) {
     return null
   }
 
-  return (
-    <DashboardLayout studioSlug={studioSlug} studioName="My Studio">
-      <AnalyticsDashboard studioSlug={studioSlug} />
-    </DashboardLayout>
-  )
+  return <AnalyticsDashboard studioSlug={studioSlug} />
 }

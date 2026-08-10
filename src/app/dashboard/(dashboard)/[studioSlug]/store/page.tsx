@@ -1,6 +1,5 @@
 import { Metadata } from 'next'
 import { getAuthUserServer } from '@/lib/auth'
-import { DashboardLayout } from '@/components/layout/dashboard-layout'
 import { StoreList } from '@/components/store/StoreList'
 
 interface StorePageProps {
@@ -26,9 +25,5 @@ export default async function StorePage({ params }: StorePageProps) {
     return null
   }
 
-  return (
-    <DashboardLayout studioSlug={studioSlug} studioName="My Studio">
-      <StoreList studioSlug={studioSlug} />
-    </DashboardLayout>
-  )
+  return <StoreList studioSlug={studioSlug} />
 }
