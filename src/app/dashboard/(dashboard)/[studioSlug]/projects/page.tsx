@@ -1,7 +1,8 @@
 import { Metadata } from 'next'
 import { getAuthUserServer } from '@/lib/auth'
 import { ProjectList } from '@/components/projects/ProjectList'
-import { getProjects } from '@/lib/actions/projects'
+import { getProjects, getProjectFinancials } from '@/lib/actions/projects'
+import { getStudioCurrency } from '@/lib/actions/studios'
 
 const PROJECT_TYPES = ['wedding', 'portrait', 'engagement', 'family', 'corporate', 'event', 'commercial', 'other'] as const
 
@@ -32,28 +33,36 @@ export default async function ProjectsPage({ params }: ProjectsPageProps) {
     return null
   }
 
-  const { projects } = await getProjects(studioSlug)
-  const initialProjects = projects.map(p => ({
-    id: p.id,
-    clientId: p.client_id ?? '',
-    clientName: p.client?.name || 'Unknown Client',
-    clientEmail: p.client?.email || '',
-    title: p.name,
-    type: toProjectType(p.type),
-    status: p.status === 'in_progress' ? ('in-progress' as const) : p.status,
-    startDate: p.start_date ?? p.created_at,
-    endDate: p.end_date ?? undefined,
-    location: p.location ?? '',
-    progress: 0,
-    deliverables: { photos: 0, videos: 0, albums: 0 },
-    totalValue: 0,
-    paidAmount: 0,
-    balanceDue: 0,
-    tags: [] as string[],
-    notes: p.description ?? undefined,
-    createdAt: p.created_at,
-    updatedAt: p.updated_at,
-  }))
+  const [{ projects }, financials, currency] = await Promise.all([
+    getProjects(studioSlug),
+    getProjectFinancials(studioSlug),
+    getStudioCurrency(studioSlug),
+  ])
 
-  return <ProjectList studioSlug={studioSlug} initialProjects={initialProjects} />
+  const initialProjects = projects.map(p => {
+    const money = financials[p.id]
+    return {
+      id: p.id,
+      clientId: p.client_id ?? '',
+      clientName: p.client?.name || 'Unknown Client',
+      clientEmail: p.client?.email || '',
+      title: p.name,
+      type: toProjectType(p.type),
+      status: p.status === 'in_progress' ? ('in-progress' as const) : p.status,
+      startDate: p.start_date ?? p.created_at,
+      endDate: p.end_date ?? undefined,
+      location: p.location ?? '',
+      progress: 0,
+      deliverables: { photos: 0, videos: 0, albums: 0 },
+      totalValue: money?.totalValue ?? 0,
+      paidAmount: money?.paidAmount ?? 0,
+      balanceDue: money?.balanceDue ?? 0,
+      tags: [] as string[],
+      notes: p.description ?? undefined,
+      createdAt: p.created_at,
+      updatedAt: p.updated_at,
+    }
+  })
+
+  return <ProjectList studioSlug={studioSlug} initialProjects={initialProjects} currency={currency} />
 }

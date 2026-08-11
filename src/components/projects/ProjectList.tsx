@@ -58,6 +58,9 @@ import {
 import { Badge } from '@/components/ui/badge'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Progress } from '@/components/ui/progress'
+import { toast } from 'sonner'
+import { formatCurrency } from '@/lib/currencies'
+import { deleteProject, archiveProjects } from '@/lib/actions/projects'
 
 interface Project {
   id: string
@@ -84,92 +87,6 @@ interface Project {
   createdAt: string
   updatedAt: string
 }
-
-const mockProjects: Project[] = [
-  {
-    id: '1',
-    clientId: '1',
-    clientName: 'Sarah Chen',
-    clientEmail: 'sarah.chen@email.com',
-    title: 'Chen Wedding',
-    type: 'wedding',
-    status: 'editing',
-    startDate: '2024-06-15',
-    endDate: '2024-08-15',
-    location: 'Golden Gate Park, SF',
-    progress: 65,
-    deliverables: { photos: 850, videos: 2, albums: 1 },
-    totalValue: 4500,
-    paidAmount: 1500,
-    balanceDue: 3000,
-    tags: ['wedding', 'premium', 'summer'],
-    notes: '8 hours coverage. 850+ edited photos. Highlight video + full ceremony.',
-    createdAt: '2023-12-01T10:00:00Z',
-    updatedAt: '2024-07-20T14:30:00Z',
-  },
-  {
-    id: '2',
-    clientId: '2',
-    clientName: 'Marcus Johnson',
-    clientEmail: 'marcus.j@email.com',
-    title: 'Johnson Family Portraits',
-    type: 'family',
-    status: 'review',
-    startDate: '2024-02-10',
-    endDate: '2024-03-01',
-    location: 'Studio',
-    progress: 90,
-    deliverables: { photos: 75, videos: 0, albums: 1 },
-    totalValue: 800,
-    paidAmount: 200,
-    balanceDue: 600,
-    tags: ['family', 'studio', 'spring'],
-    notes: '2 adults, 2 kids. Outdoor + studio. Digital gallery + 8x10 album.',
-    createdAt: '2024-01-05T15:00:00Z',
-    updatedAt: '2024-02-15T09:00:00Z',
-  },
-  {
-    id: '3',
-    clientId: '3',
-    clientName: 'Emily Rodriguez',
-    clientEmail: 'emily.r@email.com',
-    title: 'Rodriguez Engagement',
-    type: 'engagement',
-    status: 'planning',
-    startDate: '2024-03-20',
-    location: 'Mount Tamalpais',
-    progress: 10,
-    deliverables: { photos: 0, videos: 0, albums: 0 },
-    totalValue: 600,
-    paidAmount: 0,
-    balanceDue: 600,
-    tags: ['engagement', 'outdoor', 'sunset'],
-    notes: 'Sunset session. Dog included. 2 hours.',
-    createdAt: '2024-01-12T11:00:00Z',
-    updatedAt: '2024-01-12T11:00:00Z',
-  },
-  {
-    id: '4',
-    clientId: '4',
-    clientName: 'David Park',
-    clientEmail: 'david.park@email.com',
-    title: 'Park Corporate Headshots',
-    type: 'corporate',
-    status: 'delivered',
-    startDate: '2024-01-08',
-    endDate: '2024-01-22',
-    location: 'Client Office',
-    progress: 100,
-    deliverables: { photos: 150, videos: 0, albums: 0 },
-    totalValue: 1200,
-    paidAmount: 1200,
-    balanceDue: 0,
-    tags: ['corporate', 'headshots', 'delivered'],
-    notes: '15 employees. White backdrop. 48hr delivery. All delivered.',
-    createdAt: '2023-11-20T10:00:00Z',
-    updatedAt: '2024-01-22T13:00:00Z',
-  },
-]
 
 function getStatusBadge(status: Project['status']) {
   const statusConfig = {
@@ -203,10 +120,11 @@ interface ProjectListProps {
   studioSlug: string
   initialProjects?: Project[]
   isLoading?: boolean
+  currency?: string
 }
 
-export function ProjectList({ studioSlug, initialProjects, isLoading = false }: ProjectListProps) {
-  const [projects, setProjects] = React.useState<Project[]>(initialProjects ?? mockProjects)
+export function ProjectList({ studioSlug, initialProjects, isLoading = false, currency = 'USD' }: ProjectListProps) {
+  const [projects, setProjects] = React.useState<Project[]>(initialProjects ?? [])
   const [searchQuery, setSearchQuery] = React.useState('')
   const [statusFilter, setStatusFilter] = React.useState<string>('all')
   const [typeFilter, setTypeFilter] = React.useState<string>('all')
@@ -256,34 +174,44 @@ export function ProjectList({ studioSlug, initialProjects, isLoading = false }: 
     setDeleteConfirm(id)
   }
 
-  const confirmDelete = (id: string) => {
+  const confirmDelete = async (id: string) => {
+    const result = await deleteProject(id, studioSlug)
+    if (result?.error) {
+      toast.error(result.error)
+      return
+    }
     setProjects(prev => prev.filter(p => p.id !== id))
     setSelectedProjects(prev => prev.filter(g => g !== id))
     setDeleteConfirm(null)
   }
 
-  const confirmBulkDelete = () => {
-    setProjects(prev => prev.filter(p => !selectedProjects.includes(p.id)))
+  const confirmBulkDelete = async () => {
+    const ids = selectedProjects
+    const results = await Promise.all(ids.map(id => deleteProject(id, studioSlug)))
+    if (results.some(r => r?.error)) {
+      toast.error('Some projects could not be deleted')
+    }
+    setProjects(prev => prev.filter(p => !ids.includes(p.id)))
     setSelectedProjects([])
     setBulkDeleteConfirm(false)
   }
 
-  const handleBulkAction = (action: 'delete' | 'archive') => {
+  const handleBulkAction = async (action: 'delete' | 'archive') => {
     if (selectedProjects.length === 0) return
 
-    switch (action) {
-      case 'delete':
-        setBulkDeleteConfirm(true)
-        break
-      case 'archive':
-        setProjects(prev =>
-          prev.map(p =>
-            selectedProjects.includes(p.id) ? { ...p, status: 'archived' as const } : p
-          )
-        )
-        setSelectedProjects([])
-        break
+    if (action === 'delete') {
+      setBulkDeleteConfirm(true)
+      return
     }
+
+    const ids = selectedProjects
+    const result = await archiveProjects(ids, studioSlug)
+    if (result?.error) {
+      toast.error(result.error)
+      return
+    }
+    setProjects(prev => prev.map(p => ids.includes(p.id) ? { ...p, status: 'archived' as const } : p))
+    setSelectedProjects([])
   }
 
   const toggleSelect = (id: string) => {
@@ -525,9 +453,11 @@ export function ProjectList({ studioSlug, initialProjects, isLoading = false }: 
                       </TableCell>
                       <TableCell className="text-right hidden xl:table-cell font-mono tabular-nums">
                         {project.balanceDue > 0 ? (
-                          <span className="text-destructive">${project.balanceDue.toLocaleString()} due</span>
-                        ) : (
+                          <span className="text-destructive">{formatCurrency(project.balanceDue, currency)} due</span>
+                        ) : project.totalValue > 0 ? (
                           <span className="text-success font-sans">Paid in full</span>
+                        ) : (
+                          <span className="text-muted-foreground font-sans">Not yet billed</span>
                         )}
                       </TableCell>
                       <TableCell>
@@ -665,7 +595,7 @@ export function ProjectList({ studioSlug, initialProjects, isLoading = false }: 
                   <Progress value={project.progress} className="h-2" />
                   <div className="flex items-center justify-between text-sm">
                     <div className="text-muted-foreground font-mono tabular-nums">
-                      ${project.paidAmount.toLocaleString()} / ${project.totalValue.toLocaleString()}
+                      {formatCurrency(project.paidAmount, currency)} / {formatCurrency(project.totalValue, currency)}
                     </div>
                     <div className="flex items-center gap-2">
                       <Button variant="outline" size="sm" asChild>

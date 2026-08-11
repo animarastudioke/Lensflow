@@ -59,6 +59,9 @@ import {
 } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
+import { toast } from 'sonner'
+import { formatCurrency } from '@/lib/currencies'
+import { deleteContract, updateContractStatus, type ContractRow } from '@/lib/actions/contracts'
 
 interface Contract {
   id: string
@@ -87,100 +90,40 @@ interface Contract {
   updatedAt: string
 }
 
-const mockContracts: Contract[] = [
-  {
-    id: '1',
-    clientId: '1',
-    clientName: 'Sarah Chen',
-    clientEmail: 'sarah.chen@email.com',
-    title: 'Chen Wedding Photography Contract',
-    type: 'wedding',
-    status: 'signed',
-    sentAt: '2023-12-15T10:00:00Z',
-    viewedAt: '2023-12-15T14:30:00Z',
-    signedAt: '2023-12-16T09:15:00Z',
-    expiresAt: '2024-06-15T23:59:59Z',
-    totalValue: 4500,
-    depositRequired: 1500,
-    depositPaid: 1500,
-    signers: [
-      { name: 'Sarah Chen', email: 'sarah.chen@email.com', status: 'signed', signedAt: '2023-12-16T09:15:00Z' },
-      { name: 'Michael Chen', email: 'michael.chen@email.com', status: 'signed', signedAt: '2023-12-16T09:20:00Z' },
-    ],
-    templateId: 'wedding-premium',
-    notes: '8hr coverage, 850+ photos, highlight video, album',
-    createdAt: '2023-12-01T10:00:00Z',
-    updatedAt: '2023-12-16T09:20:00Z',
-  },
-  {
-    id: '2',
-    clientId: '2',
-    clientName: 'Marcus Johnson',
-    clientEmail: 'marcus.j@email.com',
-    title: 'Johnson Family Portrait Agreement',
-    type: 'portrait',
-    status: 'viewed',
-    sentAt: '2024-01-10T14:00:00Z',
-    viewedAt: '2024-01-10T16:45:00Z',
-    expiresAt: '2024-02-10T23:59:59Z',
-    totalValue: 800,
-    depositRequired: 200,
-    depositPaid: 200,
-    signers: [
-      { name: 'Marcus Johnson', email: 'marcus.j@email.com', status: 'signed', signedAt: '2024-01-11T10:00:00Z' },
-      { name: 'Lisa Johnson', email: 'lisa.j@email.com', status: 'pending' },
-    ],
-    templateId: 'portrait-family',
-    notes: '2hr session, 75 edited photos, 8x10 album',
-    createdAt: '2024-01-05T15:00:00Z',
-    updatedAt: '2024-01-10T16:45:00Z',
-  },
-  {
-    id: '3',
-    clientId: '3',
-    clientName: 'Emily Rodriguez',
-    clientEmail: 'emily.r@email.com',
-    title: 'Rodriguez Engagement Session Contract',
-    type: 'engagement',
-    status: 'sent',
-    sentAt: '2024-01-12T11:30:00Z',
-    expiresAt: '2024-02-12T23:59:59Z',
-    totalValue: 600,
-    depositRequired: 150,
-    depositPaid: 0,
-    signers: [
-      { name: 'Emily Rodriguez', email: 'emily.r@email.com', status: 'pending' },
-      { name: 'James Wilson', email: 'james.w@email.com', status: 'pending' },
-    ],
-    templateId: 'engagement',
-    notes: '2hr sunset session, dog included, digital gallery',
-    createdAt: '2024-01-12T11:00:00Z',
-    updatedAt: '2024-01-12T11:30:00Z',
-  },
-  {
-    id: '4',
-    clientId: '4',
-    clientName: 'David Park',
-    clientEmail: 'david.park@email.com',
-    title: 'Park Corporate Headshots Agreement',
-    type: 'corporate',
-    status: 'completed',
-    sentAt: '2023-11-25T10:00:00Z',
-    viewedAt: '2023-11-25T14:00:00Z',
-    signedAt: '2023-11-26T09:00:00Z',
-    expiresAt: '2024-01-08T23:59:59Z',
-    totalValue: 1200,
-    depositRequired: 600,
-    depositPaid: 600,
-    signers: [
-      { name: 'David Park', email: 'david.park@email.com', status: 'signed', signedAt: '2023-11-26T09:00:00Z' },
-    ],
-    templateId: 'corporate-headshots',
-    notes: '15 employees, white backdrop, 48hr delivery',
-    createdAt: '2023-11-20T10:00:00Z',
-    updatedAt: '2024-01-08T13:00:00Z',
-  },
-]
+const CONTRACT_TYPES = ['wedding', 'portrait', 'engagement', 'family', 'corporate', 'event', 'model-release', 'license', 'other'] as const
+
+function toContractType(type: string): Contract['type'] {
+  return (CONTRACT_TYPES as readonly string[]).includes(type) ? (type as Contract['type']) : 'other'
+}
+
+function mapContractRow(row: ContractRow): Contract {
+  return {
+    id: row.id,
+    clientId: row.client_id ?? '',
+    clientName: row.client?.name ?? 'No client',
+    clientEmail: row.client?.email ?? '',
+    title: row.title,
+    type: toContractType(row.type),
+    status: row.status,
+    sentAt: row.sent_at ?? undefined,
+    viewedAt: row.viewed_at ?? undefined,
+    signedAt: row.signed_at ?? undefined,
+    expiresAt: row.expires_at ?? undefined,
+    totalValue: row.total_value,
+    depositRequired: row.deposit_required,
+    depositPaid: row.deposit_paid,
+    signers: row.signers.map((s) => ({
+      name: s.name,
+      email: s.email,
+      status: s.status,
+      signedAt: s.signed_at ?? undefined,
+    })),
+    templateId: row.template_id ?? undefined,
+    notes: row.notes ?? undefined,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  }
+}
 
 function getStatusBadge(status: Contract['status']) {
   const statusConfig = {
@@ -220,12 +163,14 @@ function getSignerStatus(signers: Contract['signers']) {
 
 interface ContractListProps {
   studioSlug: string
+  initialContracts: ContractRow[]
   isLoading?: boolean
+  currency?: string
 }
 
-export function ContractList({ studioSlug, isLoading = false }: ContractListProps) {
+export function ContractList({ studioSlug, initialContracts, isLoading = false, currency = 'USD' }: ContractListProps) {
 
-  const [contracts, setContracts] = React.useState<Contract[]>(mockContracts)
+  const [contracts, setContracts] = React.useState<Contract[]>(() => initialContracts.map(mapContractRow))
   const [searchQuery, setSearchQuery] = React.useState('')
   const [statusFilter, setStatusFilter] = React.useState<string>('all')
   const [typeFilter, setTypeFilter] = React.useState<string>('all')
@@ -274,37 +219,57 @@ export function ContractList({ studioSlug, isLoading = false }: ContractListProp
     setDeleteConfirm(id)
   }
 
-  const confirmDelete = (id: string) => {
+  const confirmDelete = async (id: string) => {
+    const result = await deleteContract(id, studioSlug)
+    if (result?.error) {
+      toast.error(result.error)
+      return
+    }
     setContracts(prev => prev.filter(c => c.id !== id))
     setSelectedContracts(prev => prev.filter(g => g !== id))
     setDeleteConfirm(null)
   }
 
-  const confirmBulkDelete = () => {
-    setContracts(prev => prev.filter(c => !selectedContracts.includes(c.id)))
+  const confirmBulkDelete = async () => {
+    const ids = selectedContracts
+    const results = await Promise.all(ids.map(id => deleteContract(id, studioSlug)))
+    if (results.some(r => r?.error)) {
+      toast.error('Some contracts could not be deleted')
+    }
+    setContracts(prev => prev.filter(c => !ids.includes(c.id)))
     setSelectedContracts([])
     setBulkDeleteConfirm(false)
   }
 
-  const handleBulkAction = (action: 'delete' | 'resend' | 'cancel') => {
+  const handleContractStatusChange = async (id: string, status: Contract['status']) => {
+    const result = await updateContractStatus(id, studioSlug, status)
+    if (result?.error) {
+      toast.error(result.error)
+      return
+    }
+    setContracts(prev =>
+      prev.map(c => c.id === id
+        ? { ...c, status, sentAt: status === 'sent' ? new Date().toISOString() : c.sentAt }
+        : c
+      )
+    )
+  }
+
+  const handleBulkAction = async (action: 'delete' | 'cancel') => {
     if (selectedContracts.length === 0) return
 
-    switch (action) {
-      case 'delete':
-        setBulkDeleteConfirm(true)
-        break
-      case 'resend':
-        console.log('Resending contracts:', selectedContracts)
-        break
-      case 'cancel':
-        setContracts(prev =>
-          prev.map(c =>
-            selectedContracts.includes(c.id) ? { ...c, status: 'cancelled' as const } : c
-          )
-        )
-        setSelectedContracts([])
-        break
+    if (action === 'delete') {
+      setBulkDeleteConfirm(true)
+      return
     }
+
+    const ids = selectedContracts
+    const results = await Promise.all(ids.map(id => updateContractStatus(id, studioSlug, 'cancelled')))
+    if (results.some(r => r?.error)) {
+      toast.error('Some contracts could not be cancelled')
+    }
+    setContracts(prev => prev.map(c => ids.includes(c.id) ? { ...c, status: 'cancelled' as const } : c))
+    setSelectedContracts([])
   }
 
   const toggleSelect = (id: string) => {
@@ -443,10 +408,6 @@ export function ContractList({ studioSlug, isLoading = false }: ContractListProp
                 {selectedContracts.length} contract{selectedContracts.length !== 1 ? 's' : ''} selected
               </span>
               <div className="flex items-center gap-2">
-                <Button variant="outline" size="sm" onClick={() => handleBulkAction('resend')}>
-                  <Mail className="h-3.5 w-3.5 mr-1.5" />
-                  Resend
-                </Button>
                 <Button variant="outline" size="sm" onClick={() => handleBulkAction('cancel')}>
                   <XCircle className="h-3.5 w-3.5 mr-1.5" />
                   Cancel
@@ -569,7 +530,7 @@ export function ContractList({ studioSlug, isLoading = false }: ContractListProp
                       </TableCell>
                       <TableCell className="text-right hidden xl:table-cell font-mono tabular-nums text-sm font-medium">
                         {contract.depositPaid < contract.depositRequired ? (
-                          <span className="text-destructive">${(contract.depositRequired - contract.depositPaid).toLocaleString()} deposit due</span>
+                          <span className="text-destructive">{formatCurrency(contract.depositRequired - contract.depositPaid, currency)} deposit due</span>
                         ) : (
                           <span className="text-success font-sans">Deposit paid</span>
                         )}
@@ -608,9 +569,7 @@ export function ContractList({ studioSlug, isLoading = false }: ContractListProp
                             {contract.status === 'draft' && (
                               <>
                                 <DropdownMenuSeparator />
-                                <DropdownMenuItem onClick={() => {
-                                  setContracts(prev => prev.map(c => c.id === contract.id ? { ...c, status: 'sent' as const, sentAt: new Date().toISOString() } : c))
-                                }}>
+                                <DropdownMenuItem onClick={() => handleContractStatusChange(contract.id, 'sent')}>
                                   <Mail className="mr-2 h-4 w-4" />
                                   Send for Signature
                                 </DropdownMenuItem>
@@ -619,9 +578,7 @@ export function ContractList({ studioSlug, isLoading = false }: ContractListProp
                             {contract.status === 'sent' && (
                               <>
                                 <DropdownMenuSeparator />
-                                <DropdownMenuItem onClick={() => {
-                                  setContracts(prev => prev.map(c => c.id === contract.id ? { ...c, status: 'cancelled' as const } : c))
-                                }} className="text-destructive">
+                                <DropdownMenuItem onClick={() => handleContractStatusChange(contract.id, 'cancelled')} className="text-destructive">
                                   <XCircle className="mr-2 h-4 w-4" />
                                   Cancel
                                 </DropdownMenuItem>
@@ -732,7 +689,7 @@ export function ContractList({ studioSlug, isLoading = false }: ContractListProp
                   )}
                   <div className="flex items-center justify-between text-sm">
                     <div className="text-muted-foreground">
-                      <span className="font-mono tabular-nums text-foreground">${contract.depositPaid.toLocaleString()}</span> / <span className="font-mono tabular-nums">${contract.depositRequired.toLocaleString()}</span> deposit
+                      <span className="font-mono tabular-nums text-foreground">{formatCurrency(contract.depositPaid, currency)}</span> / <span className="font-mono tabular-nums">{formatCurrency(contract.depositRequired, currency)}</span> deposit
                     </div>
                     <div className="flex items-center gap-2">
                       <Button variant="outline" size="sm" asChild>
@@ -741,9 +698,7 @@ export function ContractList({ studioSlug, isLoading = false }: ContractListProp
                         </Link>
                       </Button>
                       {contract.status === 'draft' && (
-                        <Button variant="default" size="sm" onClick={() => {
-                          setContracts(prev => prev.map(c => c.id === contract.id ? { ...c, status: 'sent' as const, sentAt: new Date().toISOString() } : c))
-                        }}>
+                        <Button variant="default" size="sm" onClick={() => handleContractStatusChange(contract.id, 'sent')}>
                           <Mail className="h-3.5 w-3.5 mr-1.5" />
                           Send
                         </Button>

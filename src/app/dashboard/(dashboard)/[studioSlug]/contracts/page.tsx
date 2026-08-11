@@ -1,5 +1,7 @@
 import { Metadata } from 'next'
 import { getAuthUserServer } from '@/lib/auth'
+import { getContracts } from '@/lib/actions/contracts'
+import { getStudioCurrency } from '@/lib/actions/studios'
 import { ContractList } from '@/components/contracts/ContractList'
 
 interface ContractsPageProps {
@@ -25,5 +27,10 @@ export default async function ContractsPage({ params }: ContractsPageProps) {
     return null
   }
 
-  return <ContractList studioSlug={studioSlug} />
+  const [{ contracts }, currency] = await Promise.all([
+    getContracts(studioSlug),
+    getStudioCurrency(studioSlug),
+  ])
+
+  return <ContractList studioSlug={studioSlug} initialContracts={contracts} currency={currency} />
 }
