@@ -17,6 +17,8 @@ const PUBLIC_PATHS = [
   '/api/webhooks',
   '/api/public',
   '/features',
+  '/solutions',
+  '/pricing',
   '/docs',
   '/blog',
   '/community',
