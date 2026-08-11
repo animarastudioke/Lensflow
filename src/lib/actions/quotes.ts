@@ -74,6 +74,80 @@ export async function getQuotes(studioSlug: string, options?: {
   return { quotes: (quotes as unknown as QuoteRow[]) || [], total: count || 0 }
 }
 
+export async function getQuote(quoteId: string, studioSlug: string): Promise<QuoteRow | null> {
+  const supabase = await createClient()
+  const studioId = await getStudioId(studioSlug)
+  if (!studioId) return null
+
+  const { data: quote } = await supabase
+    .from('quotes')
+    .select('*, client:clients(name, email), items:quote_items(*)')
+    .eq('id', quoteId)
+    .eq('studio_id', studioId)
+    .single()
+
+  return quote as unknown as QuoteRow | null
+}
+
+async function requireMembership(): Promise<{ error: string } | { studioId: string }> {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'Unauthorized' }
+
+  const { data: membership } = await supabase
+    .from('studio_members')
+    .select('studio_id')
+    .eq('user_id', user.id)
+    .eq('status', 'active')
+    .single()
+
+  if (!membership) return { error: 'No active studio membership' }
+
+  return { studioId: membership.studio_id }
+}
+
+export async function updateQuoteStatus(
+  quoteId: string,
+  status: QuoteStatus,
+  studioSlug: string
+): Promise<{ error: string } | undefined> {
+  const membership = await requireMembership()
+  if ('error' in membership) return membership
+
+  const supabase = await createClient()
+  const { error } = await supabase
+    .from('quotes')
+    .update({ status, updated_at: new Date().toISOString() })
+    .eq('id', quoteId)
+    .eq('studio_id', membership.studioId)
+
+  if (error) {
+    console.error('Update quote status error:', error)
+    return { error: 'Failed to update quote' }
+  }
+
+  revalidatePath(`/dashboard/${studioSlug}/quotes`)
+}
+
+export async function deleteQuote(quoteId: string, studioSlug: string): Promise<{ error: string } | undefined> {
+  const membership = await requireMembership()
+  if ('error' in membership) return membership
+
+  const supabase = await createClient()
+  const { error } = await supabase
+    .from('quotes')
+    .delete()
+    .eq('id', quoteId)
+    .eq('studio_id', membership.studioId)
+
+  if (error) {
+    console.error('Delete quote error:', error)
+    return { error: 'Failed to delete quote' }
+  }
+
+  revalidatePath(`/dashboard/${studioSlug}/quotes`)
+}
+
 const quoteItemSchema = z.object({
   description: z.string().min(1, 'Item description is required').max(200),
   quantity: z.number().min(0.01),
@@ -190,4 +264,108 @@ export async function createQuote(formData: FormData) {
 
   revalidatePath(`/dashboard/${studioSlug}/quotes`)
   redirect(`/dashboard/${studioSlug}/quotes`)
+}
+
+const quoteUpdateSchema = z.object({
+  title: z.string().min(1, 'Quote title is required').max(150),
+  client_id: z.string().uuid().optional(),
+  status: z.enum(['draft', 'sent', 'viewed', 'accepted', 'declined', 'expired']),
+  issue_date: z.string().optional(),
+  expires_at: z.string().optional(),
+  tax: z.number().min(0).default(0),
+  discount: z.number().min(0).default(0),
+  notes: z.string().max(2000).optional(),
+  items: z.array(quoteItemSchema).min(1, 'Add at least one line item'),
+})
+
+export async function updateQuote(formData: FormData) {
+  const membership = await requireMembership()
+  if ('error' in membership) throw new Error(membership.error)
+
+  const id = formData.get('id') as string
+  const studioSlug = formData.get('studio_slug') as string
+
+  const { data: existing } = await (await createClient())
+    .from('quotes')
+    .select('id')
+    .eq('id', id)
+    .eq('studio_id', membership.studioId)
+    .single()
+
+  if (!existing) {
+    throw new Error('Quote not found')
+  }
+
+  let items: unknown
+  try {
+    items = JSON.parse((formData.get('items_json') as string) || '[]')
+  } catch {
+    throw new Error('Invalid line items')
+  }
+
+  const taxRaw = formData.get('tax')
+  const discountRaw = formData.get('discount')
+
+  const validated = quoteUpdateSchema.parse({
+    title: formData.get('title'),
+    client_id: formData.get('client_id') || undefined,
+    status: formData.get('status'),
+    issue_date: formData.get('issue_date') || undefined,
+    expires_at: formData.get('expires_at') || undefined,
+    tax: taxRaw ? Number(taxRaw) : 0,
+    discount: discountRaw ? Number(discountRaw) : 0,
+    notes: formData.get('notes') || undefined,
+    items,
+  })
+
+  const subtotal = validated.items.reduce((sum, item) => sum + item.quantity * item.unit_price, 0)
+  const total = Math.max(subtotal + validated.tax - validated.discount, 0)
+
+  const supabase = await createClient()
+
+  const { error } = await supabase
+    .from('quotes')
+    .update({
+      client_id: validated.client_id ?? null,
+      title: validated.title,
+      status: validated.status,
+      issue_date: validated.issue_date || undefined,
+      expires_at: validated.expires_at || null,
+      subtotal,
+      tax: validated.tax,
+      discount: validated.discount,
+      total,
+      notes: validated.notes ?? null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', id)
+    .eq('studio_id', membership.studioId)
+
+  if (error) {
+    console.error('Update quote error:', error)
+    throw new Error('Failed to update quote')
+  }
+
+  await supabase.from('quote_items').delete().eq('quote_id', id)
+
+  const { error: itemsError } = await supabase
+    .from('quote_items')
+    .insert(
+      validated.items.map(item => ({
+        quote_id: id,
+        description: item.description,
+        quantity: item.quantity,
+        unit_price: item.unit_price,
+        total: item.quantity * item.unit_price,
+      }))
+    )
+
+  if (itemsError) {
+    console.error('Update quote items error:', itemsError)
+    throw new Error('Failed to save quote line items')
+  }
+
+  revalidatePath(`/dashboard/${studioSlug}/quotes`)
+  revalidatePath(`/dashboard/${studioSlug}/quotes/${id}`)
+  redirect(`/dashboard/${studioSlug}/quotes/${id}`)
 }

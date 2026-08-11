@@ -3,7 +3,9 @@
 import * as React from 'react'
 import Link from 'next/link'
 import { format } from 'date-fns'
+import { toast } from 'sonner'
 import { formatCurrency } from '@/lib/currencies'
+import { deleteQuote, updateQuoteStatus, type QuoteStatus } from '@/lib/actions/quotes'
 import {
   Card,
   CardContent,
@@ -138,10 +140,25 @@ export function QuoteList({ studioSlug, initialQuotes, isLoading = false, curren
 
   const [deleteConfirm, setDeleteConfirm] = React.useState<string | null>(null)
 
-  const confirmDelete = (id: string) => {
-    setQuotes(prev => prev.filter(q => q.id !== id))
-    setSelectedQuotes(prev => prev.filter(g => g !== id))
+  const confirmDelete = async (id: string) => {
+    const result = await deleteQuote(id, studioSlug)
+    if (result?.error) {
+      toast.error(result.error)
+    } else {
+      setQuotes(prev => prev.filter(q => q.id !== id))
+      setSelectedQuotes(prev => prev.filter(g => g !== id))
+      toast.success('Quote deleted')
+    }
     setDeleteConfirm(null)
+  }
+
+  const changeStatus = async (id: string, status: QuoteStatus) => {
+    const result = await updateQuoteStatus(id, status, studioSlug)
+    if (result?.error) {
+      toast.error(result.error)
+      return
+    }
+    setQuotes(prev => prev.map(q => q.id === id ? { ...q, status } : q))
   }
 
   const toggleSelect = (id: string) => {
@@ -363,24 +380,18 @@ export function QuoteList({ studioSlug, initialQuotes, isLoading = false, curren
                             </Link>
                           </DropdownMenuItem>
                           {quote.status === 'draft' && (
-                            <DropdownMenuItem onClick={() => {
-                              setQuotes(prev => prev.map(q => q.id === quote.id ? { ...q, status: 'sent' as const } : q))
-                            }}>
+                            <DropdownMenuItem onClick={() => changeStatus(quote.id, 'sent')}>
                               <Mail className="mr-2 h-4 w-4" />
                               Send Quote
                             </DropdownMenuItem>
                           )}
                           {(quote.status === 'sent' || quote.status === 'viewed') && (
                             <>
-                              <DropdownMenuItem onClick={() => {
-                                setQuotes(prev => prev.map(q => q.id === quote.id ? { ...q, status: 'accepted' as const } : q))
-                              }}>
+                              <DropdownMenuItem onClick={() => changeStatus(quote.id, 'accepted')}>
                                 <CheckCircle className="mr-2 h-4 w-4 text-success" />
                                 Mark Accepted
                               </DropdownMenuItem>
-                              <DropdownMenuItem onClick={() => {
-                                setQuotes(prev => prev.map(q => q.id === quote.id ? { ...q, status: 'declined' as const } : q))
-                              }}>
+                              <DropdownMenuItem onClick={() => changeStatus(quote.id, 'declined')}>
                                 <XCircle className="mr-2 h-4 w-4 text-destructive" />
                                 Mark Declined
                               </DropdownMenuItem>
