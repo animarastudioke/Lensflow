@@ -12,6 +12,8 @@ import {
   deleteAlbum,
   duplicateAlbum,
   assignMediaToAlbum,
+  setMediaFavorite,
+  deleteMedia,
 } from '@/lib/actions/galleries'
 import {
   Card,
@@ -237,14 +239,46 @@ export function GalleryDetail({ studioSlug, initialGallery }: GalleryDetailProps
     setLightboxRotation(0)
   }
 
-  const handleDeleteImages = () => {
-    if (confirm(`Delete ${selectedImages.length} image(s)?`)) {
-      setGallery((prev) => ({
-        ...prev,
-        images: prev.images.filter((img) => !selectedImages.includes(img.id)),
-      }))
-      setSelectedImages([])
+  const handleDeleteImages = async () => {
+    if (!confirm(`Delete ${selectedImages.length} image(s)?`)) return
+    const targetIds = selectedImages
+    const result = await deleteMedia(targetIds, gallery.id, studioSlug)
+    if ('error' in result) {
+      toast.error(result.error)
+      return
     }
+    setGallery((prev) => ({
+      ...prev,
+      images: prev.images.filter((img) => !targetIds.includes(img.id)),
+    }))
+    setSelectedImages([])
+    toast.success(`Deleted ${targetIds.length} image(s)`)
+  }
+
+  const handleToggleFavorite = async (imageId: string, next: boolean) => {
+    const result = await setMediaFavorite([imageId], next, gallery.id, studioSlug)
+    if ('error' in result) {
+      toast.error(result.error)
+      return
+    }
+    setGallery((prev) => ({
+      ...prev,
+      images: prev.images.map((img) => (img.id === imageId ? { ...img, isFavorite: next } : img)),
+    }))
+  }
+
+  const handleDeleteImage = async (imageId: string) => {
+    if (!confirm('Delete this image?')) return
+    const result = await deleteMedia([imageId], gallery.id, studioSlug)
+    if ('error' in result) {
+      toast.error(result.error)
+      return
+    }
+    setGallery((prev) => ({
+      ...prev,
+      images: prev.images.filter((img) => img.id !== imageId),
+    }))
+    toast.success('Image deleted')
   }
 
   const handleShareGallery = async () => {
@@ -375,22 +409,34 @@ export function GalleryDetail({ studioSlug, initialGallery }: GalleryDetailProps
     setAlbumDeleteConfirm(null)
   }
 
-  const handleBulkAction = (action: 'delete' | 'favorite' | 'download' | 'album') => {
+  const handleBulkAction = async (action: 'delete' | 'favorite' | 'download' | 'album') => {
     if (selectedImages.length === 0) return
 
     switch (action) {
       case 'delete':
-        handleDeleteImages()
+        await handleDeleteImages()
         break
-      case 'favorite':
+      case 'favorite': {
+        const targetIds = selectedImages
+        const allFavorited = gallery.images
+          .filter((img) => targetIds.includes(img.id))
+          .every((img) => img.isFavorite)
+        const nextFavorite = !allFavorited
+        const result = await setMediaFavorite(targetIds, nextFavorite, gallery.id, studioSlug)
+        if ('error' in result) {
+          toast.error(result.error)
+          return
+        }
         setGallery((prev) => ({
           ...prev,
           images: prev.images.map((img) =>
-            selectedImages.includes(img.id) ? { ...img, isFavorite: !img.isFavorite } : img
+            targetIds.includes(img.id) ? { ...img, isFavorite: nextFavorite } : img
           ),
         }))
         setSelectedImages([])
+        toast.success(nextFavorite ? 'Added to favorites' : 'Removed from favorites')
         break
+      }
       case 'download':
         // Trigger download
         break
@@ -665,7 +711,15 @@ export function GalleryDetail({ studioSlug, initialGallery }: GalleryDetailProps
                       />
                       <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                         {image.isFavorite && (
-                          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={(e) => { e.stopPropagation(); }}>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              handleToggleFavorite(image.id, false)
+                            }}
+                          >
                             <Heart className="h-4 w-4 text-red-500 fill-red-500" />
                           </Button>
                         )}
@@ -764,14 +818,7 @@ export function GalleryDetail({ studioSlug, initialGallery }: GalleryDetailProps
                                 Edit Metadata
                               </DropdownMenuItem>
                               <DropdownMenuItem
-                                onClick={() => {
-                                  setGallery((prev) => ({
-                                    ...prev,
-                                    images: prev.images.map((img) =>
-                                      img.id === image.id ? { ...img, isFavorite: !img.isFavorite } : img
-                                    ),
-                                  }))
-                                }}
+                                onClick={() => handleToggleFavorite(image.id, !image.isFavorite)}
                               >
                                 {image.isFavorite ? (
                                   <>
@@ -792,12 +839,7 @@ export function GalleryDetail({ studioSlug, initialGallery }: GalleryDetailProps
                               </DropdownMenuItem>
                               <DropdownMenuSeparator />
                               <DropdownMenuItem
-                                onClick={() => {
-                                  setGallery((prev) => ({
-                                    ...prev,
-                                    images: prev.images.filter((img) => img.id !== image.id),
-                                  }))
-                                }}
+                                onClick={() => handleDeleteImage(image.id)}
                                 className="text-destructive focus:text-destructive"
                               >
                                 <Trash2 className="mr-2 h-4 w-4" />

@@ -1217,3 +1217,68 @@ export async function assignMediaToAlbum(
   revalidatePath(`/dashboard/${studioSlug}/galleries/${galleryId}`)
   return { albums: updatedAlbums ?? [] }
 }
+
+export async function setMediaFavorite(
+  mediaIds: string[],
+  isFavorite: boolean,
+  galleryId: string,
+  studioSlug: string
+): Promise<{ success: true } | { error: string }> {
+  let supabase
+  try {
+    supabase = await requireGalleryAccess(galleryId)
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : 'Unauthorized' }
+  }
+
+  const { error } = await supabase
+    .from('media')
+    .update({ is_favorite: isFavorite })
+    .in('id', mediaIds)
+    .eq('gallery_id', galleryId)
+
+  if (error) {
+    console.error('Set media favorite error:', error)
+    return { error: 'Failed to update favorites' }
+  }
+
+  revalidatePath(`/dashboard/${studioSlug}/galleries/${galleryId}`)
+  return { success: true }
+}
+
+export async function deleteMedia(
+  mediaIds: string[],
+  galleryId: string,
+  studioSlug: string
+): Promise<{ success: true } | { error: string }> {
+  let supabase
+  try {
+    supabase = await requireGalleryAccess(galleryId)
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : 'Unauthorized' }
+  }
+
+  const { error } = await supabase
+    .from('media')
+    .delete()
+    .in('id', mediaIds)
+    .eq('gallery_id', galleryId)
+
+  if (error) {
+    console.error('Delete media error:', error)
+    return { error: 'Failed to delete images' }
+  }
+
+  const { count } = await supabase
+    .from('media')
+    .select('id', { count: 'exact', head: true })
+    .eq('gallery_id', galleryId)
+
+  await supabase
+    .from('galleries')
+    .update({ media_count: count ?? 0, updated_at: new Date().toISOString() })
+    .eq('id', galleryId)
+
+  revalidatePath(`/dashboard/${studioSlug}/galleries/${galleryId}`)
+  return { success: true }
+}
