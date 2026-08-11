@@ -6,12 +6,8 @@ import {
   Camera,
   CreditCard,
   Globe,
-  Zap,
   ArrowRight,
   CheckCircle,
-  Cloud,
-  Mail,
-  Phone,
   Image as ImageIcon,
   Users,
   Calendar,
@@ -36,7 +32,7 @@ const productSuite = [
   },
   {
     title: 'Payments',
-    description: 'Accept payments via Stripe, Flutterwave, M-Pesa, and PayPal with multi-currency invoicing.',
+    description: 'Accept payments from clients anywhere with fast, secure multi-currency invoicing.',
     icon: CreditCard,
   },
   {
@@ -65,21 +61,10 @@ const testimonials = [
     role: 'Portrait & Commercial',
   },
   {
-    quote: 'The multi-currency support and M-Pesa integration let me serve clients across Africa seamlessly. Game changer for my studio.',
+    quote: 'The multi-currency support lets me serve clients across Africa seamlessly. Game changer for my studio.',
     author: 'Grace Ochieng',
     role: 'Event Photographer',
   },
-]
-
-const integrations = [
-  { name: 'Stripe', icon: CreditCard },
-  { name: 'Supabase', icon: Cloud },
-  { name: 'Resend', icon: Mail },
-  { name: "Africa's Talking", icon: Phone },
-  { name: 'Flutterwave', icon: Globe },
-  { name: 'M-Pesa', icon: Phone },
-  { name: 'PayPal', icon: CreditCard },
-  { name: 'Vercel', icon: Zap },
 ]
 
 const galleryShowcase = [
@@ -248,20 +233,6 @@ export default function HomePage() {
                 <h3 className="mt-4 text-heading-xl font-display text-foreground">{product.title}</h3>
                 <p className="mt-2 text-body text-muted-foreground">{product.description}</p>
               </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* Trust indicators */}
-      <section className="py-10 border-t border-border">
-        <div className="container-wide">
-          <div className="flex flex-wrap items-center justify-center gap-x-10 gap-y-4">
-            {integrations.map((integration) => (
-              <span key={integration.name} className="flex items-center gap-2 text-sm text-muted-foreground">
-                <integration.icon className="h-4 w-4" strokeWidth={1.5} />
-                {integration.name}
-              </span>
             ))}
           </div>
         </div>
