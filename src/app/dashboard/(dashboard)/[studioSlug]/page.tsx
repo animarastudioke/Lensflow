@@ -4,7 +4,8 @@ import { cn } from '@/lib/utils'
 import { getAuthUserServer } from '@/lib/auth'
 import { getUpcomingBookings } from '@/lib/actions/bookings'
 import { getDashboardStats } from '@/lib/actions/dashboard'
-import { getStudioForSettings } from '@/lib/actions/studios'
+import { getStudioForSettings, getStudioCurrency } from '@/lib/actions/studios'
+import { formatCurrency } from '@/lib/currencies'
 import {
   Card,
   CardContent,
@@ -78,10 +79,11 @@ export default async function DashboardPage({ params }: DashboardPageProps) {
     return null // Layout handles redirect
   }
 
-  const [stats, studio, upcomingBookings] = await Promise.all([
+  const [stats, studio, upcomingBookings, currency] = await Promise.all([
     getDashboardStats(studioSlug),
     getStudioForSettings(studioSlug),
     getUpcoming(studioSlug),
+    getStudioCurrency(studioSlug),
   ])
 
   const studioName = studio?.name ?? studioSlug
@@ -92,7 +94,7 @@ export default async function DashboardPage({ params }: DashboardPageProps) {
     { label: 'Total Galleries', value: stats.totalGalleries.toLocaleString(), icon: Image, href: `/dashboard/${studioSlug}/galleries` },
     { label: 'Active Clients', value: stats.activeClients.toLocaleString(), icon: Users, href: `/dashboard/${studioSlug}/clients` },
     { label: 'Upcoming Bookings', value: stats.upcomingBookings.toLocaleString(), icon: Calendar, href: `/dashboard/${studioSlug}/bookings` },
-    { label: 'Monthly Revenue', value: `$${stats.monthlyRevenue.toLocaleString()}`, icon: DollarSign, href: `/dashboard/${studioSlug}/invoices` },
+    { label: 'Monthly Revenue', value: formatCurrency(stats.monthlyRevenue, currency), icon: DollarSign, href: `/dashboard/${studioSlug}/invoices` },
   ]
 
   return (

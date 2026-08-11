@@ -3,6 +3,7 @@
 import * as React from 'react'
 import Link from 'next/link'
 import { format } from 'date-fns'
+import { formatCurrency } from '@/lib/currencies'
 import {
   Card,
   CardContent,
@@ -100,9 +101,10 @@ interface QuoteListProps {
   studioSlug: string
   initialQuotes?: Quote[]
   isLoading?: boolean
+  currency?: string
 }
 
-export function QuoteList({ studioSlug, initialQuotes, isLoading = false }: QuoteListProps) {
+export function QuoteList({ studioSlug, initialQuotes, isLoading = false, currency = 'USD' }: QuoteListProps) {
   const [quotes, setQuotes] = React.useState<Quote[]>(initialQuotes ?? [])
   const [searchQuery, setSearchQuery] = React.useState('')
   const [statusFilter, setStatusFilter] = React.useState<string>('all')
@@ -188,7 +190,7 @@ export function QuoteList({ studioSlug, initialQuotes, isLoading = false }: Quot
             <Clock className="h-4 w-4 text-muted-foreground/60" strokeWidth={1.5} />
           </div>
           <div className="mt-2 font-mono text-2xl font-medium text-foreground tabular-nums">
-            ${pendingValue.toLocaleString()}
+            {formatCurrency(pendingValue, currency)}
           </div>
         </div>
         <div className="px-5 py-5">
@@ -197,7 +199,7 @@ export function QuoteList({ studioSlug, initialQuotes, isLoading = false }: Quot
             <DollarSign className="h-4 w-4 text-muted-foreground/60" strokeWidth={1.5} />
           </div>
           <div className="mt-2 font-mono text-2xl font-medium text-success tabular-nums">
-            ${acceptedValue.toLocaleString()}
+            {formatCurrency(acceptedValue, currency)}
           </div>
         </div>
         <div className="px-5 py-5">
@@ -338,7 +340,7 @@ export function QuoteList({ studioSlug, initialQuotes, isLoading = false }: Quot
                       {getStatusBadge(quote.status)}
                     </TableCell>
                     <TableCell className="text-right hidden lg:table-cell font-mono tabular-nums">
-                      ${quote.total.toLocaleString()}
+                      {formatCurrency(quote.total, currency)}
                     </TableCell>
                     <TableCell>
                       <DropdownMenu>

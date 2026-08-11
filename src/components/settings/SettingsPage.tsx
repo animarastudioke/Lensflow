@@ -71,12 +71,13 @@ import {
 } from '@/components/ui/table'
 import { CURRENCIES } from '@/lib/currencies'
 import { toast } from 'sonner'
-import { deleteStudio } from '@/lib/actions/studios'
+import { deleteStudio, updateStudioSettings, type StudioSettingsRow } from '@/lib/actions/studios'
 
 interface SettingsPageProps {
   studioSlug: string
   studioName: string
   isOwner: boolean
+  settings: StudioSettingsRow | null
 }
 
 function NotificationRow({
@@ -133,7 +134,7 @@ function IntegrationCard({
   )
 }
 
-export function SettingsPage({ studioSlug, studioName, isOwner }: SettingsPageProps) {
+export function SettingsPage({ studioSlug, studioName, isOwner, settings }: SettingsPageProps) {
   const [activeTab, setActiveTab] = React.useState<string>('general')
   const [isSaving, setIsSaving] = React.useState(false)
   const [saveStatus, setSaveStatus] = React.useState<'idle' | 'success' | 'error'>('idle')
@@ -141,10 +142,34 @@ export function SettingsPage({ studioSlug, studioName, isOwner }: SettingsPagePr
   const [isDeletingStudio, setIsDeletingStudio] = React.useState(false)
   const [deleteDialogOpen, setDeleteDialogOpen] = React.useState(false)
 
+  const generalFormRef = React.useRef<HTMLFormElement>(null)
+  const [businessType, setBusinessType] = React.useState(settings?.business_type ?? 'llc')
+  const [currency, setCurrency] = React.useState(settings?.currency ?? 'USD')
+  const [paymentTerms, setPaymentTerms] = React.useState(settings?.payment_terms ?? 'net30')
+
   const handleSave = async () => {
     setIsSaving(true)
     setSaveStatus('idle')
-    // Simulate API call
+
+    if (activeTab === 'general' && generalFormRef.current) {
+      const formData = new FormData(generalFormRef.current)
+      formData.set('business_type', businessType)
+      formData.set('currency', currency)
+      formData.set('payment_terms', paymentTerms)
+
+      const result = await updateStudioSettings(studioSlug, formData)
+      setIsSaving(false)
+      if (result?.error) {
+        setSaveStatus('error')
+        toast.error(result.error)
+        return
+      }
+      setSaveStatus('success')
+      setTimeout(() => setSaveStatus('idle'), 3000)
+      return
+    }
+
+    // Other tabs have no backing data yet
     await new Promise(resolve => setTimeout(resolve, 1000))
     setIsSaving(false)
     setSaveStatus('success')
@@ -225,122 +250,128 @@ export function SettingsPage({ studioSlug, studioName, isOwner }: SettingsPagePr
 
         {/* General */}
         <TabsContent value="general" className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Studio Information</CardTitle>
-              <CardDescription>Basic information about your studio</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              <div className="grid gap-6 md:grid-cols-2">
-                <div className="space-y-2">
-                  <Label>Studio Name</Label>
-                  <Input defaultValue="Animara Studio" placeholder="Enter studio name" />
-                </div>
-                <div className="space-y-2">
-                  <Label>Studio Slug</Label>
-                  <div className="flex items-center gap-2">
-                    <span className="text-muted-foreground">lensflow.app/</span>
-                    <Input defaultValue={studioSlug} placeholder="studio-slug" className="flex-1" />
+          <form ref={generalFormRef} onSubmit={(e) => e.preventDefault()}>
+            <Card>
+              <CardHeader>
+                <CardTitle>Studio Information</CardTitle>
+                <CardDescription>Basic information about your studio</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <div className="grid gap-6 md:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="name">Studio Name</Label>
+                    <Input id="name" name="name" defaultValue={studioName} placeholder="Enter studio name" />
                   </div>
-                  <p className="text-sm text-muted-foreground">This is your public studio URL</p>
+                  <div className="space-y-2">
+                    <Label>Studio Slug</Label>
+                    <div className="flex items-center gap-2">
+                      <span className="text-muted-foreground">lensflow.app/</span>
+                      <Input defaultValue={studioSlug} placeholder="studio-slug" className="flex-1" disabled />
+                    </div>
+                    <p className="text-sm text-muted-foreground">This is your public studio URL</p>
+                  </div>
+                  <div className="md:col-span-2 space-y-2">
+                    <Label htmlFor="description">Description</Label>
+                    <Textarea
+                      id="description"
+                      name="description"
+                      defaultValue={settings?.description ?? ''}
+                      rows={3}
+                      placeholder="Tell visitors about your studio"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="website_url">Website</Label>
+                    <Input id="website_url" name="website_url" type="url" defaultValue={settings?.website_url ?? ''} placeholder="https://yourwebsite.com" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="phone">Phone</Label>
+                    <Input id="phone" name="phone" type="tel" defaultValue={settings?.phone ?? ''} placeholder="+1 (555) 000-0000" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="email">Email</Label>
+                    <Input id="email" name="email" type="email" defaultValue={settings?.email ?? ''} placeholder="contact@yourstudio.com" />
+                  </div>
+                  <div className="md:col-span-2 space-y-2">
+                    <Label htmlFor="address">Address</Label>
+                    <Textarea
+                      id="address"
+                      name="address"
+                      defaultValue={settings?.address ?? ''}
+                      rows={3}
+                      placeholder="Studio address"
+                    />
+                  </div>
                 </div>
-                <div className="md:col-span-2 space-y-2">
-                  <Label>Description</Label>
-                  <Textarea
-                    defaultValue="Professional photography and videography studio specializing in weddings, portraits, and commercial work."
-                    rows={3}
-                    placeholder="Tell visitors about your studio"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>Website</Label>
-                  <Input type="url" defaultValue="https://animarastudio.com" placeholder="https://yourwebsite.com" />
-                </div>
-                <div className="space-y-2">
-                  <Label>Phone</Label>
-                  <Input type="tel" defaultValue="+1 (555) 123-4567" placeholder="+1 (555) 000-0000" />
-                </div>
-                <div className="space-y-2">
-                  <Label>Email</Label>
-                  <Input type="email" defaultValue="hello@animarastudio.com" placeholder="contact@yourstudio.com" />
-                </div>
-                <div className="md:col-span-2 space-y-2">
-                  <Label>Address</Label>
-                  <Textarea
-                    defaultValue={'123 Creative Ave, Suite 100\nNew York, NY 10001\nUnited States'}
-                    rows={3}
-                    placeholder="Studio address"
-                  />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
 
-          <Card>
-            <CardHeader>
-              <CardTitle>Business Details</CardTitle>
-              <CardDescription>Legal and tax information for invoices and contracts</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              <div className="grid gap-6 md:grid-cols-2">
-                <div className="space-y-2">
-                  <Label>Legal Business Name</Label>
-                  <Input defaultValue="Animara Studio LLC" placeholder="Legal business name" />
+            <Card className="mt-6">
+              <CardHeader>
+                <CardTitle>Business Details</CardTitle>
+                <CardDescription>Legal and tax information for invoices and contracts</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <div className="grid gap-6 md:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="legal_business_name">Legal Business Name</Label>
+                    <Input id="legal_business_name" name="legal_business_name" defaultValue={settings?.legal_business_name ?? ''} placeholder="Legal business name" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="tax_id">Tax ID / EIN</Label>
+                    <Input id="tax_id" name="tax_id" defaultValue={settings?.tax_id ?? ''} placeholder="XX-XXXXXXX" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Business Type</Label>
+                    <Select value={businessType} onValueChange={setBusinessType}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="sole">Sole Proprietorship</SelectItem>
+                        <SelectItem value="llc">LLC</SelectItem>
+                        <SelectItem value="corp">Corporation</SelectItem>
+                        <SelectItem value="partnership">Partnership</SelectItem>
+                        <SelectItem value="nonprofit">Non-Profit</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Currency</Label>
+                    <Select value={currency} onValueChange={setCurrency}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent className="max-h-72">
+                        {CURRENCIES.map((c) => (
+                          <SelectItem key={c.code} value={c.code}>
+                            {c.code} ({c.symbol}) — {c.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <p className="text-sm text-muted-foreground">Used for invoices, quotes, and your store</p>
+                  </div>
+                  <div className="md:col-span-2 space-y-2">
+                    <Label>Default Payment Terms</Label>
+                    <Select value={paymentTerms} onValueChange={setPaymentTerms}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="due_on_receipt">Due on Receipt</SelectItem>
+                        <SelectItem value="net7">Net 7</SelectItem>
+                        <SelectItem value="net15">Net 15</SelectItem>
+                        <SelectItem value="net30">Net 30</SelectItem>
+                        <SelectItem value="net45">Net 45</SelectItem>
+                        <SelectItem value="net60">Net 60</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
-                <div className="space-y-2">
-                  <Label>Tax ID / EIN</Label>
-                  <Input defaultValue="12-3456789" placeholder="XX-XXXXXXX" />
-                </div>
-                <div className="space-y-2">
-                  <Label>Business Type</Label>
-                  <Select defaultValue="llc">
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="sole">Sole Proprietorship</SelectItem>
-                      <SelectItem value="llc">LLC</SelectItem>
-                      <SelectItem value="corp">Corporation</SelectItem>
-                      <SelectItem value="partnership">Partnership</SelectItem>
-                      <SelectItem value="nonprofit">Non-Profit</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label>Currency</Label>
-                  <Select defaultValue="USD">
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent className="max-h-72">
-                      {CURRENCIES.map((currency) => (
-                        <SelectItem key={currency.code} value={currency.code}>
-                          {currency.code} ({currency.symbol}) — {currency.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <p className="text-sm text-muted-foreground">Used for invoices, quotes, and your store</p>
-                </div>
-                <div className="md:col-span-2 space-y-2">
-                  <Label>Default Payment Terms</Label>
-                  <Select defaultValue="net30">
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="due_on_receipt">Due on Receipt</SelectItem>
-                      <SelectItem value="net7">Net 7</SelectItem>
-                      <SelectItem value="net15">Net 15</SelectItem>
-                      <SelectItem value="net30">Net 30</SelectItem>
-                      <SelectItem value="net45">Net 45</SelectItem>
-                      <SelectItem value="net60">Net 60</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
+          </form>
         </TabsContent>
 
         {/* Branding */}

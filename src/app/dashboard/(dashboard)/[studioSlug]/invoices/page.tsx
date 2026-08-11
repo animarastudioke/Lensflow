@@ -2,6 +2,7 @@ import { Metadata } from 'next'
 import { getAuthUserServer } from '@/lib/auth'
 import { InvoiceList } from '@/components/invoices/InvoiceList'
 import { getInvoices } from '@/lib/actions/invoices'
+import { getStudioCurrency } from '@/lib/actions/studios'
 
 interface InvoicesPageProps {
   params: Promise<{ studioSlug: string }>
@@ -26,7 +27,10 @@ export default async function InvoicesPage({ params }: InvoicesPageProps) {
     return null
   }
 
-  const { invoices } = await getInvoices(studioSlug)
+  const [{ invoices }, currency] = await Promise.all([
+    getInvoices(studioSlug),
+    getStudioCurrency(studioSlug),
+  ])
 
   const initialInvoices = invoices.map((invoice) => ({
     id: invoice.id,
@@ -55,5 +59,5 @@ export default async function InvoicesPage({ params }: InvoicesPageProps) {
     updatedAt: invoice.updated_at,
   }))
 
-  return <InvoiceList studioSlug={studioSlug} initialInvoices={initialInvoices} />
+  return <InvoiceList studioSlug={studioSlug} initialInvoices={initialInvoices} currency={currency} />
 }

@@ -2,6 +2,7 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
+import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 
 const createStudioSchema = z.object({
@@ -103,6 +104,123 @@ export async function getStudioForSettings(studioSlug: string): Promise<{ id: st
   if (!studio) return null
 
   return { id: studio.id, name: studio.name, ownerId: studio.owner_id }
+}
+
+export interface StudioSettingsRow {
+  name: string
+  description: string | null
+  website_url: string | null
+  phone: string | null
+  email: string | null
+  address: string | null
+  legal_business_name: string | null
+  tax_id: string | null
+  business_type: string | null
+  currency: string
+  payment_terms: string
+}
+
+export async function getStudioSettings(studioSlug: string): Promise<StudioSettingsRow | null> {
+  const supabase = await createClient()
+
+  const { data: studio } = await supabase
+    .from('studios')
+    .select('name, description, website_url, phone, email, address, legal_business_name, tax_id, business_type, currency, payment_terms')
+    .eq('slug', studioSlug)
+    .single()
+
+  return studio
+}
+
+export async function getStudioCurrency(studioSlug: string): Promise<string> {
+  const supabase = await createClient()
+
+  const { data: studio } = await supabase
+    .from('studios')
+    .select('currency')
+    .eq('slug', studioSlug)
+    .single()
+
+  return studio?.currency ?? 'USD'
+}
+
+const studioSettingsSchema = z.object({
+  name: z.string().min(2, 'Studio name must be at least 2 characters').max(100),
+  description: z.string().max(2000).optional(),
+  website_url: z.string().url('Enter a valid URL').max(300).optional().or(z.literal('')),
+  phone: z.string().max(50).optional(),
+  email: z.string().email('Enter a valid email').max(200).optional().or(z.literal('')),
+  address: z.string().max(500).optional(),
+  legal_business_name: z.string().max(200).optional(),
+  tax_id: z.string().max(50).optional(),
+  business_type: z.enum(['sole', 'llc', 'corp', 'partnership', 'nonprofit']).optional(),
+  currency: z.string().length(3).default('USD'),
+  payment_terms: z.enum(['due_on_receipt', 'net7', 'net15', 'net30', 'net45', 'net60']).default('net30'),
+})
+
+export async function updateStudioSettings(studioSlug: string, formData: FormData): Promise<{ error: string } | undefined> {
+  const supabase = await createClient()
+
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) {
+    return { error: 'Unauthorized' }
+  }
+
+  const { data: membership } = await supabase
+    .from('studio_members')
+    .select('studio_id')
+    .eq('user_id', user.id)
+    .eq('status', 'active')
+    .single()
+
+  if (!membership) {
+    return { error: 'No active studio membership' }
+  }
+
+  const parsed = studioSettingsSchema.safeParse({
+    name: formData.get('name'),
+    description: formData.get('description') || undefined,
+    website_url: formData.get('website_url') || '',
+    phone: formData.get('phone') || undefined,
+    email: formData.get('email') || '',
+    address: formData.get('address') || undefined,
+    legal_business_name: formData.get('legal_business_name') || undefined,
+    tax_id: formData.get('tax_id') || undefined,
+    business_type: formData.get('business_type') || undefined,
+    currency: formData.get('currency') || 'USD',
+    payment_terms: formData.get('payment_terms') || 'net30',
+  })
+
+  if (!parsed.success) {
+    return { error: parsed.error.errors[0]?.message ?? 'Invalid input' }
+  }
+
+  const validated = parsed.data
+
+  const { error } = await supabase
+    .from('studios')
+    .update({
+      name: validated.name,
+      description: validated.description,
+      website_url: validated.website_url || null,
+      phone: validated.phone,
+      email: validated.email || null,
+      address: validated.address,
+      legal_business_name: validated.legal_business_name,
+      tax_id: validated.tax_id,
+      business_type: validated.business_type,
+      currency: validated.currency,
+      payment_terms: validated.payment_terms,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', membership.studio_id)
+
+  if (error) {
+    console.error('Update studio settings error:', error)
+    return { error: 'Failed to save settings' }
+  }
+
+  revalidatePath(`/dashboard/${studioSlug}`, 'layout')
 }
 
 async function deleteStudioStorageObjects(studioId: string) {

@@ -1,6 +1,7 @@
 import { Metadata } from 'next'
 import { getAuthUserServer } from '@/lib/auth'
 import { getProducts } from '@/lib/actions/products'
+import { getStudioCurrency } from '@/lib/actions/studios'
 import { StoreList } from '@/components/store/StoreList'
 
 interface StorePageProps {
@@ -26,7 +27,10 @@ export default async function StorePage({ params }: StorePageProps) {
     return null
   }
 
-  const { products } = await getProducts(studioSlug)
+  const [{ products }, currency] = await Promise.all([
+    getProducts(studioSlug),
+    getStudioCurrency(studioSlug),
+  ])
 
-  return <StoreList studioSlug={studioSlug} initialProducts={products} />
+  return <StoreList studioSlug={studioSlug} initialProducts={products} currency={currency} />
 }

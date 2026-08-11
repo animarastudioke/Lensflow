@@ -3,6 +3,7 @@
 import * as React from 'react'
 import Link from 'next/link'
 import { format } from 'date-fns'
+import { formatCurrency } from '@/lib/currencies'
 import {
   Card,
   CardContent,
@@ -171,6 +172,7 @@ interface ClientListProps {
   studioSlug: string
   initialClients?: Client[]
   isLoading?: boolean
+  currency?: string
 }
 
 function getStatusBadge(status: Client['status']) {
@@ -184,7 +186,7 @@ function getStatusBadge(status: Client['status']) {
   return <Badge variant={config.variant}>{config.label}</Badge>
 }
 
-export function ClientList({ studioSlug, initialClients, isLoading = false }: ClientListProps) {
+export function ClientList({ studioSlug, initialClients, isLoading = false, currency = 'USD' }: ClientListProps) {
   const [clients, setClients] = React.useState<Client[]>(initialClients ?? mockClients)
   const [searchQuery, setSearchQuery] = React.useState('')
   const [statusFilter, setStatusFilter] = React.useState<string>('all')
@@ -470,7 +472,7 @@ export function ClientList({ studioSlug, initialClients, isLoading = false }: Cl
                         <Badge variant="outline" className="text-xs">{client.source || '—'}</Badge>
                       </TableCell>
                       <TableCell className="text-right hidden xl:table-cell font-mono tabular-nums">
-                        ${client.totalSpent.toLocaleString()}
+                        {formatCurrency(client.totalSpent, currency)}
                       </TableCell>
                       <TableCell>
                         <DropdownMenu>
@@ -607,7 +609,7 @@ export function ClientList({ studioSlug, initialClients, isLoading = false }: Cl
                       <Separator />
                       <div className="flex items-center justify-between text-sm">
                         <div className="text-muted-foreground">
-                          <span className="font-mono tabular-nums text-foreground">${client.totalSpent.toLocaleString()}</span> spent
+                          <span className="font-mono tabular-nums text-foreground">{formatCurrency(client.totalSpent, currency)}</span> spent
                           <span className="mx-2">·</span>
                           {client.totalOrders} order{client.totalOrders !== 1 ? 's' : ''}
                         </div>

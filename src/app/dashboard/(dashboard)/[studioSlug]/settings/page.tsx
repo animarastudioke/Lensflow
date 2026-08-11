@@ -1,7 +1,7 @@
 import { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import { getAuthUserServer } from '@/lib/auth'
-import { getStudioForSettings } from '@/lib/actions/studios'
+import { getStudioForSettings, getStudioSettings } from '@/lib/actions/studios'
 import { SettingsPage } from '@/components/settings/SettingsPage'
 
 interface SettingsPageProps {
@@ -33,11 +33,14 @@ export default async function SettingsPageRoute({ params }: SettingsPageProps) {
     notFound()
   }
 
+  const settings = await getStudioSettings(studioSlug)
+
   return (
     <SettingsPage
       studioSlug={studioSlug}
       studioName={studio.name}
       isOwner={studio.ownerId === user.id}
+      settings={settings}
     />
   )
 }

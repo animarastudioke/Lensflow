@@ -3,6 +3,7 @@
 import * as React from 'react'
 import Link from 'next/link'
 import { format } from 'date-fns'
+import { formatCurrency } from '@/lib/currencies'
 import {
   Card,
   CardContent,
@@ -209,9 +210,10 @@ interface InvoiceListProps {
   studioSlug: string
   initialInvoices?: Invoice[]
   isLoading?: boolean
+  currency?: string
 }
 
-export function InvoiceList({ studioSlug, initialInvoices, isLoading = false }: InvoiceListProps) {
+export function InvoiceList({ studioSlug, initialInvoices, isLoading = false, currency = 'USD' }: InvoiceListProps) {
   const [invoices, setInvoices] = React.useState<Invoice[]>(initialInvoices ?? mockInvoices)
   const [searchQuery, setSearchQuery] = React.useState('')
   const [statusFilter, setStatusFilter] = React.useState<string>('all')
@@ -345,7 +347,7 @@ export function InvoiceList({ studioSlug, initialInvoices, isLoading = false }: 
             <DollarSign className="h-4 w-4 text-muted-foreground/60" strokeWidth={1.5} />
           </div>
           <div className="mt-2 font-mono text-2xl font-medium text-foreground tabular-nums">
-            ${totalRevenue.toLocaleString()}
+            {formatCurrency(totalRevenue, currency)}
           </div>
         </div>
         <div className="px-5 py-5">
@@ -354,7 +356,7 @@ export function InvoiceList({ studioSlug, initialInvoices, isLoading = false }: 
             <Clock className="h-4 w-4 text-muted-foreground/60" strokeWidth={1.5} />
           </div>
           <div className="mt-2 font-mono text-2xl font-medium text-destructive tabular-nums">
-            ${outstandingAmount.toLocaleString()}
+            {formatCurrency(outstandingAmount, currency)}
           </div>
         </div>
         <div className="px-5 py-5">
@@ -556,13 +558,13 @@ export function InvoiceList({ studioSlug, initialInvoices, isLoading = false }: 
                         {getStatusBadge(invoice.status)}
                       </TableCell>
                       <TableCell className="text-right hidden lg:table-cell font-mono tabular-nums">
-                        ${invoice.total.toLocaleString()}
+                        {formatCurrency(invoice.total, currency)}
                       </TableCell>
                       <TableCell className="text-right hidden xl:table-cell font-mono tabular-nums">
                         {invoice.balanceDue > 0 ? (
-                          <span className="text-destructive">${invoice.balanceDue.toLocaleString()}</span>
+                          <span className="text-destructive">{formatCurrency(invoice.balanceDue, currency)}</span>
                         ) : (
-                          <span className="text-success">$0</span>
+                          <span className="text-success">{formatCurrency(0, currency)}</span>
                         )}
                       </TableCell>
                       <TableCell>
@@ -706,10 +708,10 @@ export function InvoiceList({ studioSlug, initialInvoices, isLoading = false }: 
                       Due: {format(new Date(invoice.dueDate), 'MMM d, yyyy')}
                     </span>
                   </div>
-                  <div className="font-mono text-2xl font-medium tabular-nums">${invoice.total.toLocaleString()}</div>
+                  <div className="font-mono text-2xl font-medium tabular-nums">{formatCurrency(invoice.total, currency)}</div>
                   {invoice.balanceDue > 0 && (
                     <div className="text-sm text-destructive">
-                      Balance due: <span className="font-mono tabular-nums">${invoice.balanceDue.toLocaleString()}</span>
+                      Balance due: <span className="font-mono tabular-nums">{formatCurrency(invoice.balanceDue, currency)}</span>
                     </div>
                   )}
                   <div className="pt-2 border-t flex items-center justify-between">

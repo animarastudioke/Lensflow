@@ -2,6 +2,7 @@ import { Metadata } from 'next'
 import { getAuthUserServer } from '@/lib/auth'
 import { QuoteList } from '@/components/quotes/QuoteList'
 import { getQuotes } from '@/lib/actions/quotes'
+import { getStudioCurrency } from '@/lib/actions/studios'
 
 interface QuotesPageProps {
   params: Promise<{ studioSlug: string }>
@@ -25,7 +26,10 @@ export default async function QuotesPage({ params }: QuotesPageProps) {
     return null
   }
 
-  const { quotes } = await getQuotes(studioSlug)
+  const [{ quotes }, currency] = await Promise.all([
+    getQuotes(studioSlug),
+    getStudioCurrency(studioSlug),
+  ])
 
   const initialQuotes = quotes.map((quote) => ({
     id: quote.id,
@@ -52,5 +56,5 @@ export default async function QuotesPage({ params }: QuotesPageProps) {
     updatedAt: quote.updated_at,
   }))
 
-  return <QuoteList studioSlug={studioSlug} initialQuotes={initialQuotes} />
+  return <QuoteList studioSlug={studioSlug} initialQuotes={initialQuotes} currency={currency} />
 }

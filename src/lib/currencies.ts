@@ -126,3 +126,16 @@ export function getCurrencyLabel(code: string): string {
   const currency = CURRENCIES.find((c) => c.code === code)
   return currency ? `${currency.code} (${currency.symbol}) — ${currency.name}` : code
 }
+
+export function formatCurrency(amount: number, currencyCode: string = 'USD'): string {
+  try {
+    return new Intl.NumberFormat(undefined, {
+      style: 'currency',
+      currency: currencyCode,
+      maximumFractionDigits: amount % 1 === 0 ? 0 : 2,
+    }).format(amount)
+  } catch {
+    const symbol = CURRENCIES.find((c) => c.code === currencyCode)?.symbol ?? '$'
+    return `${symbol}${amount.toLocaleString()}`
+  }
+}

@@ -2,6 +2,7 @@ import { Metadata } from 'next'
 import { getAuthUserServer } from '@/lib/auth'
 import { ClientList } from '@/components/clients/ClientList'
 import { getClients } from '@/lib/actions/clients'
+import { getStudioCurrency } from '@/lib/actions/studios'
 
 interface ClientsPageProps {
   params: Promise<{ studioSlug: string }>
@@ -26,7 +27,10 @@ export default async function ClientsPage({ params }: ClientsPageProps) {
     return null // Layout handles redirect
   }
 
-  const { clients } = await getClients(studioSlug)
+  const [{ clients }, currency] = await Promise.all([
+    getClients(studioSlug),
+    getStudioCurrency(studioSlug),
+  ])
   const initialClients = clients.map(c => ({
     id: c.id,
     firstName: c.first_name,
@@ -48,5 +52,5 @@ export default async function ClientsPage({ params }: ClientsPageProps) {
     updatedAt: c.updated_at,
   }))
 
-  return <ClientList studioSlug={studioSlug} initialClients={initialClients} />
+  return <ClientList studioSlug={studioSlug} initialClients={initialClients} currency={currency} />
 }

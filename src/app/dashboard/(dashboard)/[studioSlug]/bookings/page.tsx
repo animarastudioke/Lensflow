@@ -2,6 +2,7 @@ import { Metadata } from 'next'
 import { getAuthUserServer } from '@/lib/auth'
 import { BookingList } from '@/components/bookings/BookingList'
 import { getBookings } from '@/lib/actions/bookings'
+import { getStudioCurrency } from '@/lib/actions/studios'
 
 const BOOKING_TYPES = ['wedding', 'portrait', 'engagement', 'family', 'corporate', 'event', 'other'] as const
 
@@ -32,7 +33,10 @@ export default async function BookingsPage({ params }: BookingsPageProps) {
     return null
   }
 
-  const { bookings } = await getBookings(studioSlug)
+  const [{ bookings }, currency] = await Promise.all([
+    getBookings(studioSlug),
+    getStudioCurrency(studioSlug),
+  ])
   const initialBookings = bookings.map(b => ({
     id: b.id,
     clientId: b.client_id ?? '',
@@ -53,5 +57,5 @@ export default async function BookingsPage({ params }: BookingsPageProps) {
     updatedAt: b.updated_at,
   }))
 
-  return <BookingList studioSlug={studioSlug} initialBookings={initialBookings} />
+  return <BookingList studioSlug={studioSlug} initialBookings={initialBookings} currency={currency} />
 }

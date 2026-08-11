@@ -3,6 +3,7 @@
 import * as React from 'react'
 import Link from 'next/link'
 import { format } from 'date-fns'
+import { formatCurrency } from '@/lib/currencies'
 import {
   Card,
   CardContent,
@@ -229,9 +230,10 @@ interface StoreListProps {
   studioSlug: string
   initialProducts: ProductRow[]
   isLoading?: boolean
+  currency?: string
 }
 
-export function StoreList({ studioSlug, initialProducts, isLoading = false }: StoreListProps) {
+export function StoreList({ studioSlug, initialProducts, isLoading = false, currency = 'USD' }: StoreListProps) {
   const [activeTab, setActiveTab] = React.useState<'products' | 'orders'>('products')
   const [products, setProducts] = React.useState<Product[]>(() => initialProducts.map(mapProductRow))
   const [orders, setOrders] = React.useState<Order[]>(mockOrders)
@@ -405,7 +407,7 @@ export function StoreList({ studioSlug, initialProducts, isLoading = false }: St
             <DollarSign className="h-4 w-4 text-muted-foreground/60" strokeWidth={1.5} />
           </div>
           <div className="mt-2 font-mono text-2xl font-medium text-foreground tabular-nums">
-            ${totalRevenue.toLocaleString()}
+            {formatCurrency(totalRevenue, currency)}
           </div>
         </div>
         <div className="px-5 py-5">
@@ -610,11 +612,11 @@ export function StoreList({ studioSlug, initialProducts, isLoading = false }: St
                             <TableCell className="hidden lg:table-cell font-mono tabular-nums text-sm font-medium">
                               {product.salePrice ? (
                                 <>
-                                  <span className="line-through text-muted-foreground">${product.price.toLocaleString()}</span>
-                                  <span className="ml-2 text-primary">${product.salePrice.toLocaleString()}</span>
+                                  <span className="line-through text-muted-foreground">{formatCurrency(product.price, currency)}</span>
+                                  <span className="ml-2 text-primary">{formatCurrency(product.salePrice, currency)}</span>
                                 </>
                               ) : (
-                                <span>${product.price.toLocaleString()}</span>
+                                <span>{formatCurrency(product.price, currency)}</span>
                               )}
                             </TableCell>
                             <TableCell className="hidden xl:table-cell text-sm text-muted-foreground font-mono tabular-nums">
@@ -624,7 +626,7 @@ export function StoreList({ studioSlug, initialProducts, isLoading = false }: St
                               {product.salesCount} sold
                             </TableCell>
                             <TableCell className="text-right hidden xl:table-cell font-mono tabular-nums text-sm font-medium">
-                              ${product.revenue.toLocaleString()}
+                              {formatCurrency(product.revenue, currency)}
                             </TableCell>
                             <TableCell>
                               <DropdownMenu>
@@ -724,11 +726,11 @@ export function StoreList({ studioSlug, initialProducts, isLoading = false }: St
                           <div className="font-mono tabular-nums font-medium text-lg">
                             {product.salePrice ? (
                               <>
-                                <span className="line-through text-muted-foreground text-sm">${product.price.toLocaleString()}</span>
-                                <span className="ml-2 text-primary">${product.salePrice.toLocaleString()}</span>
+                                <span className="line-through text-muted-foreground text-sm">{formatCurrency(product.price, currency)}</span>
+                                <span className="ml-2 text-primary">{formatCurrency(product.salePrice, currency)}</span>
                               </>
                             ) : (
-                              <span>${product.price.toLocaleString()}</span>
+                              <span>{formatCurrency(product.price, currency)}</span>
                             )}
                           </div>
                           <div className="text-sm text-muted-foreground">
@@ -839,7 +841,7 @@ export function StoreList({ studioSlug, initialProducts, isLoading = false }: St
                             </Badge>
                           </TableCell>
                           <TableCell className="text-right hidden xl:table-cell font-mono tabular-nums text-sm font-medium">
-                            ${order.total.toLocaleString()}
+                            {formatCurrency(order.total, currency)}
                           </TableCell>
                           <TableCell>
                             <DropdownMenu>

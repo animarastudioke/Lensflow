@@ -3,6 +3,7 @@
 import * as React from 'react'
 import Link from 'next/link'
 import { format, addDays, startOfDay } from 'date-fns'
+import { formatCurrency } from '@/lib/currencies'
 import {
   Card,
   CardContent,
@@ -195,9 +196,10 @@ interface BookingListProps {
   studioSlug: string
   initialBookings?: Booking[]
   isLoading?: boolean
+  currency?: string
 }
 
-export function BookingList({ studioSlug, initialBookings, isLoading = false }: BookingListProps) {
+export function BookingList({ studioSlug, initialBookings, isLoading = false, currency = 'USD' }: BookingListProps) {
   const [bookings, setBookings] = React.useState<Booking[]>(initialBookings ?? mockBookings)
   const [searchQuery, setSearchQuery] = React.useState('')
   const [statusFilter, setStatusFilter] = React.useState<string>('all')
@@ -564,7 +566,7 @@ export function BookingList({ studioSlug, initialBookings, isLoading = false }: 
                       </TableCell>
                       <TableCell className="text-right hidden xl:table-cell font-mono tabular-nums">
                         {booking.balanceDue > 0 ? (
-                          <span className="text-destructive">${booking.balanceDue.toLocaleString()} due</span>
+                          <span className="text-destructive">{formatCurrency(booking.balanceDue, currency)} due</span>
                         ) : (
                           <span className="text-success font-sans">Paid in full</span>
                         )}
