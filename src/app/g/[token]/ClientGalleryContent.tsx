@@ -167,6 +167,11 @@ export function ClientGalleryContent({
   const media = React.useMemo(() => gallery ? transformMedia(gallery.media || []) : [], [gallery])
   const albums = React.useMemo(() => gallery ? transformAlbums(gallery.albums || []) : [], [gallery])
 
+  // Seed local favorites from whatever's already saved for this gallery
+  React.useEffect(() => {
+    setFavorites(media.filter(m => m.isFavorite).map(m => m.id))
+  }, [media])
+
   const brandColor = (gallery?.share_settings?.custom_branding
     ? gallery.share_settings.brand_color || gallery.studio?.brand_color
     : gallery?.studio?.brand_color) || '#3b82f6'
@@ -238,9 +243,22 @@ export function ClientGalleryContent({
     }
   }
 
-  const toggleFavorite = (id: string) => {
-    setFavorites(prev => prev.includes(id) ? prev.filter(f => f !== id) : [...prev, id])
-    toast.success(favorites.includes(id) ? 'Removed from favorites' : 'Added to favorites')
+  const toggleFavorite = async (id: string) => {
+    const wasFavorite = favorites.includes(id)
+    setFavorites(prev => wasFavorite ? prev.filter(f => f !== id) : [...prev, id])
+
+    try {
+      const response = await fetch(`/api/g/${token}/favorite`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mediaId: id, isFavorite: !wasFavorite }),
+      })
+      if (!response.ok) throw new Error('Request failed')
+      toast.success(wasFavorite ? 'Removed from favorites' : 'Added to favorites')
+    } catch {
+      setFavorites(prev => wasFavorite ? [...prev, id] : prev.filter(f => f !== id))
+      toast.error('Failed to update favorite')
+    }
   }
 
   const shareGallery = async () => {
