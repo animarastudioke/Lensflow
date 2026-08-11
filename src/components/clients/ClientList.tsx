@@ -3,7 +3,13 @@
 import * as React from 'react'
 import Link from 'next/link'
 import { format } from 'date-fns'
+import { toast } from 'sonner'
 import { formatCurrency } from '@/lib/currencies'
+import {
+  deleteClient,
+  bulkDeleteClients,
+  setClientsStatus,
+} from '@/lib/actions/clients'
 import {
   Card,
   CardContent,
@@ -173,6 +179,10 @@ interface ClientListProps {
   initialClients?: Client[]
   isLoading?: boolean
   currency?: string
+  title?: string
+  description?: string
+  newHref?: string
+  newLabel?: string
 }
 
 function getStatusBadge(status: Client['status']) {
@@ -186,7 +196,16 @@ function getStatusBadge(status: Client['status']) {
   return <Badge variant={config.variant}>{config.label}</Badge>
 }
 
-export function ClientList({ studioSlug, initialClients, isLoading = false, currency = 'USD' }: ClientListProps) {
+export function ClientList({
+  studioSlug,
+  initialClients,
+  isLoading = false,
+  currency = 'USD',
+  title = 'Clients',
+  description = 'Manage your client relationships',
+  newHref,
+  newLabel = 'Add Client',
+}: ClientListProps) {
   const [clients, setClients] = React.useState<Client[]>(initialClients ?? mockClients)
   const [searchQuery, setSearchQuery] = React.useState('')
   const [statusFilter, setStatusFilter] = React.useState<string>('all')
@@ -232,35 +251,71 @@ export function ClientList({ studioSlug, initialClients, isLoading = false, curr
     setDeleteConfirm(id)
   }
 
-  const confirmDelete = (id: string) => {
-    setClients(prev => prev.filter(c => c.id !== id))
-    setSelectedClients(prev => prev.filter(g => g !== id))
+  const confirmDelete = async (id: string) => {
+    const result = await deleteClient(id, studioSlug)
+    if (result?.error) {
+      toast.error(result.error)
+    } else {
+      setClients(prev => prev.filter(c => c.id !== id))
+      setSelectedClients(prev => prev.filter(g => g !== id))
+      toast.success('Client deleted')
+    }
     setDeleteConfirm(null)
   }
 
-  const confirmBulkDelete = () => {
-    setClients(prev => prev.filter(c => !selectedClients.includes(c.id)))
+  const confirmBulkDelete = async () => {
+    const result = await bulkDeleteClients(selectedClients, studioSlug)
+    if (result?.error) {
+      toast.error(result.error)
+    } else {
+      setClients(prev => prev.filter(c => !selectedClients.includes(c.id)))
+      toast.success('Clients deleted')
+    }
     setSelectedClients([])
     setBulkDeleteConfirm(false)
   }
 
-  const handleBulkAction = (action: 'delete' | 'archive' | 'export') => {
+  const exportToCsv = (rows: Client[]) => {
+    const headers = ['First Name', 'Last Name', 'Email', 'Phone', 'Status', 'City', 'Total Spent']
+    const lines = rows.map(c => [
+      c.firstName, c.lastName, c.email, c.phone ?? '', c.status, c.city ?? '', String(c.totalSpent),
+    ].map(field => `"${field.replace(/"/g, '""')}"`).join(','))
+    const csv = [headers.join(','), ...lines].join('\n')
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `clients-${new Date().toISOString().slice(0, 10)}.csv`
+    document.body.appendChild(a)
+    a.click()
+    URL.revokeObjectURL(url)
+    document.body.removeChild(a)
+  }
+
+  const handleBulkAction = async (action: 'delete' | 'archive' | 'export') => {
     if (selectedClients.length === 0) return
 
     switch (action) {
       case 'delete':
         setBulkDeleteConfirm(true)
         break
-      case 'archive':
+      case 'archive': {
+        const result = await setClientsStatus(selectedClients, 'archived', studioSlug)
+        if (result?.error) {
+          toast.error(result.error)
+          break
+        }
         setClients(prev =>
           prev.map(c =>
             selectedClients.includes(c.id) ? { ...c, status: 'archived' as const } : c
           )
         )
         setSelectedClients([])
+        toast.success('Clients archived')
         break
+      }
       case 'export':
-        console.log('Exporting clients:', selectedClients)
+        exportToCsv(clients.filter(c => selectedClients.includes(c.id)))
         break
     }
   }
@@ -303,13 +358,13 @@ export function ClientList({ studioSlug, initialClients, isLoading = false, curr
       {/* Page Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-display-md font-display font-semibold text-foreground">Clients</h1>
-          <p className="text-body text-muted-foreground mt-1">Manage your client relationships</p>
+          <h1 className="text-display-md font-display font-semibold text-foreground">{title}</h1>
+          <p className="text-body text-muted-foreground mt-1">{description}</p>
         </div>
-        <Link href={`/dashboard/${studioSlug}/clients/new`}>
+        <Link href={newHref ?? `/dashboard/${studioSlug}/clients/new`}>
           <Button>
             <Plus className="h-4 w-4 mr-2" />
-            Add Client
+            {newLabel}
           </Button>
         </Link>
       </div>
