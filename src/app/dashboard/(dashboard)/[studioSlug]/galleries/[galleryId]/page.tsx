@@ -59,6 +59,7 @@ export default async function GalleryDetailPage({ params }: GalleryDetailPagePro
       size: media.size ?? 0,
       mimeType: media.type,
       isFavorite: media.is_favorite,
+      albumId: media.album_id ?? undefined,
       sortOrder: index,
       uploadedAt: media.created_at,
     })),

@@ -52,6 +52,7 @@ export interface GalleryMediaRow {
   width: number | null
   height: number | null
   is_favorite: boolean
+  album_id: string | null
   created_at: string
 }
 
@@ -474,7 +475,7 @@ export async function getGallery(galleryId: string, studioSlug: string): Promise
       share_settings:gallery_share_settings(*),
       studio:studios(name, logo_url, brand_color),
       albums:gallery_albums(id, name, description, cover_image, media_count, order, created_at),
-      media:media(id, filename, url, thumbnail_url, type, size, width, height, is_favorite, created_at)
+      media:media(id, filename, url, thumbnail_url, type, size, width, height, is_favorite, album_id, created_at)
     `)
     .eq('id', galleryId)
     .eq('studio_id', studio.id)
@@ -1017,4 +1018,202 @@ export async function updateGalleryCoverTemplate(
   revalidatePath(`/dashboard/${studioSlug}/galleries/${galleryId}`)
   revalidatePath(`/dashboard/${studioSlug}/galleries/${galleryId}/design`)
   return { success: true }
+}
+
+async function requireGalleryAccess(galleryId: string) {
+  const { supabase, studioId } = await requireGalleryEditMembership()
+
+  const { data: gallery } = await supabase
+    .from('galleries')
+    .select('id')
+    .eq('id', galleryId)
+    .eq('studio_id', studioId)
+    .single()
+
+  if (!gallery) {
+    throw new Error('Gallery not found')
+  }
+
+  return supabase
+}
+
+export async function createAlbum(
+  galleryId: string,
+  studioSlug: string,
+  name: string,
+  description?: string
+): Promise<{ album: GalleryAlbumRow } | { error: string }> {
+  let supabase
+  try {
+    supabase = await requireGalleryAccess(galleryId)
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : 'Unauthorized' }
+  }
+
+  const { count } = await supabase
+    .from('gallery_albums')
+    .select('id', { count: 'exact', head: true })
+    .eq('gallery_id', galleryId)
+
+  const { data: album, error } = await supabase
+    .from('gallery_albums')
+    .insert({ gallery_id: galleryId, name, description: description || null, order: count ?? 0 })
+    .select('id, name, description, cover_image, media_count, order, created_at')
+    .single()
+
+  if (error || !album) {
+    console.error('Create album error:', error)
+    return { error: 'Failed to create album' }
+  }
+
+  revalidatePath(`/dashboard/${studioSlug}/galleries/${galleryId}`)
+  return { album }
+}
+
+export async function updateAlbum(
+  albumId: string,
+  galleryId: string,
+  studioSlug: string,
+  name: string,
+  description?: string
+): Promise<{ album: GalleryAlbumRow } | { error: string }> {
+  let supabase
+  try {
+    supabase = await requireGalleryAccess(galleryId)
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : 'Unauthorized' }
+  }
+
+  const { data: album, error } = await supabase
+    .from('gallery_albums')
+    .update({ name, description: description || null })
+    .eq('id', albumId)
+    .eq('gallery_id', galleryId)
+    .select('id, name, description, cover_image, media_count, order, created_at')
+    .single()
+
+  if (error || !album) {
+    console.error('Update album error:', error)
+    return { error: 'Failed to update album' }
+  }
+
+  revalidatePath(`/dashboard/${studioSlug}/galleries/${galleryId}`)
+  return { album }
+}
+
+export async function deleteAlbum(
+  albumId: string,
+  galleryId: string,
+  studioSlug: string
+): Promise<{ error: string } | undefined> {
+  let supabase
+  try {
+    supabase = await requireGalleryAccess(galleryId)
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : 'Unauthorized' }
+  }
+
+  const { error } = await supabase
+    .from('gallery_albums')
+    .delete()
+    .eq('id', albumId)
+    .eq('gallery_id', galleryId)
+
+  if (error) {
+    console.error('Delete album error:', error)
+    return { error: 'Failed to delete album' }
+  }
+
+  revalidatePath(`/dashboard/${studioSlug}/galleries/${galleryId}`)
+}
+
+export async function duplicateAlbum(
+  albumId: string,
+  galleryId: string,
+  studioSlug: string
+): Promise<{ album: GalleryAlbumRow } | { error: string }> {
+  let supabase
+  try {
+    supabase = await requireGalleryAccess(galleryId)
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : 'Unauthorized' }
+  }
+
+  const { data: original } = await supabase
+    .from('gallery_albums')
+    .select('name, description, cover_image, order')
+    .eq('id', albumId)
+    .eq('gallery_id', galleryId)
+    .single()
+
+  if (!original) return { error: 'Album not found' }
+
+  const { data: album, error } = await supabase
+    .from('gallery_albums')
+    .insert({
+      gallery_id: galleryId,
+      name: `${original.name} (Copy)`,
+      description: original.description,
+      cover_image: original.cover_image,
+      order: original.order,
+    })
+    .select('id, name, description, cover_image, media_count, order, created_at')
+    .single()
+
+  if (error || !album) {
+    console.error('Duplicate album error:', error)
+    return { error: 'Failed to duplicate album' }
+  }
+
+  revalidatePath(`/dashboard/${studioSlug}/galleries/${galleryId}`)
+  return { album }
+}
+
+export async function assignMediaToAlbum(
+  mediaIds: string[],
+  albumId: string | null,
+  galleryId: string,
+  studioSlug: string
+): Promise<{ albums: GalleryAlbumRow[] } | { error: string }> {
+  let supabase
+  try {
+    supabase = await requireGalleryAccess(galleryId)
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : 'Unauthorized' }
+  }
+
+  const { error } = await supabase
+    .from('media')
+    .update({ album_id: albumId })
+    .in('id', mediaIds)
+    .eq('gallery_id', galleryId)
+
+  if (error) {
+    console.error('Assign media to album error:', error)
+    return { error: 'Failed to update album' }
+  }
+
+  // media_count isn't triggered/generated in the DB, so recompute it for
+  // every album in this gallery - media may have moved out of one album
+  // and into another, or been unassigned entirely.
+  const { data: albums } = await supabase
+    .from('gallery_albums')
+    .select('id')
+    .eq('gallery_id', galleryId)
+
+  for (const a of albums ?? []) {
+    const { count } = await supabase
+      .from('media')
+      .select('id', { count: 'exact', head: true })
+      .eq('album_id', a.id)
+    await supabase.from('gallery_albums').update({ media_count: count ?? 0 }).eq('id', a.id)
+  }
+
+  const { data: updatedAlbums } = await supabase
+    .from('gallery_albums')
+    .select('id, name, description, cover_image, media_count, order, created_at')
+    .eq('gallery_id', galleryId)
+
+  revalidatePath(`/dashboard/${studioSlug}/galleries/${galleryId}`)
+  return { albums: updatedAlbums ?? [] }
 }

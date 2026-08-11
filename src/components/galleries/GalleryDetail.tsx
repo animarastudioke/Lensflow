@@ -5,6 +5,14 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { cn } from '@/lib/utils'
 import { format } from 'date-fns'
+import { toast } from 'sonner'
+import {
+  createAlbum,
+  updateAlbum,
+  deleteAlbum,
+  duplicateAlbum,
+  assignMediaToAlbum,
+} from '@/lib/actions/galleries'
 import {
   Card,
   CardContent,
@@ -12,6 +20,14 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
@@ -45,6 +61,9 @@ import {
   Settings,
   BarChart3,
   ArrowUpDown,
+  Copy,
+  Loader2,
+  FolderOpen,
 } from 'lucide-react'
 import {
   DropdownMenu,
@@ -79,6 +98,7 @@ interface GalleryImage {
   size: number
   mimeType: 'image' | 'video'
   isFavorite: boolean
+  albumId?: string
   sortOrder: number
   uploadedAt: string
 }
@@ -165,16 +185,26 @@ export function GalleryDetail({ studioSlug, initialGallery }: GalleryDetailProps
   const [, setIsLightboxOpen] = React.useState(false)
   const [sortBy, setSortBy] = React.useState<'custom' | 'date' | 'name' | 'favorites'>('custom')
   const [sortOrder, setSortOrder] = React.useState<'asc' | 'desc'>('asc')
-  const [, setShowAlbumSidebar] = React.useState(false)
   const [, setLightboxZoom] = React.useState(1)
   const [, setLightboxRotation] = React.useState(0)
+  const [albumFilter, setAlbumFilter] = React.useState<string | null>(null)
+
+  const [albumDialogOpen, setAlbumDialogOpen] = React.useState(false)
+  const [albumDialogTarget, setAlbumDialogTarget] = React.useState<GalleryAlbum | null>(null)
+  const [albumName, setAlbumName] = React.useState('')
+  const [albumDescription, setAlbumDescription] = React.useState('')
+  const [albumSubmitting, setAlbumSubmitting] = React.useState(false)
+  const [albumDeleteConfirm, setAlbumDeleteConfirm] = React.useState<GalleryAlbum | null>(null)
+  const [addToAlbumOpen, setAddToAlbumOpen] = React.useState(false)
+  const [addToAlbumTargetIds, setAddToAlbumTargetIds] = React.useState<string[]>([])
 
   // Filter and sort images
   const filteredImages = React.useMemo(() => {
     let result = [...gallery.images]
 
-    // Filter by album if sidebar is open
-    // Album filtering would go here
+    if (albumFilter) {
+      result = result.filter((img) => img.albumId === albumFilter)
+    }
 
     // Sort
     result.sort((a, b) => {
@@ -198,7 +228,7 @@ export function GalleryDetail({ studioSlug, initialGallery }: GalleryDetailProps
     })
 
     return result
-  }, [gallery.images, sortBy, sortOrder])
+  }, [gallery.images, sortBy, sortOrder, albumFilter])
 
   const handleImageClick = (index: number) => {
     setCurrentImageIndex(index)
@@ -217,9 +247,132 @@ export function GalleryDetail({ studioSlug, initialGallery }: GalleryDetailProps
     }
   }
 
-  const handleAddToAlbum = (_albumId: string) => {
-    // Add selected images to album
+  const handleShareGallery = async () => {
+    const url = `${window.location.origin}/g/${gallery.shareToken}`
+    try {
+      await navigator.clipboard.writeText(url)
+      toast.success('Gallery link copied to clipboard')
+    } catch {
+      toast.error('Failed to copy link')
+    }
+  }
+
+  const openAddToAlbum = (mediaIds: string[]) => {
+    if (mediaIds.length === 0) return
+    setAddToAlbumTargetIds(mediaIds)
+    setAddToAlbumOpen(true)
+  }
+
+  const applyAddToAlbum = async (albumId: string | null) => {
+    const result = await assignMediaToAlbum(addToAlbumTargetIds, albumId, gallery.id, studioSlug)
+    if ('error' in result) {
+      toast.error(result.error)
+      return
+    }
+    const albumsById = new Map(result.albums.map((a) => [a.id, a]))
+    setGallery((prev) => ({
+      ...prev,
+      images: prev.images.map((img) =>
+        addToAlbumTargetIds.includes(img.id) ? { ...img, albumId: albumId ?? undefined } : img
+      ),
+      albums: prev.albums.map((a) => {
+        const fresh = albumsById.get(a.id)
+        return fresh ? { ...a, imageCount: fresh.media_count } : a
+      }),
+    }))
+    toast.success(albumId ? 'Added to album' : 'Removed from album')
+    setAddToAlbumOpen(false)
     setSelectedImages([])
+    setAddToAlbumTargetIds([])
+  }
+
+  const openCreateAlbumDialog = () => {
+    setAlbumDialogTarget(null)
+    setAlbumName('')
+    setAlbumDescription('')
+    setAlbumDialogOpen(true)
+  }
+
+  const openEditAlbumDialog = (album: GalleryAlbum) => {
+    setAlbumDialogTarget(album)
+    setAlbumName(album.name)
+    setAlbumDescription(album.description ?? '')
+    setAlbumDialogOpen(true)
+  }
+
+  const submitAlbumDialog = async () => {
+    if (!albumName.trim()) {
+      toast.error('Album name is required')
+      return
+    }
+    setAlbumSubmitting(true)
+    const result = albumDialogTarget
+      ? await updateAlbum(albumDialogTarget.id, gallery.id, studioSlug, albumName.trim(), albumDescription.trim() || undefined)
+      : await createAlbum(gallery.id, studioSlug, albumName.trim(), albumDescription.trim() || undefined)
+    setAlbumSubmitting(false)
+
+    if ('error' in result) {
+      toast.error(result.error)
+      return
+    }
+
+    const updated: GalleryAlbum = {
+      id: result.album.id,
+      name: result.album.name,
+      description: result.album.description ?? undefined,
+      coverImageUrl: result.album.cover_image ?? undefined,
+      imageCount: result.album.media_count,
+      sortOrder: result.album.order,
+      createdAt: result.album.created_at,
+    }
+
+    setGallery((prev) => ({
+      ...prev,
+      albums: albumDialogTarget
+        ? prev.albums.map((a) => (a.id === updated.id ? updated : a))
+        : [...prev.albums, updated],
+    }))
+
+    toast.success(albumDialogTarget ? 'Album updated' : 'Album created')
+    setAlbumDialogOpen(false)
+  }
+
+  const handleDuplicateAlbum = async (album: GalleryAlbum) => {
+    const result = await duplicateAlbum(album.id, gallery.id, studioSlug)
+    if ('error' in result) {
+      toast.error(result.error)
+      return
+    }
+    const duplicated: GalleryAlbum = {
+      id: result.album.id,
+      name: result.album.name,
+      description: result.album.description ?? undefined,
+      coverImageUrl: result.album.cover_image ?? undefined,
+      imageCount: result.album.media_count,
+      sortOrder: result.album.order,
+      createdAt: result.album.created_at,
+    }
+    setGallery((prev) => ({ ...prev, albums: [...prev.albums, duplicated] }))
+    toast.success('Album duplicated (photos are not copied - a photo can only belong to one album)')
+  }
+
+  const confirmDeleteAlbum = async () => {
+    if (!albumDeleteConfirm) return
+    const target = albumDeleteConfirm
+    const result = await deleteAlbum(target.id, gallery.id, studioSlug)
+    if (result?.error) {
+      toast.error(result.error)
+      setAlbumDeleteConfirm(null)
+      return
+    }
+    setGallery((prev) => ({
+      ...prev,
+      albums: prev.albums.filter((a) => a.id !== target.id),
+      images: prev.images.map((img) => (img.albumId === target.id ? { ...img, albumId: undefined } : img)),
+    }))
+    if (albumFilter === target.id) setAlbumFilter(null)
+    toast.success('Album deleted')
+    setAlbumDeleteConfirm(null)
   }
 
   const handleBulkAction = (action: 'delete' | 'favorite' | 'download' | 'album') => {
@@ -242,7 +395,7 @@ export function GalleryDetail({ studioSlug, initialGallery }: GalleryDetailProps
         // Trigger download
         break
       case 'album':
-        setShowAlbumSidebar(true)
+        openAddToAlbum(selectedImages)
         break
     }
   }
@@ -300,13 +453,15 @@ export function GalleryDetail({ studioSlug, initialGallery }: GalleryDetailProps
               Design
             </Link>
           </Button>
-          <Button variant="outline" size="sm" onClick={() => {}}>
+          <Button variant="outline" size="sm" onClick={handleShareGallery}>
             <Share2 className="h-4 w-4 mr-2" />
             Share
           </Button>
-          <Button size="sm" onClick={() => {}}>
-            <Upload className="h-4 w-4 mr-2" />
-            Add Images
+          <Button size="sm" asChild>
+            <Link href={`/dashboard/${studioSlug}/galleries/${gallery.id}/upload`}>
+              <Upload className="h-4 w-4 mr-2" />
+              Add Images
+            </Link>
           </Button>
         </div>
       </div>
@@ -375,6 +530,18 @@ export function GalleryDetail({ studioSlug, initialGallery }: GalleryDetailProps
 
         {/* Images Tab */}
         <TabsContent value="images" className="flex-1 flex flex-col min-h-0">
+          {albumFilter && (
+            <div className="flex items-center gap-2 mb-4 px-3 py-2 rounded-lg bg-primary/10 text-sm">
+              <FolderOpen className="h-4 w-4 text-primary" />
+              <span>
+                Showing album: <strong>{gallery.albums.find((a) => a.id === albumFilter)?.name ?? 'Unknown'}</strong>
+              </span>
+              <Button variant="ghost" size="sm" className="h-6 px-2 ml-auto" onClick={() => setAlbumFilter(null)}>
+                <X className="h-3.5 w-3.5 mr-1" />
+                Clear filter
+              </Button>
+            </div>
+          )}
           {/* Toolbar */}
           <div className="flex flex-wrap items-center justify-between gap-3 mb-4 p-3 bg-muted/30 rounded-lg">
             <div className="flex items-center gap-2">
@@ -619,7 +786,7 @@ export function GalleryDetail({ studioSlug, initialGallery }: GalleryDetailProps
                                 )}
                               </DropdownMenuItem>
                               <DropdownMenuSeparator />
-                              <DropdownMenuItem onClick={() => handleAddToAlbum('')}>
+                              <DropdownMenuItem onClick={() => openAddToAlbum([image.id])}>
                                 <Square className="mr-2 h-4 w-4" />
                                 Add to Album
                               </DropdownMenuItem>
@@ -692,7 +859,7 @@ export function GalleryDetail({ studioSlug, initialGallery }: GalleryDetailProps
         <TabsContent value="albums" className="flex-1 flex flex-col min-h-0">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-heading font-semibold">Albums</h2>
-            <Button size="sm">
+            <Button size="sm" onClick={openCreateAlbumDialog}>
               <Plus className="h-4 w-4 mr-2" />
               New Album
             </Button>
@@ -702,7 +869,7 @@ export function GalleryDetail({ studioSlug, initialGallery }: GalleryDetailProps
               <div className="col-span-full text-center py-12">
                 <Square className="h-12 w-12 mx-auto text-muted-foreground/50 mb-3" />
                 <p className="text-muted-foreground">No albums yet</p>
-                <Button className="mt-4" size="sm">
+                <Button className="mt-4" size="sm" onClick={openCreateAlbumDialog}>
                   <Plus className="h-4 w-4 mr-2" />
                   Create Album
                 </Button>
@@ -738,11 +905,24 @@ export function GalleryDetail({ studioSlug, initialGallery }: GalleryDetailProps
                       </div>
                     </div>
                     <div className="flex items-center gap-2 mt-3 pt-3 border-t">
-                      <Button variant="ghost" size="sm" className="flex-1">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="flex-1"
+                        onClick={() => {
+                          setAlbumFilter(album.id)
+                          setActiveTab('images')
+                        }}
+                      >
                         <Eye className="h-3.5 w-3.5 mr-1.5" />
                         View
                       </Button>
-                      <Button variant="ghost" size="sm" className="flex-1">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="flex-1"
+                        onClick={() => openEditAlbumDialog(album)}
+                      >
                         <Edit className="h-3.5 w-3.5 mr-1.5" />
                         Edit
                       </Button>
@@ -753,8 +933,17 @@ export function GalleryDetail({ studioSlug, initialGallery }: GalleryDetailProps
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
-                          <DropdownMenuItem>Duplicate</DropdownMenuItem>
-                          <DropdownMenuItem className="text-destructive">Delete</DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => handleDuplicateAlbum(album)}>
+                            <Copy className="mr-2 h-4 w-4" />
+                            Duplicate
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            className="text-destructive"
+                            onClick={() => setAlbumDeleteConfirm(album)}
+                          >
+                            <Trash2 className="mr-2 h-4 w-4" />
+                            Delete
+                          </DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </div>
@@ -949,6 +1138,115 @@ export function GalleryDetail({ studioSlug, initialGallery }: GalleryDetailProps
           </div>
         </TabsContent>
       </Tabs>
+
+      {/* Create / Edit Album dialog */}
+      <Dialog open={albumDialogOpen} onOpenChange={setAlbumDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>{albumDialogTarget ? 'Edit album' : 'Create album'}</DialogTitle>
+            <DialogDescription>
+              {albumDialogTarget
+                ? 'Update the name and description for this album.'
+                : 'Give your new album a name to start organizing photos.'}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>Name</Label>
+              <Input
+                value={albumName}
+                onChange={(e) => setAlbumName(e.target.value)}
+                placeholder="e.g. Ceremony"
+                autoFocus
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Description (optional)</Label>
+              <Textarea
+                value={albumDescription}
+                onChange={(e) => setAlbumDescription(e.target.value)}
+                rows={3}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setAlbumDialogOpen(false)} disabled={albumSubmitting}>
+              Cancel
+            </Button>
+            <Button onClick={submitAlbumDialog} disabled={albumSubmitting}>
+              {albumSubmitting && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              {albumDialogTarget ? 'Save changes' : 'Create album'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Album delete confirmation */}
+      <Dialog open={!!albumDeleteConfirm} onOpenChange={(open) => !open && setAlbumDeleteConfirm(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Delete album</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete &quot;{albumDeleteConfirm?.name}&quot;? Photos in this album will not be
+              deleted, they&apos;ll just be unassigned. This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setAlbumDeleteConfirm(null)}>Cancel</Button>
+            <Button variant="destructive" onClick={confirmDeleteAlbum}>Delete</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Add to album picker */}
+      <Dialog open={addToAlbumOpen} onOpenChange={setAddToAlbumOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Add to album</DialogTitle>
+            <DialogDescription>
+              {addToAlbumTargetIds.length > 1
+                ? `Choose an album for ${addToAlbumTargetIds.length} photos.`
+                : 'Choose an album for this photo.'}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-1 max-h-64 overflow-y-auto">
+            <button
+              type="button"
+              onClick={() => applyAddToAlbum(null)}
+              className="w-full flex items-center gap-2 rounded-md px-3 py-2 text-sm hover:bg-accent text-left"
+            >
+              <X className="h-4 w-4 text-muted-foreground" />
+              No album
+            </button>
+            {gallery.albums.map((album) => (
+              <button
+                key={album.id}
+                type="button"
+                onClick={() => applyAddToAlbum(album.id)}
+                className="w-full flex items-center gap-2 rounded-md px-3 py-2 text-sm hover:bg-accent text-left"
+              >
+                <FolderOpen className="h-4 w-4 text-muted-foreground" />
+                {album.name}
+                <span className="text-muted-foreground ml-auto">{album.imageCount}</span>
+              </button>
+            ))}
+            <button
+              type="button"
+              onClick={() => {
+                setAddToAlbumOpen(false)
+                openCreateAlbumDialog()
+              }}
+              className="w-full flex items-center gap-2 rounded-md px-3 py-2 text-sm hover:bg-accent text-left text-primary"
+            >
+              <Plus className="h-4 w-4" />
+              New album
+            </button>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setAddToAlbumOpen(false)}>Close</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
