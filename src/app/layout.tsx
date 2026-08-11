@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from 'next'
 import { Archivo, Spectral, JetBrains_Mono } from 'next/font/google'
 import './globals.css'
 import { Providers } from './providers'
+import { APP_CONSTANTS } from '@/lib/constants'
 
 const archivo = Archivo({
   subsets: ['latin'],
@@ -34,6 +35,7 @@ export const viewport: Viewport = {
 }
 
 export const metadata: Metadata = {
+  metadataBase: new URL(APP_CONSTANTS.URL),
   title: {
     default: 'LensFlow - Premium Gallery Platform for Photographers',
     template: '%s | LensFlow',
