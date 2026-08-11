@@ -145,10 +145,23 @@ export function ClientGalleryContent({
 
   const [showPassword] = React.useState(requirePassword)
   const [password, setPassword] = React.useState('')
-  const [, setSelectedMedia] = React.useState<string | null>(null)
   const [lightboxIndex, setLightboxIndex] = React.useState(0)
   const [showLightbox, setShowLightbox] = React.useState(false)
   const [favorites, setFavorites] = React.useState<string[]>([])
+  const lightboxHistoryPushed = React.useRef(false)
+
+  // Pressing the browser/device back button while the lightbox is open should
+  // close the lightbox and return to the grid, not exit the whole gallery page.
+  React.useEffect(() => {
+    const onPopState = () => {
+      if (lightboxHistoryPushed.current) {
+        lightboxHistoryPushed.current = false
+        setShowLightbox(false)
+      }
+    }
+    window.addEventListener('popstate', onPopState)
+    return () => window.removeEventListener('popstate', onPopState)
+  }, [])
 
   // Transform data if gallery exists
   const media = React.useMemo(() => gallery ? transformMedia(gallery.media || []) : [], [gallery])
@@ -176,11 +189,16 @@ export function ClientGalleryContent({
   const openLightbox = (index: number) => {
     setLightboxIndex(index)
     setShowLightbox(true)
+    window.history.pushState({ lightbox: true }, '')
+    lightboxHistoryPushed.current = true
   }
 
   const closeLightbox = () => {
     setShowLightbox(false)
-    setSelectedMedia(null)
+    if (lightboxHistoryPushed.current) {
+      lightboxHistoryPushed.current = false
+      window.history.back()
+    }
   }
 
   const downloadImage = async (item: MediaItem) => {
