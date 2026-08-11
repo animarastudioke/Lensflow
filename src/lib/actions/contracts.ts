@@ -2,6 +2,8 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
+import { redirect } from 'next/navigation'
+import { z } from 'zod'
 
 export type ContractStatus = 'draft' | 'sent' | 'viewed' | 'signed' | 'completed' | 'expired' | 'declined' | 'cancelled'
 export type SignerStatus = 'pending' | 'signed' | 'declined'
@@ -65,6 +67,21 @@ export async function getContracts(studioSlug: string): Promise<{ contracts: Con
   return { contracts: (contracts as unknown as ContractRow[]) || [], total: count || 0 }
 }
 
+export async function getContract(contractId: string, studioSlug: string): Promise<ContractRow | null> {
+  const supabase = await createClient()
+  const studioId = await getStudioId(studioSlug)
+  if (!studioId) return null
+
+  const { data: contract } = await supabase
+    .from('contracts')
+    .select('*, client:clients(name, email), signers:contract_signers(name, email, status, signed_at)')
+    .eq('id', contractId)
+    .eq('studio_id', studioId)
+    .single()
+
+  return contract as unknown as ContractRow | null
+}
+
 async function requireMembership(): Promise<{ error: string } | { studioId: string }> {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -80,6 +97,126 @@ async function requireMembership(): Promise<{ error: string } | { studioId: stri
   if (!membership) return { error: 'No active studio membership' }
 
   return { studioId: membership.studio_id }
+}
+
+const createContractSchema = z.object({
+  title: z.string().min(1, 'Title is required').max(200),
+  type: z.string().min(1).default('other'),
+  total_value: z.number().min(0).default(0),
+  deposit_required: z.number().min(0).default(0),
+  notes: z.string().max(2000).optional(),
+  expires_at: z.string().optional(),
+})
+
+export async function createContract(formData: FormData) {
+  const membership = await requireMembership()
+  if ('error' in membership) throw new Error(membership.error)
+
+  const studioSlug = formData.get('studio_slug') as string
+  const clientId = formData.get('client_id') as string | null
+  const signerName = formData.get('signer_name') as string | null
+  const signerEmail = formData.get('signer_email') as string | null
+
+  const totalValueRaw = formData.get('total_value')
+  const depositRequiredRaw = formData.get('deposit_required')
+
+  const validated = createContractSchema.parse({
+    title: formData.get('title'),
+    type: formData.get('type') || 'other',
+    total_value: totalValueRaw ? Number(totalValueRaw) : 0,
+    deposit_required: depositRequiredRaw ? Number(depositRequiredRaw) : 0,
+    notes: formData.get('notes') || undefined,
+    expires_at: formData.get('expires_at') || undefined,
+  })
+
+  const supabase = await createClient()
+
+  const { data: contract, error } = await supabase
+    .from('contracts')
+    .insert({
+      studio_id: membership.studioId,
+      client_id: clientId || null,
+      title: validated.title,
+      type: validated.type,
+      total_value: validated.total_value,
+      deposit_required: validated.deposit_required,
+      notes: validated.notes,
+      expires_at: validated.expires_at || null,
+    })
+    .select('id')
+    .single()
+
+  if (error || !contract) {
+    console.error('Create contract error:', error)
+    throw new Error('Failed to create contract')
+  }
+
+  if (signerName && signerEmail) {
+    await supabase.from('contract_signers').insert({
+      contract_id: contract.id,
+      name: signerName,
+      email: signerEmail,
+      status: 'pending',
+    })
+  }
+
+  revalidatePath(`/dashboard/${studioSlug}/contracts`)
+  redirect(`/dashboard/${studioSlug}/contracts`)
+}
+
+const updateContractSchema = z.object({
+  title: z.string().min(1, 'Title is required').max(200),
+  type: z.string().min(1),
+  total_value: z.number().min(0),
+  deposit_required: z.number().min(0),
+  notes: z.string().max(2000).optional(),
+  expires_at: z.string().optional(),
+})
+
+export async function updateContract(formData: FormData) {
+  const membership = await requireMembership()
+  if ('error' in membership) throw new Error(membership.error)
+
+  const id = formData.get('id') as string
+  const studioSlug = formData.get('studio_slug') as string
+  const clientId = formData.get('client_id') as string | null
+
+  const totalValueRaw = formData.get('total_value')
+  const depositRequiredRaw = formData.get('deposit_required')
+
+  const validated = updateContractSchema.parse({
+    title: formData.get('title'),
+    type: formData.get('type'),
+    total_value: totalValueRaw ? Number(totalValueRaw) : 0,
+    deposit_required: depositRequiredRaw ? Number(depositRequiredRaw) : 0,
+    notes: formData.get('notes') || undefined,
+    expires_at: formData.get('expires_at') || undefined,
+  })
+
+  const supabase = await createClient()
+  const { error } = await supabase
+    .from('contracts')
+    .update({
+      client_id: clientId || null,
+      title: validated.title,
+      type: validated.type,
+      total_value: validated.total_value,
+      deposit_required: validated.deposit_required,
+      notes: validated.notes ?? null,
+      expires_at: validated.expires_at || null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', id)
+    .eq('studio_id', membership.studioId)
+
+  if (error) {
+    console.error('Update contract error:', error)
+    throw new Error('Failed to update contract')
+  }
+
+  revalidatePath(`/dashboard/${studioSlug}/contracts`)
+  revalidatePath(`/dashboard/${studioSlug}/contracts/${id}`)
+  redirect(`/dashboard/${studioSlug}/contracts/${id}`)
 }
 
 export async function updateContractStatus(

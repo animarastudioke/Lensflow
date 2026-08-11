@@ -33,7 +33,6 @@ import {
   MoreVertical,
   Trash2,
   Edit,
-  Download,
   CheckCircle,
   Clock,
   Mail,
@@ -554,17 +553,6 @@ export function ContractList({ studioSlug, initialContracts, isLoading = false, 
                                 <Edit className="mr-2 h-4 w-4" />
                                 Edit
                               </Link>
-                            </DropdownMenuItem>
-                            <DropdownMenuSeparator />
-                            <DropdownMenuItem asChild>
-                              <Link href={`/dashboard/${studioSlug}/contracts/${contract.id}/preview`}>
-                                <Eye className="mr-2 h-4 w-4" />
-                                Preview
-                              </Link>
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => {}} >
-                              <Download className="mr-2 h-4 w-4" />
-                              Download PDF
                             </DropdownMenuItem>
                             {contract.status === 'draft' && (
                               <>
