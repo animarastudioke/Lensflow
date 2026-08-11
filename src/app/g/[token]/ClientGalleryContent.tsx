@@ -201,24 +201,40 @@ export function ClientGalleryContent({
     }
   }
 
+  const downloadSingleImage = async (item: MediaItem) => {
+    // Increment download count on server
+    await fetch(`/api/g/${token}/download`, { method: 'POST' }).catch(console.error)
+
+    const response = await fetch(item.url)
+    const blob = await response.blob()
+    const url = window.URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = item.filename
+    document.body.appendChild(a)
+    a.click()
+    window.URL.revokeObjectURL(url)
+    document.body.removeChild(a)
+  }
+
   const downloadImage = async (item: MediaItem) => {
     try {
-      // Increment download count on server
-      await fetch(`/api/galleries/${token}/download`, { method: 'POST' }).catch(console.error)
-
-      const response = await fetch(item.url)
-      const blob = await response.blob()
-      const url = window.URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = item.filename
-      document.body.appendChild(a)
-      a.click()
-      window.URL.revokeObjectURL(url)
-      document.body.removeChild(a)
+      await downloadSingleImage(item)
       toast.success('Download started')
     } catch {
       toast.error('Failed to download')
+    }
+  }
+
+  const downloadAllImages = async () => {
+    if (media.length === 0) return
+    try {
+      for (const item of media) {
+        await downloadSingleImage(item)
+      }
+      toast.success(`Downloading ${media.length} photo${media.length === 1 ? '' : 's'}`)
+    } catch {
+      toast.error('Some downloads failed')
     }
   }
 
@@ -239,8 +255,12 @@ export function ClientGalleryContent({
         // User cancelled
       }
     } else {
-      navigator.clipboard.writeText(window.location.href)
-      toast.success('Link copied to clipboard')
+      try {
+        await navigator.clipboard.writeText(window.location.href)
+        toast.success('Link copied to clipboard')
+      } catch {
+        toast.error('Failed to copy link')
+      }
     }
   }
 
@@ -520,7 +540,7 @@ export function ClientGalleryContent({
           <Share2 className="h-4 w-4" />
         </Button>
         {gallery.allow_download && (
-          <Button variant="secondary" size="icon" className="bg-white/90 hover:bg-white shadow-sm" aria-label="Download all">
+          <Button variant="secondary" size="icon" className="bg-white/90 hover:bg-white shadow-sm" onClick={downloadAllImages} aria-label="Download all">
             <Download className="h-4 w-4" />
           </Button>
         )}

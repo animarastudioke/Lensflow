@@ -11,6 +11,7 @@ const PUBLIC_PATHS = [
   '/auth/callback',
   '/auth/confirmed',
   '/g',
+  '/api/g',
   '/store',
   '/portfolio',
   '/api/webhooks',
