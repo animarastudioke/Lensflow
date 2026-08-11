@@ -1,5 +1,6 @@
 import { Metadata } from 'next'
 import { getAuthUserServer } from '@/lib/auth'
+import { getProducts } from '@/lib/actions/products'
 import { StoreList } from '@/components/store/StoreList'
 
 interface StorePageProps {
@@ -25,5 +26,7 @@ export default async function StorePage({ params }: StorePageProps) {
     return null
   }
 
-  return <StoreList studioSlug={studioSlug} />
+  const { products } = await getProducts(studioSlug)
+
+  return <StoreList studioSlug={studioSlug} initialProducts={products} />
 }

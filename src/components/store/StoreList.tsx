@@ -60,6 +60,8 @@ import {
 import { Badge } from '@/components/ui/badge'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { toast } from 'sonner'
+import { deleteProduct, archiveProducts, type ProductRow } from '@/lib/actions/products'
 
 interface Product {
   id: string
@@ -109,81 +111,27 @@ interface Order {
   updatedAt: string
 }
 
-const mockProducts: Product[] = [
-  {
-    id: '1',
-    name: 'Digital Gallery - 1 Year',
-    description: 'Online gallery hosting for 1 year with download access',
-    type: 'digital',
-    status: 'active',
-    price: 99,
-    cost: 5,
-    inventory: null,
-    sku: 'DIG-GAL-1YR',
-    images: [],
-    tags: ['digital', 'gallery', 'hosting'],
-    featured: true,
-    salesCount: 47,
-    revenue: 4653,
-    createdAt: '2023-06-01T10:00:00Z',
-    updatedAt: '2024-01-15T14:30:00Z',
-  },
-  {
-    id: '2',
-    name: 'Premium Wedding Album 10x10',
-    description: 'Layflat premium album, 30 pages, linen cover',
-    type: 'album',
-    status: 'active',
-    price: 450,
-    salePrice: 399,
-    cost: 180,
-    inventory: 15,
-    sku: 'ALB-WED-10X10',
-    images: [],
-    tags: ['album', 'wedding', 'premium', 'print'],
-    featured: true,
-    salesCount: 23,
-    revenue: 9177,
-    createdAt: '2023-07-15T10:00:00Z',
-    updatedAt: '2024-01-10T09:00:00Z',
-  },
-  {
-    id: '3',
-    name: '8x10 Fine Art Print',
-    description: 'Museum-quality fine art print on archival paper',
-    type: 'print',
-    status: 'active',
-    price: 45,
-    cost: 12,
-    inventory: 100,
-    sku: 'PRT-8X10-FA',
-    images: [],
-    tags: ['print', 'fine-art', 'wall-art'],
-    featured: false,
-    salesCount: 89,
-    revenue: 4005,
-    createdAt: '2023-08-01T10:00:00Z',
-    updatedAt: '2024-01-12T11:00:00Z',
-  },
-  {
-    id: '4',
-    name: 'Wedding Photography Package',
-    description: '8hr coverage, 850+ photos, highlight video, album',
-    type: 'package',
-    status: 'active',
-    price: 4500,
-    cost: 800,
-    inventory: null,
-    sku: 'PKG-WED-PREM',
-    images: [],
-    tags: ['wedding', 'package', 'photography', 'video'],
-    featured: true,
-    salesCount: 12,
-    revenue: 54000,
-    createdAt: '2023-05-01T10:00:00Z',
-    updatedAt: '2024-01-05T15:00:00Z',
-  },
-]
+function mapProductRow(row: ProductRow): Product {
+  return {
+    id: row.id,
+    name: row.name,
+    description: row.description ?? '',
+    type: row.type,
+    status: row.status,
+    price: row.price,
+    salePrice: row.sale_price ?? undefined,
+    cost: row.cost ?? undefined,
+    inventory: row.inventory,
+    sku: row.sku ?? undefined,
+    images: row.images,
+    tags: row.tags,
+    featured: row.featured,
+    salesCount: row.sales_count,
+    revenue: row.revenue,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  }
+}
 
 const mockOrders: Order[] = [
   {
@@ -279,12 +227,13 @@ function getOrderStatusBadge(status: Order['status']) {
 
 interface StoreListProps {
   studioSlug: string
+  initialProducts: ProductRow[]
   isLoading?: boolean
 }
 
-export function StoreList({ studioSlug, isLoading = false }: StoreListProps) {
+export function StoreList({ studioSlug, initialProducts, isLoading = false }: StoreListProps) {
   const [activeTab, setActiveTab] = React.useState<'products' | 'orders'>('products')
-  const [products, setProducts] = React.useState<Product[]>(mockProducts)
+  const [products, setProducts] = React.useState<Product[]>(() => initialProducts.map(mapProductRow))
   const [orders, setOrders] = React.useState<Order[]>(mockOrders)
   const [searchQuery, setSearchQuery] = React.useState('')
   const [statusFilter, setStatusFilter] = React.useState<string>('all')
@@ -364,7 +313,12 @@ export function StoreList({ studioSlug, isLoading = false }: StoreListProps) {
     setDeleteProductConfirm(id)
   }
 
-  const confirmProductDelete = (id: string) => {
+  const confirmProductDelete = async (id: string) => {
+    const result = await deleteProduct(id, studioSlug)
+    if (result?.error) {
+      toast.error(result.error)
+      return
+    }
     setProducts(prev => prev.filter(p => p.id !== id))
     setSelectedItems(prev => prev.filter(g => g !== id))
     setDeleteProductConfirm(null)
@@ -380,10 +334,27 @@ export function StoreList({ studioSlug, isLoading = false }: StoreListProps) {
     setDeleteOrderConfirm(null)
   }
 
-  const confirmBulkDelete = () => {
-    setProducts(prev => prev.filter(p => !selectedItems.includes(p.id)))
+  const confirmBulkDelete = async () => {
+    const ids = selectedItems
+    const results = await Promise.all(ids.map(id => deleteProduct(id, studioSlug)))
+    const failed = results.some(r => r?.error)
+    if (failed) {
+      toast.error('Some products could not be deleted')
+    }
+    setProducts(prev => prev.filter(p => !ids.includes(p.id)))
     setSelectedItems([])
     setBulkDeleteConfirm(false)
+  }
+
+  const handleBulkArchive = async () => {
+    const ids = selectedItems
+    const result = await archiveProducts(ids, studioSlug)
+    if (result?.error) {
+      toast.error(result.error)
+      return
+    }
+    setProducts(prev => prev.map(p => ids.includes(p.id) ? { ...p, status: 'archived' as const } : p))
+    setSelectedItems([])
   }
 
   const toggleSelect = (id: string) => {
@@ -563,10 +534,7 @@ export function StoreList({ studioSlug, isLoading = false }: StoreListProps) {
                       {selectedItems.length} product{selectedItems.length !== 1 ? 's' : ''} selected
                     </span>
                     <div className="flex items-center gap-2">
-                      <Button variant="outline" size="sm" onClick={() => {
-                        setProducts(prev => prev.map(p => selectedItems.includes(p.id) ? { ...p, status: 'archived' as const } : p))
-                        setSelectedItems([])
-                      }}>
+                      <Button variant="outline" size="sm" onClick={handleBulkArchive}>
                         Archive
                       </Button>
                       <Button variant="destructive" size="sm" onClick={() => setBulkDeleteConfirm(true)}>
