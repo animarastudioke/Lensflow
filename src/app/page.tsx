@@ -83,12 +83,12 @@ const integrations = [
 ]
 
 const galleryShowcase = [
-  { src: 'https://images.unsplash.com/photo-1721401870202-8e2264ecced2', alt: 'Couple standing together outdoors', span: 'row-span-2' },
-  { src: 'https://images.unsplash.com/photo-1735052712464-9d24b69be5f5', alt: 'Bride and groom on a woodland path', span: '' },
-  { src: 'https://images.unsplash.com/photo-1611106211090-8f3c79eb8552', alt: 'Woman in a green and gold sari', span: '' },
-  { src: 'https://images.unsplash.com/photo-1614566957872-9548817a3298', alt: 'Grayscale portrait of a bride', span: 'row-span-2' },
-  { src: 'https://images.unsplash.com/photo-1505428215601-90f0007b9e83', alt: 'Grayscale photo of a couple embracing near a hill', span: '' },
-  { src: 'https://images.unsplash.com/photo-1735052712489-f45220126a0c', alt: 'Bride and groom walking down a path', span: '' },
+  { src: 'https://images.unsplash.com/photo-1721401870202-8e2264ecced2', alt: 'Couple standing together outdoors' },
+  { src: 'https://images.unsplash.com/photo-1735052712464-9d24b69be5f5', alt: 'Bride and groom on a woodland path' },
+  { src: 'https://images.unsplash.com/photo-1611106211090-8f3c79eb8552', alt: 'Woman in a green and gold sari' },
+  { src: 'https://images.unsplash.com/photo-1614566957872-9548817a3298', alt: 'Grayscale portrait of a bride' },
+  { src: 'https://images.unsplash.com/photo-1735052712489-f45220126a0c', alt: 'Bride and groom walking down a path' },
+  { src: 'https://images.unsplash.com/photo-1571753217087-980e556e16ea', alt: 'Bride and groom about to kiss' },
 ]
 
 // The marketing homepage always presents the same light, editorial look,
@@ -96,7 +96,7 @@ const galleryShowcase = [
 // workspace setting, not a brand choice) - so every design token is pinned
 // to its light value here rather than left to inherit the global theme.
 const LIGHT_THEME_VARS = {
-  '--background': '210 10% 97%',
+  '--background': '0 0% 100%',
   '--foreground': '220 20% 11%',
   '--card': '0 0% 100%',
   '--card-foreground': '220 20% 11%',
@@ -144,32 +144,32 @@ export default function HomePage() {
         </div>
       </header>
 
-      {/* Hero: dark band, full-bleed photo, light everything below */}
-      <section className="relative overflow-hidden bg-foreground text-background">
-        <div className="container-wide grid items-center gap-12 py-20 sm:py-24 lg:grid-cols-2 lg:py-28">
-          <div>
+      {/* Hero: pure typography, no image, maximum whitespace */}
+      <section className="py-24 sm:py-32 lg:py-40">
+        <div className="container-wide">
+          <div className="mx-auto max-w-2xl text-center">
             <span className="label-caption text-primary">LensFlow Photographer Platform</span>
-            <h1 className="mt-4 text-display-xl font-display font-semibold tracking-tight text-balance">
+            <h1 className="mt-4 text-display-xl font-display font-semibold tracking-tight text-foreground text-balance">
               Built for photographers.
               <br />
               <em className="font-display italic">Made to help you grow.</em>
             </h1>
-            <p className="mt-6 max-w-md text-body-lg text-background/70">
+            <p className="mx-auto mt-6 max-w-lg text-body-lg text-muted-foreground">
               Deliver stunning galleries, manage bookings, sign contracts, accept payments, and grow your
               business — all from one beautifully simple platform.
             </p>
-            <div className="mt-10 flex flex-col sm:flex-row items-start sm:items-center gap-4">
+            <div className="mt-10 flex flex-col sm:flex-row items-center justify-center gap-4">
               <Button size="lg" className="gap-2" asChild>
                 <Link href="/auth/signup">
                   Get started free
                   <ArrowRight className="h-4 w-4" />
                 </Link>
               </Button>
-              <Button size="lg" variant="ghost" className="border border-white/30 bg-transparent text-white hover:bg-white/10 hover:text-white" asChild>
+              <Button size="lg" variant="outline" asChild>
                 <Link href="/demo">Watch demo</Link>
               </Button>
             </div>
-            <div className="mt-8 flex flex-wrap items-center gap-x-6 gap-y-2 text-sm text-background/60">
+            <div className="mt-8 flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-sm text-muted-foreground">
               <span className="flex items-center gap-1.5">
                 <CheckCircle className="h-4 w-4 text-success" />
                 No credit card required
@@ -180,20 +180,11 @@ export default function HomePage() {
               </span>
             </div>
           </div>
-          <div className="relative aspect-[4/5] overflow-hidden rounded-2xl shadow-2xl lg:aspect-[3/4]">
-            <Image
-              src="https://images.unsplash.com/photo-1499417267106-45cebb7187c9?w=1200&q=80&auto=format&fit=crop"
-              alt="Photographer silhouetted with a tripod at dusk"
-              fill
-              className="object-cover"
-              priority
-            />
-          </div>
         </div>
       </section>
 
-      {/* Gallery showcase: real masonry collage */}
-      <section className="page-section">
+      {/* Gallery showcase: real photos, plain white background */}
+      <section className="page-section border-t border-border">
         <div className="container-wide">
           <div className="mx-auto max-w-2xl text-center mb-14">
             <span className="label-caption text-primary">Client Galleries</span>
@@ -205,18 +196,18 @@ export default function HomePage() {
             </p>
           </div>
 
-          <div className="grid grid-cols-2 md:grid-cols-3 auto-rows-[140px] sm:auto-rows-[180px] gap-3">
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-6">
             {galleryShowcase.map((item) => (
-              <div key={item.src} className={`relative overflow-hidden rounded-xl ${item.span}`}>
-                <Image src={`${item.src}?w=900&q=80&auto=format&fit=crop`} alt={item.alt} fill className="object-cover" />
+              <div key={item.src} className="relative aspect-[3/4] overflow-hidden">
+                <Image src={`${item.src}?w=800&q=80&auto=format&fit=crop`} alt={item.alt} fill className="object-cover" />
               </div>
             ))}
           </div>
         </div>
       </section>
 
-      {/* Stats: editorial split */}
-      <section className="page-section bg-muted/40">
+      {/* Stats: plain, bordered, no fill */}
+      <section className="page-section border-t border-border">
         <div className="container-wide grid gap-12 lg:grid-cols-2 lg:items-center">
           <div>
             <span className="label-caption text-primary">Trusted worldwide</span>
@@ -240,8 +231,8 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* Product suite: icon + card grid */}
-      <section className="page-section">
+      {/* Product suite: plain icon, no badge fill */}
+      <section className="page-section border-t border-border">
         <div className="container-wide">
           <div className="mx-auto max-w-2xl text-center mb-14">
             <span className="label-caption text-primary">All-in-one platform</span>
@@ -253,13 +244,11 @@ export default function HomePage() {
             </p>
           </div>
 
-          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="grid gap-x-6 gap-y-10 sm:grid-cols-2 lg:grid-cols-3">
             {productSuite.map((product) => (
-              <div key={product.title} className="rounded-2xl border border-border p-6">
-                <div className="flex h-11 w-11 items-center justify-center rounded-full bg-primary/10 text-primary">
-                  <product.icon className="h-5 w-5" strokeWidth={1.75} />
-                </div>
-                <h3 className="mt-5 text-heading-xl font-display text-foreground">{product.title}</h3>
+              <div key={product.title}>
+                <product.icon className="h-6 w-6 text-primary" strokeWidth={1.5} />
+                <h3 className="mt-4 text-heading-xl font-display text-foreground">{product.title}</h3>
                 <p className="mt-2 text-body text-muted-foreground">{product.description}</p>
               </div>
             ))}
@@ -268,7 +257,7 @@ export default function HomePage() {
       </section>
 
       {/* Trust indicators */}
-      <section className="py-10 border-y border-border">
+      <section className="py-10 border-t border-border">
         <div className="container-wide">
           <div className="flex flex-wrap items-center justify-center gap-x-10 gap-y-4">
             {integrations.map((integration) => (
@@ -281,8 +270,8 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* Testimonial: bold pull-quote */}
-      <section className="page-section bg-muted/40">
+      {/* Testimonial: bold pull-quote, plain background */}
+      <section className="page-section border-t border-border">
         <div className="container-wide">
           <div className="mx-auto max-w-3xl text-center">
             <span className="label-caption text-primary">Trusted by photographers</span>
@@ -295,7 +284,7 @@ export default function HomePage() {
 
           <div className="mt-16 grid gap-8 md:grid-cols-2 max-w-3xl mx-auto">
             {testimonials.map((testimonial) => (
-              <figure key={testimonial.author} className="border-t border-foreground/20 pt-6">
+              <figure key={testimonial.author} className="border-t border-border pt-6">
                 <blockquote className="text-body text-foreground">
                   &ldquo;{testimonial.quote}&rdquo;
                 </blockquote>
@@ -308,22 +297,24 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* CTA: full-bleed committed color plate */}
-      <section className="bg-primary text-primary-foreground">
-        <div className="container-wide py-16 lg:py-24">
-          <div className="max-w-2xl">
-            <h2 className="text-display-md font-display font-semibold">
+      {/* CTA: plain background, accent lives only in the button */}
+      <section className="page-section border-t border-border">
+        <div className="container-wide">
+          <div className="mx-auto max-w-xl text-center">
+            <h2 className="text-display-md font-display font-semibold tracking-tight text-foreground">
               Ready to transform your photography business?
             </h2>
-            <p className="mt-4 text-body-lg text-primary-foreground/80">
+            <p className="mt-4 text-body-lg text-muted-foreground">
               Start your 14-day free trial today. No credit card required. Cancel anytime.
             </p>
-            <Button size="lg" variant="secondary" className="mt-8 gap-2" asChild>
-              <Link href="/auth/signup">
-                Get started free
-                <ArrowRight className="h-4 w-4" />
-              </Link>
-            </Button>
+            <div className="flex justify-center">
+              <Button size="lg" className="mt-8 gap-2" asChild>
+                <Link href="/auth/signup">
+                  Get started free
+                  <ArrowRight className="h-4 w-4" />
+                </Link>
+              </Button>
+            </div>
           </div>
         </div>
       </section>
