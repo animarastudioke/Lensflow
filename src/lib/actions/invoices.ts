@@ -75,6 +75,152 @@ export async function getInvoices(studioSlug: string, options?: {
   return { invoices: (invoices as unknown as InvoiceRow[]) || [], total: count || 0 }
 }
 
+export async function getInvoice(invoiceId: string, studioSlug: string): Promise<InvoiceRow | null> {
+  const supabase = await createClient()
+  const studioId = await getStudioId(studioSlug)
+  if (!studioId) return null
+
+  const { data: invoice } = await supabase
+    .from('invoices')
+    .select('*, client:clients(name, email), items:invoice_items(*)')
+    .eq('id', invoiceId)
+    .eq('studio_id', studioId)
+    .single()
+
+  return invoice as unknown as InvoiceRow | null
+}
+
+async function requireMembership(): Promise<{ error: string } | { studioId: string }> {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'Unauthorized' }
+
+  const { data: membership } = await supabase
+    .from('studio_members')
+    .select('studio_id')
+    .eq('user_id', user.id)
+    .eq('status', 'active')
+    .single()
+
+  if (!membership) return { error: 'No active studio membership' }
+
+  return { studioId: membership.studio_id }
+}
+
+export async function updateInvoiceStatus(
+  invoiceId: string,
+  status: InvoiceStatus,
+  studioSlug: string
+): Promise<{ error: string } | undefined> {
+  const membership = await requireMembership()
+  if ('error' in membership) return membership
+
+  const supabase = await createClient()
+
+  const update: Record<string, unknown> = { status, updated_at: new Date().toISOString() }
+  if (status === 'paid') {
+    const { data: invoice } = await supabase
+      .from('invoices')
+      .select('total')
+      .eq('id', invoiceId)
+      .eq('studio_id', membership.studioId)
+      .single()
+    if (invoice) {
+      update['amount_paid'] = invoice.total
+    }
+    update['paid_at'] = new Date().toISOString()
+  }
+
+  const { error } = await supabase
+    .from('invoices')
+    .update(update)
+    .eq('id', invoiceId)
+    .eq('studio_id', membership.studioId)
+
+  if (error) {
+    console.error('Update invoice status error:', error)
+    return { error: 'Failed to update invoice' }
+  }
+
+  revalidatePath(`/dashboard/${studioSlug}/invoices`)
+}
+
+export async function bulkUpdateInvoiceStatus(
+  invoiceIds: string[],
+  status: InvoiceStatus,
+  studioSlug: string
+): Promise<{ error: string } | undefined> {
+  const membership = await requireMembership()
+  if ('error' in membership) return membership
+
+  const supabase = await createClient()
+
+  const update: Record<string, unknown> = { status, updated_at: new Date().toISOString() }
+  if (status === 'paid') {
+    update['paid_at'] = new Date().toISOString()
+  }
+
+  const { error } = await supabase
+    .from('invoices')
+    .update(update)
+    .eq('studio_id', membership.studioId)
+    .in('id', invoiceIds)
+
+  if (error) {
+    console.error('Bulk update invoice status error:', error)
+    return { error: 'Failed to update invoices' }
+  }
+
+  if (status === 'paid') {
+    for (const id of invoiceIds) {
+      const { data: invoice } = await supabase.from('invoices').select('total').eq('id', id).single()
+      if (invoice) {
+        await supabase.from('invoices').update({ amount_paid: invoice.total }).eq('id', id)
+      }
+    }
+  }
+
+  revalidatePath(`/dashboard/${studioSlug}/invoices`)
+}
+
+export async function deleteInvoice(invoiceId: string, studioSlug: string): Promise<{ error: string } | undefined> {
+  const membership = await requireMembership()
+  if ('error' in membership) return membership
+
+  const supabase = await createClient()
+  const { error } = await supabase
+    .from('invoices')
+    .delete()
+    .eq('id', invoiceId)
+    .eq('studio_id', membership.studioId)
+
+  if (error) {
+    console.error('Delete invoice error:', error)
+    return { error: 'Failed to delete invoice' }
+  }
+
+  revalidatePath(`/dashboard/${studioSlug}/invoices`)
+}
+
+export async function bulkDeleteInvoices(invoiceIds: string[], studioSlug: string): Promise<{ error: string } | undefined> {
+  const membership = await requireMembership()
+  if ('error' in membership) return membership
+
+  const supabase = await createClient()
+  const { error } = await supabase
+    .from('invoices')
+    .delete()
+    .eq('studio_id', membership.studioId)
+    .in('id', invoiceIds)
+
+  if (error) {
+    console.error('Bulk delete invoices error:', error)
+    return { error: 'Failed to delete invoices' }
+  }
+
+  revalidatePath(`/dashboard/${studioSlug}/invoices`)
+}
+
 const invoiceItemSchema = z.object({
   description: z.string().min(1, 'Item description is required').max(200),
   quantity: z.number().min(0.01),
@@ -189,4 +335,105 @@ export async function createInvoice(formData: FormData) {
 
   revalidatePath(`/dashboard/${studioSlug}/invoices`)
   redirect(`/dashboard/${studioSlug}/invoices`)
+}
+
+const invoiceUpdateSchema = z.object({
+  client_id: z.string().uuid().optional(),
+  status: z.enum(['draft', 'sent', 'viewed', 'paid', 'partial', 'overdue', 'cancelled', 'refunded']),
+  issue_date: z.string().optional(),
+  due_date: z.string().optional(),
+  tax: z.number().min(0).default(0),
+  discount: z.number().min(0).default(0),
+  notes: z.string().max(2000).optional(),
+  items: z.array(invoiceItemSchema).min(1, 'Add at least one line item'),
+})
+
+export async function updateInvoice(formData: FormData) {
+  const membership = await requireMembership()
+  if ('error' in membership) throw new Error(membership.error)
+
+  const id = formData.get('id') as string
+  const studioSlug = formData.get('studio_slug') as string
+
+  const supabase = await createClient()
+
+  const { data: existing } = await supabase
+    .from('invoices')
+    .select('id')
+    .eq('id', id)
+    .eq('studio_id', membership.studioId)
+    .single()
+
+  if (!existing) {
+    throw new Error('Invoice not found')
+  }
+
+  let items: unknown
+  try {
+    items = JSON.parse((formData.get('items_json') as string) || '[]')
+  } catch {
+    throw new Error('Invalid line items')
+  }
+
+  const taxRaw = formData.get('tax')
+  const discountRaw = formData.get('discount')
+
+  const validated = invoiceUpdateSchema.parse({
+    client_id: formData.get('client_id') || undefined,
+    status: formData.get('status'),
+    issue_date: formData.get('issue_date') || undefined,
+    due_date: formData.get('due_date') || undefined,
+    tax: taxRaw ? Number(taxRaw) : 0,
+    discount: discountRaw ? Number(discountRaw) : 0,
+    notes: formData.get('notes') || undefined,
+    items,
+  })
+
+  const subtotal = validated.items.reduce((sum, item) => sum + item.quantity * item.unit_price, 0)
+  const total = Math.max(subtotal + validated.tax - validated.discount, 0)
+
+  const { error } = await supabase
+    .from('invoices')
+    .update({
+      client_id: validated.client_id ?? null,
+      status: validated.status,
+      issue_date: validated.issue_date || undefined,
+      due_date: validated.due_date || null,
+      subtotal,
+      tax: validated.tax,
+      discount: validated.discount,
+      total,
+      notes: validated.notes ?? null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', id)
+    .eq('studio_id', membership.studioId)
+
+  if (error) {
+    console.error('Update invoice error:', error)
+    throw new Error('Failed to update invoice')
+  }
+
+  await supabase.from('invoice_items').delete().eq('invoice_id', id)
+
+  const { error: itemsError } = await supabase
+    .from('invoice_items')
+    .insert(
+      validated.items.map(item => ({
+        invoice_id: id,
+        description: item.description,
+        quantity: item.quantity,
+        unit_price: item.unit_price,
+        total: item.quantity * item.unit_price,
+      }))
+    )
+
+  if (itemsError) {
+    console.error('Update invoice items error:', itemsError)
+    throw new Error('Failed to save invoice line items')
+  }
+
+  revalidatePath(`/dashboard/${studioSlug}/invoices`)
+  revalidatePath(`/dashboard/${studioSlug}/invoices/${id}`)
+  redirect(`/dashboard/${studioSlug}/invoices/${id}`)
 }

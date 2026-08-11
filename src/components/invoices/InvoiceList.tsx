@@ -3,7 +3,15 @@
 import * as React from 'react'
 import Link from 'next/link'
 import { format } from 'date-fns'
+import { toast } from 'sonner'
 import { formatCurrency } from '@/lib/currencies'
+import {
+  deleteInvoice,
+  bulkDeleteInvoices,
+  updateInvoiceStatus,
+  bulkUpdateInvoiceStatus,
+  type InvoiceStatus,
+} from '@/lib/actions/invoices'
 import {
   Card,
   CardContent,
@@ -35,7 +43,6 @@ import {
   MoreVertical,
   Trash2,
   Edit,
-  Download,
   Mail,
   AlertCircle,
   Clock,
@@ -258,26 +265,57 @@ export function InvoiceList({ studioSlug, initialInvoices, isLoading = false, cu
     setDeleteConfirm(id)
   }
 
-  const confirmDelete = (id: string) => {
-    setInvoices(prev => prev.filter(i => i.id !== id))
-    setSelectedInvoices(prev => prev.filter(g => g !== id))
+  const confirmDelete = async (id: string) => {
+    const result = await deleteInvoice(id, studioSlug)
+    if (result?.error) {
+      toast.error(result.error)
+    } else {
+      setInvoices(prev => prev.filter(i => i.id !== id))
+      setSelectedInvoices(prev => prev.filter(g => g !== id))
+      toast.success('Invoice deleted')
+    }
     setDeleteConfirm(null)
   }
 
-  const confirmBulkDelete = () => {
-    setInvoices(prev => prev.filter(i => !selectedInvoices.includes(i.id)))
+  const confirmBulkDelete = async () => {
+    const result = await bulkDeleteInvoices(selectedInvoices, studioSlug)
+    if (result?.error) {
+      toast.error(result.error)
+    } else {
+      setInvoices(prev => prev.filter(i => !selectedInvoices.includes(i.id)))
+      toast.success('Invoices deleted')
+    }
     setSelectedInvoices([])
     setBulkDeleteConfirm(false)
   }
 
-  const handleBulkAction = (action: 'delete' | 'send' | 'mark-paid') => {
+  const changeStatus = async (id: string, status: InvoiceStatus) => {
+    const result = await updateInvoiceStatus(id, status, studioSlug)
+    if (result?.error) {
+      toast.error(result.error)
+      return
+    }
+    setInvoices(prev => prev.map(i => i.id === id
+      ? status === 'paid'
+        ? { ...i, status, amountPaid: i.total, balanceDue: 0, paidDate: new Date().toISOString() }
+        : { ...i, status }
+      : i
+    ))
+  }
+
+  const handleBulkAction = async (action: 'delete' | 'send' | 'mark-paid') => {
     if (selectedInvoices.length === 0) return
 
     switch (action) {
       case 'delete':
         setBulkDeleteConfirm(true)
         break
-      case 'send':
+      case 'send': {
+        const result = await bulkUpdateInvoiceStatus(selectedInvoices, 'sent', studioSlug)
+        if (result?.error) {
+          toast.error(result.error)
+          break
+        }
         setInvoices(prev =>
           prev.map(i =>
             selectedInvoices.includes(i.id) && i.status === 'draft'
@@ -287,7 +325,13 @@ export function InvoiceList({ studioSlug, initialInvoices, isLoading = false, cu
         )
         setSelectedInvoices([])
         break
-      case 'mark-paid':
+      }
+      case 'mark-paid': {
+        const result = await bulkUpdateInvoiceStatus(selectedInvoices, 'paid', studioSlug)
+        if (result?.error) {
+          toast.error(result.error)
+          break
+        }
         setInvoices(prev =>
           prev.map(i =>
             selectedInvoices.includes(i.id)
@@ -297,6 +341,7 @@ export function InvoiceList({ studioSlug, initialInvoices, isLoading = false, cu
         )
         setSelectedInvoices([])
         break
+      }
     }
   }
 
@@ -587,23 +632,10 @@ export function InvoiceList({ studioSlug, initialInvoices, isLoading = false, cu
                                 Edit
                               </Link>
                             </DropdownMenuItem>
-                            <DropdownMenuSeparator />
-                            <DropdownMenuItem asChild>
-                              <Link href={`/dashboard/${studioSlug}/invoices/${invoice.id}/preview`}>
-                                <Eye className="mr-2 h-4 w-4" />
-                                Preview
-                              </Link>
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => {}}>
-                              <Download className="mr-2 h-4 w-4" />
-                              Download PDF
-                            </DropdownMenuItem>
                             {invoice.status === 'draft' && (
                               <>
                                 <DropdownMenuSeparator />
-                                <DropdownMenuItem onClick={() => {
-                                  setInvoices(prev => prev.map(i => i.id === invoice.id ? { ...i, status: 'sent' as const } : i))
-                                }}>
+                                <DropdownMenuItem onClick={() => changeStatus(invoice.id, 'sent')}>
                                   <Mail className="mr-2 h-4 w-4" />
                                   Send Invoice
                                 </DropdownMenuItem>
@@ -612,22 +644,16 @@ export function InvoiceList({ studioSlug, initialInvoices, isLoading = false, cu
                             {(invoice.status === 'sent' || invoice.status === 'viewed' || invoice.status === 'partial' || invoice.status === 'overdue') && (
                               <>
                                 <DropdownMenuSeparator />
-                                <DropdownMenuItem onClick={() => {
-                                  setInvoices(prev => prev.map(i => i.id === invoice.id ? { ...i, status: 'paid' as const, amountPaid: i.total, balanceDue: 0, paidDate: new Date().toISOString() } : i))
-                                }}>
+                                <DropdownMenuItem onClick={() => changeStatus(invoice.id, 'paid')}>
                                   <CheckCircle className="mr-2 h-4 w-4 text-success" />
                                   Mark as Paid
-                                </DropdownMenuItem>
-                                <DropdownMenuItem onClick={() => {}}>
-                                  <Mail className="mr-2 h-4 w-4" />
-                                  Send Reminder
                                 </DropdownMenuItem>
                               </>
                             )}
                             {invoice.status === 'paid' && (
                               <>
                                 <DropdownMenuSeparator />
-                                <DropdownMenuItem onClick={() => {}}>
+                                <DropdownMenuItem onClick={() => changeStatus(invoice.id, 'refunded')}>
                                   <Banknote className="mr-2 h-4 w-4" />
                                   Record Refund
                                 </DropdownMenuItem>
@@ -722,9 +748,7 @@ export function InvoiceList({ studioSlug, initialInvoices, isLoading = false, cu
                         </Link>
                       </Button>
                       {(invoice.status === 'sent' || invoice.status === 'viewed' || invoice.status === 'partial' || invoice.status === 'overdue') && (
-                        <Button variant="default" size="sm" onClick={() => {
-                          setInvoices(prev => prev.map(i => i.id === invoice.id ? { ...i, status: 'paid' as const, amountPaid: i.total, balanceDue: 0, paidDate: new Date().toISOString() } : i))
-                        }}>
+                        <Button variant="default" size="sm" onClick={() => changeStatus(invoice.id, 'paid')}>
                           <CheckCircle className="h-3.5 w-3.5 mr-1.5" />
                           Mark Paid
                         </Button>
