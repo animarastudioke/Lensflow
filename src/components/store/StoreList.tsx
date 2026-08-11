@@ -63,6 +63,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { toast } from 'sonner'
 import { deleteProduct, archiveProducts, type ProductRow } from '@/lib/actions/products'
+import { deleteOrder, updateOrderStatus, type OrderRow } from '@/lib/actions/orders'
 
 interface Product {
   id: string
@@ -134,74 +135,35 @@ function mapProductRow(row: ProductRow): Product {
   }
 }
 
-const mockOrders: Order[] = [
-  {
-    id: '1',
-    orderNumber: 'ORD-001',
-    clientId: '1',
-    clientName: 'Sarah Chen',
-    clientEmail: 'sarah.chen@email.com',
-    status: 'delivered',
-    items: [
-      { productId: '2', productName: 'Premium Wedding Album 10x10', quantity: 1, price: 399, total: 399 },
-      { productId: '3', productName: '8x10 Fine Art Print', quantity: 2, price: 45, total: 90 },
-    ],
-    subtotal: 489,
-    tax: 39.12,
-    shipping: 15,
-    discount: 0,
-    total: 543.12,
-    paymentStatus: 'paid',
-    paymentMethod: 'Credit Card',
-    shippingAddress: '123 Main St, San Francisco, CA 94102',
-    trackingNumber: '1Z999AA10123456784',
-    notes: 'Gift wrapping requested',
-    createdAt: '2024-01-15T10:00:00Z',
-    updatedAt: '2024-01-22T14:30:00Z',
-  },
-  {
-    id: '2',
-    orderNumber: 'ORD-002',
-    clientId: '2',
-    clientName: 'Marcus Johnson',
-    clientEmail: 'marcus.j@email.com',
-    status: 'shipped',
-    items: [
-      { productId: '1', productName: 'Digital Gallery - 1 Year', quantity: 1, price: 99, total: 99 },
-    ],
-    subtotal: 99,
-    tax: 0,
-    shipping: 0,
-    discount: 0,
-    total: 99,
-    paymentStatus: 'paid',
-    paymentMethod: 'PayPal',
-    trackingNumber: '1Z999AA10123456785',
-    createdAt: '2024-01-18T15:00:00Z',
-    updatedAt: '2024-01-20T09:00:00Z',
-  },
-  {
-    id: '3',
-    orderNumber: 'ORD-003',
-    clientId: '3',
-    clientName: 'Emily Rodriguez',
-    clientEmail: 'emily.r@email.com',
-    status: 'processing',
-    items: [
-      { productId: '4', productName: 'Wedding Photography Package', quantity: 1, price: 4500, total: 4500 },
-    ],
-    subtotal: 4500,
-    tax: 0,
-    shipping: 0,
-    discount: 450,
-    total: 4050,
-    paymentStatus: 'partial',
-    paymentMethod: 'Bank Transfer',
-    notes: 'Deposit paid, balance due before wedding',
-    createdAt: '2024-01-20T11:00:00Z',
-    updatedAt: '2024-01-20T11:00:00Z',
-  },
-]
+function mapOrderRow(row: OrderRow): Order {
+  return {
+    id: row.id,
+    orderNumber: row.order_number,
+    clientId: row.client_id ?? '',
+    clientName: row.client?.name ?? 'No client',
+    clientEmail: row.client?.email ?? '',
+    status: row.status,
+    items: row.items.map((item) => ({
+      productId: item.product_id ?? '',
+      productName: item.product_name,
+      quantity: item.quantity,
+      price: item.price,
+      total: item.total,
+    })),
+    subtotal: row.subtotal,
+    tax: row.tax,
+    shipping: row.shipping,
+    discount: row.discount,
+    total: row.total,
+    paymentStatus: row.payment_status,
+    paymentMethod: row.payment_method ?? undefined,
+    shippingAddress: row.shipping_address ?? undefined,
+    trackingNumber: row.tracking_number ?? undefined,
+    notes: row.notes ?? undefined,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  }
+}
 
 function getProductStatusBadge(status: Product['status']) {
   const statusConfig = {
@@ -229,14 +191,15 @@ function getOrderStatusBadge(status: Order['status']) {
 interface StoreListProps {
   studioSlug: string
   initialProducts: ProductRow[]
+  initialOrders: OrderRow[]
   isLoading?: boolean
   currency?: string
 }
 
-export function StoreList({ studioSlug, initialProducts, isLoading = false, currency = 'USD' }: StoreListProps) {
+export function StoreList({ studioSlug, initialProducts, initialOrders, isLoading = false, currency = 'USD' }: StoreListProps) {
   const [activeTab, setActiveTab] = React.useState<'products' | 'orders'>('products')
   const [products, setProducts] = React.useState<Product[]>(() => initialProducts.map(mapProductRow))
-  const [orders, setOrders] = React.useState<Order[]>(mockOrders)
+  const [orders, setOrders] = React.useState<Order[]>(() => initialOrders.map(mapOrderRow))
   const [searchQuery, setSearchQuery] = React.useState('')
   const [statusFilter, setStatusFilter] = React.useState<string>('all')
   const [typeFilter, setTypeFilter] = React.useState<string>('all')
@@ -330,10 +293,24 @@ export function StoreList({ studioSlug, initialProducts, isLoading = false, curr
     setDeleteOrderConfirm(id)
   }
 
-  const confirmOrderDelete = (id: string) => {
+  const confirmOrderDelete = async (id: string) => {
+    const result = await deleteOrder(id, studioSlug)
+    if (result?.error) {
+      toast.error(result.error)
+      return
+    }
     setOrders(prev => prev.filter(o => o.id !== id))
     setSelectedItems(prev => prev.filter(g => g !== id))
     setDeleteOrderConfirm(null)
+  }
+
+  const handleOrderStatusChange = async (orderId: string, status: Order['status']) => {
+    const result = await updateOrderStatus(orderId, studioSlug, status)
+    if (result?.error) {
+      toast.error(result.error)
+      return
+    }
+    setOrders(prev => prev.map(o => o.id === orderId ? { ...o, status } : o))
   }
 
   const confirmBulkDelete = async () => {
@@ -859,17 +836,13 @@ export function StoreList({ studioSlug, initialProducts, isLoading = false, curr
                                 </DropdownMenuItem>
                                 <DropdownMenuSeparator />
                                 {order.status === 'processing' && (
-                                  <DropdownMenuItem onClick={() => {
-                                    setOrders(prev => prev.map(o => o.id === order.id ? { ...o, status: 'shipped' as const } : o))
-                                  }}>
+                                  <DropdownMenuItem onClick={() => handleOrderStatusChange(order.id, 'shipped')}>
                                     <Truck className="mr-2 h-4 w-4" />
                                     Mark Shipped
                                   </DropdownMenuItem>
                                 )}
                                 {order.status === 'shipped' && (
-                                  <DropdownMenuItem onClick={() => {
-                                    setOrders(prev => prev.map(o => o.id === order.id ? { ...o, status: 'delivered' as const } : o))
-                                  }}>
+                                  <DropdownMenuItem onClick={() => handleOrderStatusChange(order.id, 'delivered')}>
                                     <CheckCircle className="mr-2 h-4 w-4 text-success" />
                                     Mark Delivered
                                   </DropdownMenuItem>

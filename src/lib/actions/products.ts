@@ -39,6 +39,21 @@ async function getStudioId(studioSlug: string): Promise<string | null> {
   return studio?.id ?? null
 }
 
+export async function getProduct(productId: string, studioSlug: string): Promise<ProductRow | null> {
+  const supabase = await createClient()
+  const studioId = await getStudioId(studioSlug)
+  if (!studioId) return null
+
+  const { data: product } = await supabase
+    .from('products')
+    .select('*')
+    .eq('id', productId)
+    .eq('studio_id', studioId)
+    .single()
+
+  return product
+}
+
 export async function getProducts(studioSlug: string): Promise<{ products: ProductRow[]; total: number }> {
   const supabase = await createClient()
   const studioId = await getStudioId(studioSlug)
@@ -135,6 +150,100 @@ export async function createProduct(formData: FormData) {
 
   revalidatePath(`/dashboard/${studioSlug}/store`)
   redirect(`/dashboard/${studioSlug}/store`)
+}
+
+const productUpdateSchema = z.object({
+  name: z.string().min(1, 'Product name is required').max(200),
+  description: z.string().max(2000).optional(),
+  type: z.enum(['digital', 'print', 'album', 'package', 'service']),
+  status: z.enum(['active', 'draft', 'archived']),
+  price: z.number().min(0),
+  sale_price: z.number().min(0).optional(),
+  cost: z.number().min(0).optional(),
+  inventory: z.number().int().min(0).optional(),
+  sku: z.string().max(100).optional(),
+  featured: z.boolean(),
+})
+
+export async function updateProduct(formData: FormData) {
+  const supabase = await createClient()
+
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) {
+    throw new Error('Unauthorized')
+  }
+
+  const id = formData.get('id') as string
+  const studioSlug = formData.get('studio_slug') as string
+
+  const { data: membership } = await supabase
+    .from('studio_members')
+    .select('studio_id')
+    .eq('user_id', user.id)
+    .eq('status', 'active')
+    .single()
+
+  if (!membership) {
+    throw new Error('No active studio membership')
+  }
+
+  const { data: existing } = await supabase
+    .from('products')
+    .select('id')
+    .eq('id', id)
+    .eq('studio_id', membership.studio_id)
+    .single()
+
+  if (!existing) {
+    throw new Error('Product not found')
+  }
+
+  const priceRaw = formData.get('price')
+  const salePriceRaw = formData.get('sale_price')
+  const costRaw = formData.get('cost')
+  const inventoryRaw = formData.get('inventory')
+
+  const rawData = {
+    name: formData.get('name'),
+    description: formData.get('description') || undefined,
+    type: formData.get('type'),
+    status: formData.get('status'),
+    price: priceRaw ? Number(priceRaw) : 0,
+    sale_price: salePriceRaw ? Number(salePriceRaw) : undefined,
+    cost: costRaw ? Number(costRaw) : undefined,
+    inventory: inventoryRaw ? Number(inventoryRaw) : undefined,
+    sku: formData.get('sku') || undefined,
+    featured: formData.get('featured') === 'true',
+  }
+
+  const validated = productUpdateSchema.parse(rawData)
+
+  const { error } = await supabase
+    .from('products')
+    .update({
+      name: validated.name,
+      description: validated.description ?? null,
+      type: validated.type,
+      status: validated.status,
+      price: validated.price,
+      sale_price: validated.sale_price ?? null,
+      cost: validated.cost ?? null,
+      inventory: validated.inventory ?? null,
+      sku: validated.sku ?? null,
+      featured: validated.featured,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', id)
+    .eq('studio_id', membership.studio_id)
+
+  if (error) {
+    console.error('Update product error:', error)
+    throw new Error('Failed to update product')
+  }
+
+  revalidatePath(`/dashboard/${studioSlug}/store`)
+  revalidatePath(`/dashboard/${studioSlug}/store/products/${id}`)
+  redirect(`/dashboard/${studioSlug}/store/products/${id}`)
 }
 
 export async function deleteProduct(productId: string, studioSlug: string): Promise<{ error: string } | undefined> {
