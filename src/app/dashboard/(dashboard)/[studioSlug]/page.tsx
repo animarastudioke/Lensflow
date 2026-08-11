@@ -3,6 +3,8 @@ import Link from 'next/link'
 import { cn } from '@/lib/utils'
 import { getAuthUserServer } from '@/lib/auth'
 import { getUpcomingBookings } from '@/lib/actions/bookings'
+import { getDashboardStats } from '@/lib/actions/dashboard'
+import { getStudioForSettings } from '@/lib/actions/studios'
 import {
   Card,
   CardContent,
@@ -37,49 +39,23 @@ export async function generateMetadata({
   }
 }
 
-async function getDashboardData(studioSlug: string) {
-  // In production, this would fetch from database
-  // For now, return mock data structure
-  interface ActivityItem {
-    id: string
-    message: string
-    time: string
-    icon: any
-  }
+interface QuickAction {
+  title: string
+  description: string
+  icon: any
+  href: string
+  primary?: boolean
+}
 
-  interface QuickAction {
-    title: string
-    description: string
-    icon: any
-    href: string
-    primary?: boolean
-  }
-
-  interface StatItem {
-    label: string
-    value: string
-    change: string
-    icon: any
-    href: string
-  }
-
-  return {
-    stats: [
-      { label: 'Total Galleries', value: '0', change: '+12%', icon: Image, href: `/dashboard/${studioSlug}/galleries` },
-      { label: 'Active Clients', value: '0', change: '+5%', icon: Users, href: `/dashboard/${studioSlug}/clients` },
-      { label: 'Upcoming Bookings', value: '0', change: '+3', icon: Calendar, href: `/dashboard/${studioSlug}/bookings` },
-      { label: 'Monthly Revenue', value: '$0', change: '+18%', icon: DollarSign, href: `/dashboard/${studioSlug}/invoices` },
-    ] as StatItem[],
-    recentActivity: [] as ActivityItem[],
-    quickActions: [
-      { title: 'Create Gallery', description: 'Start a new client gallery', icon: Plus, href: `/dashboard/${studioSlug}/galleries/new`, primary: true },
-      { title: 'Add Client', description: 'Add a new client to your CRM', icon: Users, href: `/dashboard/${studioSlug}/clients/new` },
-      { title: 'Create Booking', description: 'Schedule a new session', icon: Calendar, href: `/dashboard/${studioSlug}/bookings/new` },
-      { title: 'Send Quote', description: 'Create and send a quote', icon: FileText, href: `/dashboard/${studioSlug}/quotes/new` },
-      { title: 'Create Invoice', description: 'Bill a client for services', icon: DollarSign, href: `/dashboard/${studioSlug}/invoices/new` },
-      { title: 'Add Product', description: 'Add items to your store', icon: Store, href: `/dashboard/${studioSlug}/store/products/new` },
-    ] as QuickAction[],
-  }
+function getQuickActions(studioSlug: string): QuickAction[] {
+  return [
+    { title: 'Create Gallery', description: 'Start a new client gallery', icon: Plus, href: `/dashboard/${studioSlug}/galleries/new`, primary: true },
+    { title: 'Add Client', description: 'Add a new client to your CRM', icon: Users, href: `/dashboard/${studioSlug}/clients/new` },
+    { title: 'Create Booking', description: 'Schedule a new session', icon: Calendar, href: `/dashboard/${studioSlug}/bookings/new` },
+    { title: 'Send Quote', description: 'Create and send a quote', icon: FileText, href: `/dashboard/${studioSlug}/quotes/new` },
+    { title: 'Create Invoice', description: 'Bill a client for services', icon: DollarSign, href: `/dashboard/${studioSlug}/invoices/new` },
+    { title: 'Add Product', description: 'Add items to your store', icon: Store, href: `/dashboard/${studioSlug}/store/products/new` },
+  ]
 }
 
 async function getUpcoming(studioSlug: string) {
@@ -94,14 +70,6 @@ async function getUpcoming(studioSlug: string) {
   }))
 }
 
-async function getStudioInfo(studioSlug: string) {
-  // In production, fetch from database
-  return {
-    name: 'My Studio',
-    slug: studioSlug,
-  }
-}
-
 export default async function DashboardPage({ params }: DashboardPageProps) {
   const { studioSlug } = await params
   const user = await getAuthUserServer()
@@ -110,11 +78,22 @@ export default async function DashboardPage({ params }: DashboardPageProps) {
     return null // Layout handles redirect
   }
 
-  const [dashboardData, studioInfo, upcomingBookings] = await Promise.all([
-    getDashboardData(studioSlug),
-    getStudioInfo(studioSlug),
+  const [stats, studio, upcomingBookings] = await Promise.all([
+    getDashboardStats(studioSlug),
+    getStudioForSettings(studioSlug),
     getUpcoming(studioSlug),
   ])
+
+  const studioName = studio?.name ?? studioSlug
+  const quickActions = getQuickActions(studioSlug)
+  const recentActivity: { id: string; message: string; time: string; icon: any }[] = []
+
+  const statItems = [
+    { label: 'Total Galleries', value: stats.totalGalleries.toLocaleString(), icon: Image, href: `/dashboard/${studioSlug}/galleries` },
+    { label: 'Active Clients', value: stats.activeClients.toLocaleString(), icon: Users, href: `/dashboard/${studioSlug}/clients` },
+    { label: 'Upcoming Bookings', value: stats.upcomingBookings.toLocaleString(), icon: Calendar, href: `/dashboard/${studioSlug}/bookings` },
+    { label: 'Monthly Revenue', value: `$${stats.monthlyRevenue.toLocaleString()}`, icon: DollarSign, href: `/dashboard/${studioSlug}/invoices` },
+  ]
 
   return (
     <div className="space-y-6">
@@ -125,7 +104,7 @@ export default async function DashboardPage({ params }: DashboardPageProps) {
               Welcome back, {user.firstName}
             </h1>
             <p className="text-body text-muted-foreground mt-1">
-              Here's what's happening with {studioInfo.name} today
+              Here's what's happening with {studioName} today
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -140,7 +119,7 @@ export default async function DashboardPage({ params }: DashboardPageProps) {
 
         {/* Stats plaque: one bordered region, hairline dividers, not repeated cards */}
         <div className="grid grid-cols-2 lg:grid-cols-4 divide-x divide-y lg:divide-y-0 divide-border border border-border">
-          {dashboardData.stats.map((stat) => (
+          {statItems.map((stat) => (
             <Link
               key={stat.label}
               href={stat.href}
@@ -153,9 +132,6 @@ export default async function DashboardPage({ params }: DashboardPageProps) {
               <div className="mt-2 font-mono text-2xl font-medium text-foreground tabular-nums">
                 {stat.value}
               </div>
-              <div className="mt-1 flex items-center gap-1 text-xs text-success">
-                {stat.change} vs last month
-              </div>
             </Link>
           ))}
         </div>
@@ -166,7 +142,7 @@ export default async function DashboardPage({ params }: DashboardPageProps) {
           <div className="lg:col-span-2 space-y-4">
             <h2 className="text-heading font-semibold">Quick Actions</h2>
             <div className="border-y border-border divide-y divide-border">
-              {dashboardData.quickActions.map((action) => (
+              {quickActions.map((action) => (
                 <Link
                   key={action.title}
                   href={action.href}
@@ -237,14 +213,14 @@ export default async function DashboardPage({ params }: DashboardPageProps) {
                 </Link>
               </CardHeader>
               <CardContent>
-                {dashboardData.recentActivity.length === 0 ? (
+                {recentActivity.length === 0 ? (
                   <div className="text-center py-8">
                     <Clock className="h-12 w-12 mx-auto text-muted-foreground/50 mb-3" />
                     <p className="text-sm text-muted-foreground">No recent activity</p>
                   </div>
                 ) : (
                   <ul className="space-y-3">
-                    {dashboardData.recentActivity.map((activity) => (
+                    {recentActivity.map((activity) => (
                       <li key={activity.id} className="flex items-start gap-3 text-sm">
                         <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center flex-shrink-0">
                           <activity.icon className="h-4 w-4 text-muted-foreground" />
