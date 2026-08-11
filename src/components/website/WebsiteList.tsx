@@ -2,6 +2,7 @@
 
 import * as React from 'react'
 import Link from 'next/link'
+import { toast } from 'sonner'
 import {
   Card,
   CardContent,
@@ -58,134 +59,16 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
+import type { WebsiteRow, WebsiteStatus } from '@/lib/actions/websites'
+import {
+  bulkDeleteWebsites,
+  bulkSetWebsiteStatus,
+  deleteWebsite,
+  duplicateWebsite,
+  setWebsiteStatus,
+} from '@/lib/actions/websites'
 
-interface Website {
-  id: string
-  name: string
-  domain?: string
-  subdomain: string
-  status: 'published' | 'draft' | 'archived'
-  template: string
-  templateName: string
-  pages: {
-    id: string
-    name: string
-    path: string
-    isPublished: boolean
-  }[]
-  visits: number
-  uniqueVisitors: number
-  theme: {
-    primaryColor: string
-    font: string
-  }
-  seo: {
-    title: string
-    description: string
-    ogImage?: string
-  }
-  customDomain?: string
-  sslEnabled: boolean
-  passwordProtected: boolean
-  password?: string
-  createdAt: string
-  updatedAt: string
-  publishedAt?: string
-}
-
-const mockWebsites: Website[] = [
-  {
-    id: '1',
-    name: 'Main Portfolio',
-    domain: 'mystudio.com',
-    subdomain: 'mystudio',
-    status: 'published',
-    template: 'modern-minimal',
-    templateName: 'Modern Minimal',
-    pages: [
-      { id: 'home', name: 'Home', path: '/', isPublished: true },
-      { id: 'galleries', name: 'Galleries', path: '/galleries', isPublished: true },
-      { id: 'about', name: 'About', path: '/about', isPublished: true },
-      { id: 'contact', name: 'Contact', path: '/contact', isPublished: true },
-      { id: 'pricing', name: 'Pricing', path: '/pricing', isPublished: false },
-    ],
-    visits: 12450,
-    uniqueVisitors: 8920,
-    theme: {
-      primaryColor: '#3B82F6',
-      font: 'Inter',
-    },
-    seo: {
-      title: 'My Studio - Professional Photography',
-      description: 'Award-winning wedding and portrait photography studio based in San Francisco.',
-    },
-    customDomain: 'mystudio.com',
-    sslEnabled: true,
-    passwordProtected: false,
-    createdAt: '2023-06-01T10:00:00Z',
-    updatedAt: '2024-01-15T14:30:00Z',
-    publishedAt: '2023-06-15T10:00:00Z',
-  },
-  {
-    id: '2',
-    name: 'Wedding Landing Page',
-    subdomain: 'weddings',
-    status: 'published',
-    template: 'elegant-wedding',
-    templateName: 'Elegant Wedding',
-    pages: [
-      { id: 'home', name: 'Home', path: '/', isPublished: true },
-      { id: 'packages', name: 'Packages', path: '/packages', isPublished: true },
-      { id: 'gallery', name: 'Gallery', path: '/gallery', isPublished: true },
-      { id: 'contact', name: 'Contact', path: '/contact', isPublished: true },
-    ],
-    visits: 8320,
-    uniqueVisitors: 5640,
-    theme: {
-      primaryColor: '#EC4899',
-      font: 'Playfair Display',
-    },
-    seo: {
-      title: 'Wedding Photography | My Studio',
-      description: 'Elegant wedding photography packages for your special day.',
-    },
-    sslEnabled: true,
-    passwordProtected: false,
-    createdAt: '2023-08-15T10:00:00Z',
-    updatedAt: '2024-01-10T09:00:00Z',
-    publishedAt: '2023-09-01T10:00:00Z',
-  },
-  {
-    id: '3',
-    name: 'New Portfolio Draft',
-    subdomain: 'portfolio-v2',
-    status: 'draft',
-    template: 'modern-minimal',
-    templateName: 'Modern Minimal',
-    pages: [
-      { id: 'home', name: 'Home', path: '/', isPublished: false },
-      { id: 'galleries', name: 'Galleries', path: '/galleries', isPublished: false },
-      { id: 'about', name: 'About', path: '/about', isPublished: false },
-    ],
-    visits: 0,
-    uniqueVisitors: 0,
-    theme: {
-      primaryColor: '#10B981',
-      font: 'Inter',
-    },
-    seo: {
-      title: 'My Studio - New Portfolio',
-      description: 'Coming soon...',
-    },
-    sslEnabled: true,
-    passwordProtected: true,
-    password: 'preview123',
-    createdAt: '2024-01-10T10:00:00Z',
-    updatedAt: '2024-01-15T14:30:00Z',
-  },
-]
-
-function getStatusBadge(status: Website['status']) {
+function getStatusBadge(status: WebsiteStatus) {
   const statusConfig = {
     published: { label: 'Published', variant: 'success' as const },
     draft: { label: 'Draft', variant: 'secondary' as const },
@@ -197,19 +80,21 @@ function getStatusBadge(status: Website['status']) {
 
 interface WebsiteListProps {
   studioSlug: string
-  isLoading?: boolean
+  initialWebsites: WebsiteRow[]
 }
 
-export function WebsiteList({ studioSlug, isLoading = false }: WebsiteListProps) {
-  const [websites, setWebsites] = React.useState<Website[]>(mockWebsites)
+export function WebsiteList({ studioSlug, initialWebsites }: WebsiteListProps) {
+  const [websites, setWebsites] = React.useState<WebsiteRow[]>(initialWebsites)
   const [searchQuery, setSearchQuery] = React.useState('')
   const [statusFilter, setStatusFilter] = React.useState<string>('all')
-  const [sortBy] = React.useState<string>('updatedAt')
   const [sortOrder, setSortOrder] = React.useState<'asc' | 'desc'>('desc')
   const [viewMode, setViewMode] = React.useState<'table' | 'grid'>('table')
   const [selectedWebsites, setSelectedWebsites] = React.useState<string[]>([])
 
-  // Filter and sort websites
+  React.useEffect(() => {
+    setWebsites(initialWebsites)
+  }, [initialWebsites])
+
   const filteredWebsites = React.useMemo(() => {
     let result = [...websites]
 
@@ -219,7 +104,7 @@ export function WebsiteList({ studioSlug, isLoading = false }: WebsiteListProps)
         w =>
           w.name.toLowerCase().includes(query) ||
           w.subdomain.toLowerCase().includes(query) ||
-          w.domain?.toLowerCase().includes(query)
+          w.custom_domain?.toLowerCase().includes(query)
       )
     }
 
@@ -228,60 +113,88 @@ export function WebsiteList({ studioSlug, isLoading = false }: WebsiteListProps)
     }
 
     result.sort((a, b) => {
-      const aVal = a[sortBy as keyof Website]
-      const bVal = b[sortBy as keyof Website]
-      if (aVal === undefined || bVal === undefined) return 0
-      const comparison = String(aVal).localeCompare(String(bVal))
+      const comparison = a.updated_at.localeCompare(b.updated_at)
       return sortOrder === 'asc' ? comparison : -comparison
     })
 
     return result
-  }, [websites, searchQuery, statusFilter, sortBy, sortOrder])
+  }, [websites, searchQuery, statusFilter, sortOrder])
 
   const [deleteConfirm, setDeleteConfirm] = React.useState<string | null>(null)
   const [bulkDeleteConfirm, setBulkDeleteConfirm] = React.useState(false)
 
-  const handleDelete = (id: string) => {
-    setDeleteConfirm(id)
-  }
-
-  const confirmDelete = (id: string) => {
-    setWebsites(prev => prev.filter(w => w.id !== id))
-    setSelectedWebsites(prev => prev.filter(g => g !== id))
+  const confirmDelete = async (id: string) => {
+    const result = await deleteWebsite(id, studioSlug)
+    if (result?.error) {
+      toast.error(result.error)
+    } else {
+      setWebsites(prev => prev.filter(w => w.id !== id))
+      setSelectedWebsites(prev => prev.filter(g => g !== id))
+      toast.success('Website deleted')
+    }
     setDeleteConfirm(null)
   }
 
-  const confirmBulkDelete = () => {
-    setWebsites(prev => prev.filter(w => !selectedWebsites.includes(w.id)))
+  const confirmBulkDelete = async () => {
+    const result = await bulkDeleteWebsites(selectedWebsites, studioSlug)
+    if (result?.error) {
+      toast.error(result.error)
+    } else {
+      setWebsites(prev => prev.filter(w => !selectedWebsites.includes(w.id)))
+      toast.success('Websites deleted')
+    }
     setSelectedWebsites([])
     setBulkDeleteConfirm(false)
   }
 
-  const handlePublish = (id: string) => {
-    setWebsites(prev => prev.map(w => w.id === id ? { ...w, status: 'published' as const, publishedAt: new Date().toISOString() } : w))
-  }
-
-  const handleUnpublish = (id: string) => {
-    setWebsites(prev => prev.map(w => w.id === id ? { ...w, status: 'draft' as const } : w))
-  }
-
-  const handleDuplicate = (id: string) => {
-    const website = websites.find(w => w.id === id)
-    if (website) {
-      const newWebsite: Website = {
-        ...website,
-        id: `${website.id}-copy-${Date.now()}`,
-        name: `${website.name} (Copy)`,
-        subdomain: `${website.subdomain}-copy`,
-        status: 'draft',
-        visits: 0,
-        uniqueVisitors: 0,
-        publishedAt: undefined,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      }
-      setWebsites(prev => [...prev, newWebsite])
+  const handlePublish = async (id: string) => {
+    const result = await setWebsiteStatus(id, 'published', studioSlug)
+    if (result?.error) {
+      toast.error(result.error)
+      return
     }
+    setWebsites(prev => prev.map(w => w.id === id ? { ...w, status: 'published' as const, published_at: new Date().toISOString() } : w))
+    toast.success('Website published')
+  }
+
+  const handleUnpublish = async (id: string) => {
+    const result = await setWebsiteStatus(id, 'draft', studioSlug)
+    if (result?.error) {
+      toast.error(result.error)
+      return
+    }
+    setWebsites(prev => prev.map(w => w.id === id ? { ...w, status: 'draft' as const } : w))
+    toast.success('Website unpublished')
+  }
+
+  const handleBulkPublish = async () => {
+    const result = await bulkSetWebsiteStatus(selectedWebsites, 'published', studioSlug)
+    if (result?.error) {
+      toast.error(result.error)
+      return
+    }
+    setWebsites(prev => prev.map(w => selectedWebsites.includes(w.id) ? { ...w, status: 'published' as const, published_at: new Date().toISOString() } : w))
+    setSelectedWebsites([])
+  }
+
+  const handleBulkUnpublish = async () => {
+    const result = await bulkSetWebsiteStatus(selectedWebsites, 'draft', studioSlug)
+    if (result?.error) {
+      toast.error(result.error)
+      return
+    }
+    setWebsites(prev => prev.map(w => selectedWebsites.includes(w.id) ? { ...w, status: 'draft' as const } : w))
+    setSelectedWebsites([])
+  }
+
+  const handleDuplicate = async (id: string) => {
+    const result = await duplicateWebsite(id, studioSlug)
+    if (result?.error) {
+      toast.error(result.error)
+      return
+    }
+    toast.success('Website duplicated')
+    window.location.reload()
   }
 
   const toggleSelect = (id: string) => {
@@ -298,27 +211,8 @@ export function WebsiteList({ studioSlug, isLoading = false }: WebsiteListProps)
     }
   }
 
-  if (isLoading) {
-    return (
-      <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <div className="h-8 w-48 animate-pulse rounded bg-muted" />
-          <div className="h-10 w-32 animate-pulse rounded bg-muted" />
-        </div>
-        <div className="animate-pulse">
-          <div className="h-12 bg-muted rounded-lg" />
-          <div className="space-y-3 mt-4">
-            {[...Array(5)].map((_, i) => (
-              <div key={i} className="h-14 bg-muted rounded-lg" />
-            ))}
-          </div>
-        </div>
-      </div>
-    )
-  }
-
   const totalVisits = websites.reduce((sum, w) => sum + w.visits, 0)
-  const totalVisitors = websites.reduce((sum, w) => sum + w.uniqueVisitors, 0)
+  const totalVisitors = websites.reduce((sum, w) => sum + w.unique_visitors, 0)
   const publishedCount = websites.filter(w => w.status === 'published').length
 
   return (
@@ -438,17 +332,11 @@ export function WebsiteList({ studioSlug, isLoading = false }: WebsiteListProps)
                 {selectedWebsites.length} website{selectedWebsites.length !== 1 ? 's' : ''} selected
               </span>
               <div className="flex items-center gap-2">
-                <Button variant="outline" size="sm" onClick={() => {
-                  selectedWebsites.forEach(id => handlePublish(id))
-                  setSelectedWebsites([])
-                }}>
+                <Button variant="outline" size="sm" onClick={handleBulkPublish}>
                   <CheckCircle className="h-3.5 w-3.5 mr-1.5" />
                   Publish
                 </Button>
-                <Button variant="outline" size="sm" onClick={() => {
-                  selectedWebsites.forEach(id => handleUnpublish(id))
-                  setSelectedWebsites([])
-                }}>
+                <Button variant="outline" size="sm" onClick={handleBulkUnpublish}>
                   <XCircle className="h-3.5 w-3.5 mr-1.5" />
                   Unpublish
                 </Button>
@@ -497,7 +385,9 @@ export function WebsiteList({ studioSlug, isLoading = false }: WebsiteListProps)
                     </TableCell>
                   </TableRow>
                 ) : (
-                  filteredWebsites.map((website) => (
+                  filteredWebsites.map((website) => {
+                    const pages = website.pages || []
+                    return (
                     <TableRow key={website.id} className="hover:bg-muted/50">
                       <TableCell>
                         <input
@@ -512,34 +402,34 @@ export function WebsiteList({ studioSlug, isLoading = false }: WebsiteListProps)
                         <div>
                           <p className="font-medium">{website.name}</p>
                           <p className="text-sm text-muted-foreground">
-                            {website.templateName} • {website.pages.length} pages
+                            {website.template_name} • {pages.length} pages
                           </p>
                         </div>
                       </TableCell>
                       <TableCell className="hidden md:table-cell">
                         <div className="space-y-1">
-                          {website.customDomain && (
-                            <p className="font-mono text-sm">{website.customDomain}</p>
+                          {website.custom_domain && (
+                            <p className="font-mono text-sm">{website.custom_domain}</p>
                           )}
                           <p className="text-sm text-muted-foreground font-mono">
-                            {website.subdomain}.lensflow.app
+                            {website.subdomain}
                           </p>
                         </div>
                       </TableCell>
                       <TableCell className="hidden md:table-cell">
-                        <Badge variant="outline" className="text-xs">{website.templateName}</Badge>
+                        <Badge variant="outline" className="text-xs">{website.template_name}</Badge>
                       </TableCell>
                       <TableCell className="hidden md:table-cell">
                         {getStatusBadge(website.status)}
                       </TableCell>
                       <TableCell className="hidden lg:table-cell text-sm text-muted-foreground">
-                        {website.pages.filter(p => p.isPublished).length}/{website.pages.length} published
+                        {pages.filter(p => p.is_published).length}/{pages.length} published
                       </TableCell>
                       <TableCell className="hidden xl:table-cell text-sm text-muted-foreground font-mono tabular-nums">
                         {website.visits.toLocaleString()}
                       </TableCell>
                       <TableCell className="hidden xl:table-cell text-sm text-muted-foreground font-mono tabular-nums">
-                        {website.uniqueVisitors.toLocaleString()}
+                        {website.unique_visitors.toLocaleString()}
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center gap-1">
@@ -554,12 +444,6 @@ export function WebsiteList({ studioSlug, isLoading = false }: WebsiteListProps)
                                 <Link href={`/dashboard/${studioSlug}/website/${website.id}/editor`}>
                                   <Layout className="mr-2 h-4 w-4" />
                                   Edit Website
-                                </Link>
-                              </DropdownMenuItem>
-                              <DropdownMenuItem asChild>
-                                <Link href={`https://${website.customDomain || website.subdomain}.lensflow.app`} target="_blank">
-                                  <ExternalLink className="mr-2 h-4 w-4" />
-                                  View Live
                                 </Link>
                               </DropdownMenuItem>
                               <DropdownMenuItem asChild>
@@ -588,7 +472,7 @@ export function WebsiteList({ studioSlug, isLoading = false }: WebsiteListProps)
                               )}
                               <DropdownMenuSeparator />
                               <DropdownMenuItem
-                                onClick={() => handleDelete(website.id)}
+                                onClick={() => setDeleteConfirm(website.id)}
                                 className="text-destructive focus:text-destructive"
                               >
                                 <Trash2 className="mr-2 h-4 w-4" />
@@ -601,15 +485,19 @@ export function WebsiteList({ studioSlug, isLoading = false }: WebsiteListProps)
                               <Layout className="h-4 w-4" />
                             </Link>
                           </Button>
-                          <Button variant="ghost" size="icon" className="h-8 w-8" asChild>
-                            <Link href={`https://${website.customDomain || website.subdomain}.lensflow.app`} target="_blank">
-                              <ExternalLink className="h-4 w-4" />
-                            </Link>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8"
+                            disabled={website.status !== 'published'}
+                            title={website.status === 'published' ? 'Custom domain hosting is not set up yet' : 'Publish this site first'}
+                          >
+                            <ExternalLink className="h-4 w-4" />
                           </Button>
                         </div>
                       </TableCell>
                     </TableRow>
-                  ))
+                  )})
                 )}
               </TableBody>
             </Table>
@@ -624,7 +512,9 @@ export function WebsiteList({ studioSlug, isLoading = false }: WebsiteListProps)
               <p className="text-muted-foreground">No websites found</p>
             </div>
           ) : (
-            filteredWebsites.map((website) => (
+            filteredWebsites.map((website) => {
+              const pages = website.pages || []
+              return (
               <Card key={website.id} className="card-hover">
                 <CardHeader className="pb-2">
                   <div className="flex items-start justify-between">
@@ -640,7 +530,7 @@ export function WebsiteList({ studioSlug, isLoading = false }: WebsiteListProps)
                         <h3 className="font-semibold truncate">{website.name}</h3>
                         <div className="flex items-center gap-2 mt-1">
                           {getStatusBadge(website.status)}
-                          <Badge variant="outline" className="text-xs">{website.templateName}</Badge>
+                          <Badge variant="outline" className="text-xs">{website.template_name}</Badge>
                         </div>
                       </div>
                     </div>
@@ -657,12 +547,6 @@ export function WebsiteList({ studioSlug, isLoading = false }: WebsiteListProps)
                             Edit Website
                           </Link>
                         </DropdownMenuItem>
-                        <DropdownMenuItem asChild>
-                          <Link href={`https://${website.customDomain || website.subdomain}.lensflow.app`} target="_blank">
-                            <ExternalLink className="mr-2 h-4 w-4" />
-                            View Live
-                          </Link>
-                        </DropdownMenuItem>
                         <DropdownMenuSeparator />
                         <DropdownMenuItem onClick={() => handleDuplicate(website.id)}>
                           <Copy className="mr-2 h-4 w-4" />
@@ -670,7 +554,7 @@ export function WebsiteList({ studioSlug, isLoading = false }: WebsiteListProps)
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
                         <DropdownMenuItem
-                          onClick={() => handleDelete(website.id)}
+                          onClick={() => setDeleteConfirm(website.id)}
                           className="text-destructive focus:text-destructive"
                         >
                           <Trash2 className="mr-2 h-4 w-4" />
@@ -684,7 +568,7 @@ export function WebsiteList({ studioSlug, isLoading = false }: WebsiteListProps)
                   <div className="flex items-center gap-2 text-sm text-muted-foreground">
                     <ExternalLink className="h-3.5 w-3.5" />
                     <span className="font-mono truncate max-w-[200px]">
-                      {website.customDomain || `${website.subdomain}.lensflow.app`}
+                      {website.custom_domain || website.subdomain}
                     </span>
                   </div>
                   <div className="flex items-center gap-4 text-sm text-muted-foreground">
@@ -694,11 +578,11 @@ export function WebsiteList({ studioSlug, isLoading = false }: WebsiteListProps)
                     </div>
                     <div className="flex items-center gap-1">
                       <Users className="h-3.5 w-3.5" />
-                      <span className="font-mono tabular-nums">{website.uniqueVisitors.toLocaleString()}</span> visitors
+                      <span className="font-mono tabular-nums">{website.unique_visitors.toLocaleString()}</span> visitors
                     </div>
                   </div>
                   <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                    <span>{website.pages.filter(p => p.isPublished).length}/{website.pages.length} pages published</span>
+                    <span>{pages.filter(p => p.is_published).length}/{pages.length} pages published</span>
                   </div>
                   <div className="pt-2 border-t flex items-center justify-between">
                     <div className="flex items-center gap-2">
@@ -708,17 +592,22 @@ export function WebsiteList({ studioSlug, isLoading = false }: WebsiteListProps)
                           Edit
                         </Link>
                       </Button>
-                      <Button variant="default" size="sm" asChild>
-                        <Link href={`https://${website.customDomain || website.subdomain}.lensflow.app`} target="_blank">
-                          <ExternalLink className="h-3.5 w-3.5 mr-1.5" />
-                          View Live
-                        </Link>
-                      </Button>
+                      {website.status === 'draft' ? (
+                        <Button variant="default" size="sm" onClick={() => handlePublish(website.id)}>
+                          <CheckCircle className="h-3.5 w-3.5 mr-1.5" />
+                          Publish
+                        </Button>
+                      ) : (
+                        <Button variant="outline" size="sm" onClick={() => handleUnpublish(website.id)}>
+                          <XCircle className="h-3.5 w-3.5 mr-1.5" />
+                          Unpublish
+                        </Button>
+                      )}
                     </div>
                   </div>
                 </CardContent>
               </Card>
-            ))
+            )})
           )}
         </div>
       )}

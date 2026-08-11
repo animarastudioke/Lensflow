@@ -1,6 +1,7 @@
 import { Metadata } from 'next'
 import { getAuthUserServer } from '@/lib/auth'
 import { WebsiteList } from '@/components/website/WebsiteList'
+import { getWebsites } from '@/lib/actions/websites'
 
 interface WebsitePageProps {
   params: Promise<{ studioSlug: string }>
@@ -25,5 +26,7 @@ export default async function WebsitePage({ params }: WebsitePageProps) {
     return null
   }
 
-  return <WebsiteList studioSlug={studioSlug} />
+  const { websites } = await getWebsites(studioSlug)
+
+  return <WebsiteList studioSlug={studioSlug} initialWebsites={websites} />
 }
