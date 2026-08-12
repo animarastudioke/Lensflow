@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { z } from 'zod'
+import { hasEntitlement, requireEntitlement } from '@/lib/entitlements'
 
 export type WebsiteStatus = 'published' | 'draft' | 'archived'
 
@@ -125,6 +126,8 @@ export async function createWebsite(formData: FormData) {
   const membership = await requireMembership()
   if ('error' in membership) throw new Error(membership.error)
 
+  await requireEntitlement(membership.studioId, 'website_builder')
+
   const studioSlug = formData.get('studio_slug') as string
   const template = (formData.get('template') as string) || TEMPLATES[0].value
   const templateName = TEMPLATES.find(t => t.value === template)?.label || TEMPLATES[0].label
@@ -221,6 +224,10 @@ export async function setWebsiteStatus(
   const membership = await requireMembership()
   if ('error' in membership) return membership
 
+  if (status === 'published' && !(await hasEntitlement(membership.studioId, 'website_builder'))) {
+    return { error: 'Publishing a website requires an upgraded plan.' }
+  }
+
   const supabase = await createClient()
   const { error } = await supabase
     .from('websites')
@@ -247,6 +254,10 @@ export async function bulkSetWebsiteStatus(
 ): Promise<{ error: string } | undefined> {
   const membership = await requireMembership()
   if ('error' in membership) return membership
+
+  if (status === 'published' && !(await hasEntitlement(membership.studioId, 'website_builder'))) {
+    return { error: 'Publishing a website requires an upgraded plan.' }
+  }
 
   const supabase = await createClient()
   const { error } = await supabase
@@ -352,6 +363,10 @@ export async function updateWebsiteSettings(formData: FormData) {
     seo_description: formData.get('seo_description') || undefined,
     password_protected: formData.get('password_protected') === 'true',
   })
+
+  if (validated.custom_domain && !(await hasEntitlement(membership.studioId, 'custom_domain'))) {
+    throw new Error('Custom domains require an upgraded plan.')
+  }
 
   const supabase = await createClient()
   const { error } = await supabase

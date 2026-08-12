@@ -5,6 +5,8 @@ import { getAuthUserServer } from '@/lib/auth'
 import { getUpcomingBookings } from '@/lib/actions/bookings'
 import { getDashboardStats } from '@/lib/actions/dashboard'
 import { getStudioForSettings, getStudioCurrency } from '@/lib/actions/studios'
+import { getStudioBillingOverview } from '@/lib/actions/billing'
+import { StorageUsageWidget } from '@/components/dashboard/StorageUsageWidget'
 import { formatCurrency } from '@/lib/currencies'
 import {
   Card,
@@ -79,11 +81,12 @@ export default async function DashboardPage({ params }: DashboardPageProps) {
     return null // Layout handles redirect
   }
 
-  const [stats, studio, upcomingBookings, currency] = await Promise.all([
+  const [stats, studio, upcomingBookings, currency, billing] = await Promise.all([
     getDashboardStats(studioSlug),
     getStudioForSettings(studioSlug),
     getUpcoming(studioSlug),
     getStudioCurrency(studioSlug),
+    getStudioBillingOverview(studioSlug),
   ])
 
   const studioName = studio?.name ?? studioSlug
@@ -166,6 +169,10 @@ export default async function DashboardPage({ params }: DashboardPageProps) {
 
           {/* Right sidebar - Upcoming & Recent */}
           <div className="space-y-6">
+            {billing && (
+              <StorageUsageWidget plan={billing.plan} storage={billing.storage} studioSlug={studioSlug} />
+            )}
+
             {/* Upcoming Bookings */}
             <Card>
               <CardHeader className="flex flex-row items-center justify-between">

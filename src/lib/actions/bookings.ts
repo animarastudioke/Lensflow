@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { z } from 'zod'
+import { requireEntitlement } from '@/lib/entitlements'
 
 export type BookingStatus = 'inquiry' | 'confirmed' | 'scheduled' | 'completed' | 'cancelled' | 'no_show'
 
@@ -126,6 +127,8 @@ export async function createBooking(formData: FormData) {
   if (!membership) {
     throw new Error('No active studio membership')
   }
+
+  await requireEntitlement(membership.studio_id, 'booking')
 
   const totalPriceRaw = formData.get('total_price')
   const depositAmountRaw = formData.get('deposit_amount')

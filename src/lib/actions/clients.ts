@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { z } from 'zod'
+import { requireEntitlement } from '@/lib/entitlements'
 
 export type ClientStatus = 'lead' | 'active' | 'inactive' | 'archived'
 
@@ -122,6 +123,8 @@ const clientSchema = z.object({
 export async function createClientRecord(formData: FormData) {
   const membership = await requireMembership()
   if ('error' in membership) throw new Error(membership.error)
+
+  await requireEntitlement(membership.studioId, 'crm')
 
   const studioSlug = formData.get('studio_slug') as string
 

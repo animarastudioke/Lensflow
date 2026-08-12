@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { z } from 'zod'
+import { requireEntitlement } from '@/lib/entitlements'
 
 export type InvoiceStatus = 'draft' | 'sent' | 'viewed' | 'paid' | 'partial' | 'overdue' | 'cancelled' | 'refunded'
 
@@ -258,6 +259,8 @@ export async function createInvoice(formData: FormData) {
   if (!membership) {
     throw new Error('No active studio membership')
   }
+
+  await requireEntitlement(membership.studio_id, 'payments')
 
   let items: unknown
   try {

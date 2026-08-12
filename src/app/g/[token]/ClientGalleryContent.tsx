@@ -87,6 +87,11 @@ interface GalleryData {
   client?: { id: string; name: string; email: string }
   albums?: Album[]
   media?: MediaItem[]
+  entitlements?: {
+    canDownloadOriginals: boolean
+    canBulkDownload: boolean
+    showPoweredByBadge: boolean
+  }
 }
 
 interface ClientGalleryContentProps {
@@ -210,7 +215,14 @@ export function ClientGalleryContent({
     // Increment download count on server
     await fetch(`/api/g/${token}/download`, { method: 'POST' }).catch(console.error)
 
-    const response = await fetch(item.url)
+    // Gated, server-authoritative route — the studio's plan is checked again
+    // here even though the download button is already conditionally shown.
+    const response = await fetch(`/api/storage/${item.id}/download`)
+    if (!response.ok) {
+      const body = await response.json().catch(() => ({}))
+      throw new Error(body.error || 'Failed to download')
+    }
+
     const blob = await response.blob()
     const url = window.URL.createObjectURL(blob)
     const a = document.createElement('a')
@@ -226,20 +238,31 @@ export function ClientGalleryContent({
     try {
       await downloadSingleImage(item)
       toast.success('Download started')
-    } catch {
-      toast.error('Failed to download')
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to download')
     }
   }
 
   const downloadAllImages = async () => {
     if (media.length === 0) return
     try {
-      for (const item of media) {
-        await downloadSingleImage(item)
+      const response = await fetch(`/api/g/${token}/bulk-download`, { method: 'POST' })
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({}))
+        throw new Error(body.error || 'Bulk download is not available for this gallery')
       }
+      const blob = await response.blob()
+      const url = window.URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `${gallery?.name || 'gallery'}.zip`
+      document.body.appendChild(a)
+      a.click()
+      window.URL.revokeObjectURL(url)
+      document.body.removeChild(a)
       toast.success(`Downloading ${media.length} photo${media.length === 1 ? '' : 's'}`)
-    } catch {
-      toast.error('Some downloads failed')
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Some downloads failed')
     }
   }
 
@@ -563,6 +586,16 @@ export function ClientGalleryContent({
           </Button>
         )}
       </div>
+      {gallery.entitlements?.showPoweredByBadge && (
+        <a
+          href="https://lensflow.io"
+          target="_blank"
+          rel="noreferrer"
+          className="absolute bottom-4 left-4 rounded-full bg-white/90 px-3 py-1 text-xs font-medium text-foreground shadow-sm hover:bg-white"
+        >
+          Powered by LensFlow
+        </a>
+      )}
     </header>
   )
 

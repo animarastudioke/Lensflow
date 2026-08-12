@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { z } from 'zod'
+import { requireEntitlement } from '@/lib/entitlements'
 
 export type ProductType = 'digital' | 'print' | 'album' | 'package' | 'service'
 export type ProductStatus = 'active' | 'draft' | 'archived'
@@ -106,6 +107,8 @@ export async function createProduct(formData: FormData) {
   if (!membership) {
     throw new Error('No active studio membership')
   }
+
+  await requireEntitlement(membership.studio_id, 'store')
 
   const priceRaw = formData.get('price')
   const salePriceRaw = formData.get('sale_price')
