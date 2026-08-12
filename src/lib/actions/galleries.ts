@@ -5,6 +5,15 @@ import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { z } from 'zod'
 import sharp from 'sharp'
+import { canAcceptUpload, canCreateGallery, getEffectivePlan, hasEntitlement } from '@/lib/entitlements'
+import {
+  buildMediaKey,
+  createPresignedUploadUrl,
+  deleteObject,
+  downloadObject,
+  getR2PublicUrl,
+  uploadObject,
+} from '@/lib/storage/r2'
 
 // Types
 export type GalleryType = 'wedding' | 'portrait' | 'commercial' | 'event' | 'other'
@@ -245,6 +254,17 @@ export async function createGallery(formData: FormData) {
   const hasPermission = await checkGalleryPermission(membership.studio_id, user.id, 'galleries.create')
   if (!hasPermission) {
     throw new Error('Insufficient permissions to create gallery')
+  }
+
+  // Free-tier (and any future plan with a gallery cap) enforcement — checked
+  // server-side, not just hidden in the UI.
+  const galleryQuota = await canCreateGallery(membership.studio_id)
+  if (!galleryQuota.allowed) {
+    throw new Error(galleryQuota.reason)
+  }
+
+  if (validated.custom_domain && !(await hasEntitlement(membership.studio_id, 'custom_domain'))) {
+    throw new Error('Custom domains require an upgraded plan.')
   }
 
   // Hash password if provided
@@ -512,7 +532,16 @@ export async function getGalleryByToken(shareToken: string) {
     }
   }
 
-  return gallery
+  // Resolved server-side so the client never decides for itself whether
+  // downloads/branding are allowed — it only renders what this says.
+  const plan = await getEffectivePlan(gallery.studio_id)
+  const entitlements = {
+    canDownloadOriginals: plan.canDownloadOriginals,
+    canBulkDownload: plan.canBulkDownload,
+    showPoweredByBadge: plan.showPoweredByBadge,
+  }
+
+  return { ...gallery, entitlements }
 }
 
 export async function verifyGalleryPassword(shareToken: string, password: string) {
@@ -788,15 +817,102 @@ export async function getGalleries(studioSlug: string, options?: {
 const MAX_UPLOAD_DIMENSION = 2400
 const THUMBNAIL_WIDTH = 600
 
-// Photos are uploaded directly from the browser to Supabase Storage (bypassing this
+const EXTENSION_MIME_TYPES: Record<string, string> = {
+  jpg: 'image/jpeg',
+  jpeg: 'image/jpeg',
+  png: 'image/png',
+  webp: 'image/webp',
+  heic: 'image/heic',
+  tiff: 'image/tiff',
+  tif: 'image/tiff',
+}
+
+function guessImageMimeType(extension: string): string {
+  return EXTENSION_MIME_TYPES[extension.toLowerCase()] ?? 'application/octet-stream'
+}
+
+function fileExtension(filename: string): string {
+  return (filename.match(/\.[^/.]+$/)?.[0] ?? '.jpg').replace('.', '').toLowerCase()
+}
+
+// Photos are uploaded directly from the browser to Cloudflare R2 (bypassing this
 // server action) because Vercel Serverless Functions hard-cap request bodies at 4.5MB,
-// well under the size of real photos. This action only receives the resulting storage
-// paths and does the sharp processing server-side by downloading from Storage, which is
-// not subject to that inbound request-body limit.
+// well under the size of real photos. The browser instead PUTs the file straight to a
+// short-lived presigned R2 URL obtained from requestGalleryUploadUrl below, then this
+// action does the sharp processing server-side by downloading the raw upload from R2 —
+// which is not subject to that inbound request-body limit.
+
+/**
+ * Issues a presigned R2 upload URL for a single file. This is the server-side
+ * storage-quota enforcement point: the check happens here, before any upload
+ * URL is handed out, never only in the browser.
+ */
+export async function requestGalleryUploadUrl(
+  galleryId: string,
+  filename: string,
+  contentType: string,
+  sizeBytes: number
+): Promise<{ uploadUrl: string; key: string; mediaId: string } | { error: string }> {
+  const supabase = await createClient()
+
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) {
+    return { error: 'Unauthorized' }
+  }
+
+  const { data: membership } = await supabase
+    .from('studio_members')
+    .select('studio_id, role')
+    .eq('user_id', user.id)
+    .eq('status', 'active')
+    .single()
+
+  if (!membership) {
+    return { error: 'No active studio membership' }
+  }
+
+  const hasPermission = await checkGalleryPermission(membership.studio_id, user.id, 'galleries.edit')
+  if (!hasPermission) {
+    return { error: 'Insufficient permissions to upload media' }
+  }
+
+  const { data: gallery } = await supabase
+    .from('galleries')
+    .select('id')
+    .eq('id', galleryId)
+    .eq('studio_id', membership.studio_id)
+    .single()
+
+  if (!gallery) {
+    return { error: 'Gallery not found' }
+  }
+
+  if (!contentType.startsWith('image/')) {
+    return { error: 'Only image uploads are supported' }
+  }
+
+  const quota = await canAcceptUpload(membership.studio_id, sizeBytes)
+  if (!quota.allowed) {
+    return { error: quota.reason }
+  }
+
+  const mediaId = crypto.randomUUID()
+  const key = buildMediaKey({
+    studioId: membership.studio_id,
+    galleryId,
+    mediaId,
+    variant: 'raw',
+    extension: fileExtension(filename),
+  })
+
+  const uploadUrl = await createPresignedUploadUrl(key, contentType)
+  return { uploadUrl, key, mediaId }
+}
+
 export async function finalizeGalleryMediaUpload(
   galleryId: string,
   studioSlug: string,
-  uploads: { path: string; filename: string }[]
+  uploads: { mediaId: string; key: string; filename: string }[]
 ): Promise<{ success: true; uploaded: number } | { error: string }> {
   const supabase = await createClient()
 
@@ -836,36 +952,41 @@ export async function finalizeGalleryMediaUpload(
     return { error: 'No files provided' }
   }
 
-  const expectedPrefix = `${membership.studio_id}/${galleryId}/originals/`
+  const studioId = membership.studio_id
+  const expectedPrefix = `studios/${studioId}/galleries/${galleryId}/assets/`
+  // Originals are only retained in R2 for plans that can actually download them —
+  // Free-tier uploads are processed exactly as before (preview + thumb only).
+  const plan = await getEffectivePlan(studioId)
 
   const rows: {
+    id: string
     gallery_id: string
     filename: string
     url: string
     thumbnail_url: string
+    original_key: string | null
     type: 'image'
     size: number
+    storage_bytes: number
     width: number
     height: number
   }[] = []
 
   for (const upload of uploads) {
-    if (!upload.path.startsWith(expectedPrefix)) continue
+    if (!upload.key.startsWith(expectedPrefix) || !upload.key.includes(`/assets/${upload.mediaId}/`)) continue
 
-    const { data: original, error: downloadError } = await supabase.storage
-      .from('gallery-media')
-      .download(upload.path)
-
-    if (downloadError || !original) {
+    let buffer: Buffer
+    try {
+      buffer = await downloadObject(upload.key)
+    } catch (downloadError) {
       console.error('Gallery media download error:', downloadError)
       continue
     }
 
-    const buffer = Buffer.from(await original.arrayBuffer())
     const image = sharp(buffer)
     const metadata = await image.metadata()
 
-    const fullBuffer = await image
+    const previewBuffer = await image
       .resize({ width: MAX_UPLOAD_DIMENSION, height: MAX_UPLOAD_DIMENSION, fit: 'inside', withoutEnlargement: true })
       .webp({ quality: 90 })
       .toBuffer()
@@ -875,45 +996,48 @@ export async function finalizeGalleryMediaUpload(
       .webp({ quality: 80 })
       .toBuffer()
 
-    const baseName = upload.filename.replace(/\.[^/.]+$/, '').replace(/[^a-zA-Z0-9-_]/g, '_')
-    const uid = crypto.randomUUID()
-    const fullPath = `${membership.studio_id}/${galleryId}/${uid}-${baseName}.webp`
-    const thumbPath = `${membership.studio_id}/${galleryId}/thumbs/${uid}-${baseName}.webp`
+    const previewKey = buildMediaKey({ studioId, galleryId, mediaId: upload.mediaId, variant: 'preview', extension: 'webp' })
+    const thumbKey = buildMediaKey({ studioId, galleryId, mediaId: upload.mediaId, variant: 'thumb', extension: 'webp' })
 
-    const { error: fullUploadError } = await supabase.storage
-      .from('gallery-media')
-      .upload(fullPath, fullBuffer, { contentType: 'image/webp', upsert: false })
-
-    if (fullUploadError) {
-      console.error('Gallery media upload error:', fullUploadError)
+    try {
+      await uploadObject(previewKey, previewBuffer, 'image/webp')
+      await uploadObject(thumbKey, thumbBuffer, 'image/webp')
+    } catch (uploadError) {
+      console.error('Gallery media upload error:', uploadError)
       continue
     }
 
-    const { error: thumbUploadError } = await supabase.storage
-      .from('gallery-media')
-      .upload(thumbPath, thumbBuffer, { contentType: 'image/webp', upsert: false })
-
-    if (thumbUploadError) {
-      console.error('Gallery media thumbnail upload error:', thumbUploadError)
+    let originalKey: string | null = null
+    let originalBytes = 0
+    if (plan.canDownloadOriginals) {
+      const extension = fileExtension(upload.filename)
+      const candidateKey = buildMediaKey({ studioId, galleryId, mediaId: upload.mediaId, variant: 'original', extension })
+      try {
+        await uploadObject(candidateKey, buffer, guessImageMimeType(extension))
+        originalKey = candidateKey
+        originalBytes = buffer.byteLength
+      } catch (originalUploadError) {
+        console.error('Gallery original upload error:', originalUploadError)
+      }
     }
 
-    const { data: fullUrlData } = supabase.storage.from('gallery-media').getPublicUrl(fullPath)
-    const { data: thumbUrlData } = supabase.storage.from('gallery-media').getPublicUrl(
-      thumbUploadError ? fullPath : thumbPath
-    )
+    await deleteObject(upload.key).catch((cleanupError) => {
+      console.error('Failed to delete raw R2 upload:', cleanupError)
+    })
 
     rows.push({
+      id: upload.mediaId,
       gallery_id: galleryId,
       filename: upload.filename,
-      url: fullUrlData.publicUrl,
-      thumbnail_url: thumbUrlData.publicUrl,
+      url: getR2PublicUrl(previewKey),
+      thumbnail_url: getR2PublicUrl(thumbKey),
+      original_key: originalKey,
       type: 'image',
-      size: fullBuffer.byteLength,
+      size: previewBuffer.byteLength,
+      storage_bytes: previewBuffer.byteLength + thumbBuffer.byteLength + originalBytes,
       width: metadata.width ?? 0,
       height: metadata.height ?? 0,
     })
-
-    await supabase.storage.from('gallery-media').remove([upload.path])
   }
 
   if (rows.length === 0) {

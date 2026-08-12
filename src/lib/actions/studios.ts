@@ -4,6 +4,9 @@ import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
+import { deleteObjectsByPrefix } from '@/lib/storage/r2'
+import { getFreePlan } from '@/lib/entitlements'
+import { supabaseAdmin } from '@/lib/supabase/admin'
 
 const createStudioSchema = z.object({
   name: z.string().min(2, 'Studio name must be at least 2 characters').max(100),
@@ -75,6 +78,22 @@ export async function createStudio(formData: FormData): Promise<{ error: string 
     .from('profiles')
     .update({ studio_id: studio.id, role: 'studio_owner' })
     .eq('id', user.id)
+
+  // Every studio needs a subscription row so entitlement resolution has
+  // something to find. This uses the service-role client because studio
+  // members have no client-side write policy on subscriptions (all
+  // subscription mutations go through trusted server code). Non-fatal if it
+  // fails — getEffectivePlan() falls back to Free when no row exists anyway.
+  try {
+    const freePlan = await getFreePlan()
+    await supabaseAdmin.from('subscriptions').insert({
+      studio_id: studio.id,
+      plan_id: freePlan.id,
+      status: 'active',
+    })
+  } catch (subscriptionError) {
+    console.error('Failed to create default subscription:', subscriptionError)
+  }
 
   redirect(`/dashboard/${studio.slug}`)
 }
@@ -224,33 +243,10 @@ export async function updateStudioSettings(studioSlug: string, formData: FormDat
 }
 
 async function deleteStudioStorageObjects(studioId: string) {
-  const supabase = await createClient()
-  const bucket = supabase.storage.from('gallery-media')
-
-  const { data: galleryFolders } = await bucket.list(studioId, { limit: 1000 })
-  if (!galleryFolders) return
-
-  const pathsToRemove: string[] = []
-
-  for (const folder of galleryFolders) {
-    const galleryPath = `${studioId}/${folder.name}`
-
-    const { data: galleryFiles } = await bucket.list(galleryPath, { limit: 1000 })
-    for (const item of galleryFiles ?? []) {
-      if (item.id) {
-        pathsToRemove.push(`${galleryPath}/${item.name}`)
-      }
-    }
-
-    const { data: thumbFiles } = await bucket.list(`${galleryPath}/thumbs`, { limit: 1000 })
-    for (const item of thumbFiles ?? []) {
-      pathsToRemove.push(`${galleryPath}/thumbs/${item.name}`)
-    }
-  }
-
-  if (pathsToRemove.length > 0) {
-    await bucket.remove(pathsToRemove)
-  }
+  // R2 has no real folder hierarchy — deleting everything under the
+  // studio's key prefix removes every gallery's previews, thumbnails, and
+  // retained originals in one pass, no per-gallery listing required.
+  await deleteObjectsByPrefix(`studios/${studioId}/`)
 }
 
 export async function deleteStudio(

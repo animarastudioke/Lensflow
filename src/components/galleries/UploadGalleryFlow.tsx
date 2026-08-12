@@ -16,13 +16,11 @@ import {
   AlignJustify,
 } from 'lucide-react'
 import { toast } from 'sonner'
-import { finalizeGalleryMediaUpload, updateGalleryLayout } from '@/lib/actions/galleries'
+import { finalizeGalleryMediaUpload, requestGalleryUploadUrl, updateGalleryLayout } from '@/lib/actions/galleries'
 import type { GalleryLayoutType } from '@/lib/actions/galleries'
-import { createBrowserSupabaseClient } from '@/lib/supabase/client'
 
 interface UploadGalleryFlowProps {
   studioSlug: string
-  studioId: string
   galleryId: string
   galleryName: string
   initialLayoutType: GalleryLayoutType
@@ -38,7 +36,6 @@ type Step = 'upload' | 'layout'
 
 export function UploadGalleryFlow({
   studioSlug,
-  studioId,
   galleryId,
   galleryName,
   initialLayoutType,
@@ -58,29 +55,38 @@ export function UploadGalleryFlow({
     setIsUploading(true)
     setUploadError(null)
 
-    const supabase = createBrowserSupabaseClient()
-    const uploaded: { path: string; filename: string }[] = []
+    const uploaded: { mediaId: string; key: string; filename: string }[] = []
+    let quotaError: string | null = null
 
     for (const file of files) {
-      const baseName = file.name.replace(/\.[^/.]+$/, '').replace(/[^a-zA-Z0-9-_]/g, '_')
-      const ext = file.name.match(/\.[^/.]+$/)?.[0] || ''
-      const path = `${studioId}/${galleryId}/originals/${crypto.randomUUID()}-${baseName}${ext}`
+      const presigned = await requestGalleryUploadUrl(galleryId, file.name, file.type, file.size)
 
-      const { error } = await supabase.storage
-        .from('gallery-media')
-        .upload(path, file, { contentType: file.type, upsert: false })
+      if ('error' in presigned) {
+        console.error('Failed to get upload URL:', presigned.error)
+        quotaError = presigned.error
+        break
+      }
 
-      if (error) {
-        console.error('Direct upload error:', error)
+      // Direct-to-R2 PUT — the browser talks to R2, not through this Vercel
+      // function, so the 4.5MB serverless body-size cap never applies.
+      const putResponse = await fetch(presigned.uploadUrl, {
+        method: 'PUT',
+        body: file,
+        headers: { 'Content-Type': file.type },
+      })
+
+      if (!putResponse.ok) {
+        console.error('Direct R2 upload error:', putResponse.status, putResponse.statusText)
         continue
       }
 
-      uploaded.push({ path, filename: file.name })
+      uploaded.push({ mediaId: presigned.mediaId, key: presigned.key, filename: file.name })
     }
 
     if (uploaded.length === 0) {
-      setUploadError('Failed to upload photos. Please try again.')
-      toast.error('Failed to upload photos. Please try again.')
+      const message = quotaError || 'Failed to upload photos. Please try again.'
+      setUploadError(message)
+      toast.error(message)
       setIsUploading(false)
       return
     }
