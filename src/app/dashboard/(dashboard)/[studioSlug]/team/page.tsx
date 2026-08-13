@@ -1,5 +1,6 @@
 import { Metadata } from 'next'
 import { getAuthUserServer } from '@/lib/auth'
+import { getTeamMembers } from '@/lib/actions/team'
 import { TeamList } from '@/components/team/TeamList'
 
 interface TeamPageProps {
@@ -25,5 +26,9 @@ export default async function TeamPage({ params }: TeamPageProps) {
     return null
   }
 
-  return <TeamList studioSlug={studioSlug} />
+  const members = await getTeamMembers(studioSlug)
+  const self = members.find((m) => m.userId === user.id)
+  const canManage = self ? ['studio_owner', 'photographer'].includes(self.role) && self.status === 'active' : false
+
+  return <TeamList studioSlug={studioSlug} initialMembers={members} canManage={canManage} />
 }

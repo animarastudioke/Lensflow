@@ -9,6 +9,15 @@ import { Search, Bell, Moon, Sun, LogOut, User, Settings, HelpCircle, Shield, Cr
 import { useTheme } from 'next-themes'
 import { useAuthUser } from '@/lib/auth/hooks'
 import { Badge } from '@/components/ui/badge'
+import { formatDistanceToNow } from 'date-fns'
+import {
+  getNotifications,
+  markAllNotificationsRead,
+  markNotificationRead,
+  type NotificationRow,
+} from '@/lib/actions/notifications'
+
+const NOTIFICATION_POLL_MS = 30_000
 
 interface HeaderProps {
   studioSlug: string
@@ -21,6 +30,20 @@ export function Header({ studioSlug, studioName = 'Studio' }: HeaderProps) {
   const [searchQuery, setSearchQuery] = React.useState('')
   const [notificationsOpen, setNotificationsOpen] = React.useState(false)
   const [userMenuOpen, setUserMenuOpen] = React.useState(false)
+  const [notifications, setNotifications] = React.useState<NotificationRow[]>([])
+  const [unreadCount, setUnreadCount] = React.useState(0)
+
+  const refreshNotifications = React.useCallback(async () => {
+    const result = await getNotifications(studioSlug, { limit: 8 })
+    setNotifications(result.notifications)
+    setUnreadCount(result.unreadCount)
+  }, [studioSlug])
+
+  React.useEffect(() => {
+    refreshNotifications()
+    const interval = setInterval(refreshNotifications, NOTIFICATION_POLL_MS)
+    return () => clearInterval(interval)
+  }, [refreshNotifications])
 
   const handleSignOut = async () => {
     await signOut()
@@ -82,45 +105,75 @@ export function Header({ studioSlug, studioName = 'Studio' }: HeaderProps) {
           </Button>
 
           {/* Notifications */}
-          <DropdownMenu open={notificationsOpen} onOpenChange={setNotificationsOpen}>
+          <DropdownMenu
+            open={notificationsOpen}
+            onOpenChange={(open) => {
+              setNotificationsOpen(open)
+              if (open) refreshNotifications()
+            }}
+          >
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" size="icon" className="h-9 w-9 relative" aria-label="Notifications">
                 <Bell className="h-5 w-5" />
-                <span className="absolute top-1 right-1 h-2 w-2 rounded-full bg-destructive" />
+                {unreadCount > 0 && (
+                  <span className="absolute top-1 right-1 h-2 w-2 rounded-full bg-destructive" />
+                )}
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-80">
               <DropdownMenuLabel className="flex items-center justify-between">
                 Notifications
-                <Badge variant="outline">3 new</Badge>
+                {unreadCount > 0 && <Badge variant="outline">{unreadCount} new</Badge>}
               </DropdownMenuLabel>
               <DropdownMenuSeparator />
-              <DropdownMenuItem className="flex flex-col gap-1 p-3 hover:bg-accent" asChild>
-                <Link href="/dashboard/notifications/1">
-                  <p className="font-medium">New gallery comment</p>
-                  <p className="text-xs text-muted-foreground">Sarah Chen commented on Wedding Gallery</p>
-                  <p className="text-xs text-muted-foreground">2 minutes ago</p>
-                </Link>
-              </DropdownMenuItem>
-              <DropdownMenuItem className="flex flex-col gap-1 p-3 hover:bg-accent" asChild>
-                <Link href="/dashboard/notifications/2">
-                  <p className="font-medium">Payment received</p>
-                  <p className="text-xs text-muted-foreground">Invoice #INV-001 paid by Marcus Johnson</p>
-                  <p className="text-xs text-muted-foreground">1 hour ago</p>
-                </Link>
-              </DropdownMenuItem>
-              <DropdownMenuItem className="flex flex-col gap-1 p-3 hover:bg-accent" asChild>
-                <Link href="/dashboard/notifications/3">
-                  <p className="font-medium">Booking confirmed</p>
-                  <p className="text-xs text-muted-foreground">Wedding package booked for June 15</p>
-                  <p className="text-xs text-muted-foreground">3 hours ago</p>
-                </Link>
-              </DropdownMenuItem>
+              {notifications.length === 0 ? (
+                <p className="px-3 py-6 text-center text-sm text-muted-foreground">No notifications yet</p>
+              ) : (
+                notifications.map((n) => (
+                  <DropdownMenuItem
+                    key={n.id}
+                    className="flex flex-col items-start gap-1 p-3 hover:bg-accent"
+                    onSelect={() => {
+                      if (!n.readAt) markNotificationRead(n.id, studioSlug)
+                    }}
+                    asChild={!!n.link}
+                  >
+                    {n.link ? (
+                      <Link href={n.link}>
+                        <span className="flex w-full items-center gap-1.5 font-medium">
+                          {!n.readAt && <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-primary" />}
+                          {n.title}
+                        </span>
+                        {n.body && <p className="text-xs text-muted-foreground">{n.body}</p>}
+                        <p className="text-xs text-muted-foreground">
+                          {formatDistanceToNow(new Date(n.createdAt), { addSuffix: true })}
+                        </p>
+                      </Link>
+                    ) : (
+                      <>
+                        <span className="flex w-full items-center gap-1.5 font-medium">
+                          {!n.readAt && <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-primary" />}
+                          {n.title}
+                        </span>
+                        {n.body && <p className="text-xs text-muted-foreground">{n.body}</p>}
+                        <p className="text-xs text-muted-foreground">
+                          {formatDistanceToNow(new Date(n.createdAt), { addSuffix: true })}
+                        </p>
+                      </>
+                    )}
+                  </DropdownMenuItem>
+                ))
+              )}
               <DropdownMenuSeparator />
-              <DropdownMenuItem asChild>
-                <Link href="/dashboard/notifications" className="text-center text-primary font-medium">
-                  View all notifications
-                </Link>
+              <DropdownMenuItem
+                onSelect={async () => {
+                  await markAllNotificationsRead(studioSlug)
+                  refreshNotifications()
+                }}
+                className="justify-center text-center text-primary font-medium"
+                disabled={unreadCount === 0}
+              >
+                Mark all as read
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>

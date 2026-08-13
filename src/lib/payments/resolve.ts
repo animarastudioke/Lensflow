@@ -35,7 +35,7 @@ export async function applyMpesaPaymentOutcome(params: {
     })
     .eq('provider_checkout_id', params.checkoutRequestId)
     .eq('status', 'pending')
-    .select('id, invoice_id, amount')
+    .select('id, invoice_id, amount, studio_id')
     .maybeSingle()
 
   if (error) {
@@ -60,7 +60,7 @@ export async function applyMpesaPaymentOutcome(params: {
       const newAmountPaid = invoice.amount_paid + payment.amount
       const fullyPaid = newAmountPaid >= invoice.total
 
-      await supabaseAdmin
+      const { data: updatedInvoice } = await supabaseAdmin
         .from('invoices')
         .update({
           amount_paid: newAmountPaid,
@@ -69,6 +69,17 @@ export async function applyMpesaPaymentOutcome(params: {
           updated_at: new Date().toISOString(),
         })
         .eq('id', payment.invoice_id)
+        .select('invoice_number')
+        .single()
+
+      const { createNotification } = await import('@/lib/actions/notifications')
+      await createNotification(payment.studio_id, {
+        type: 'payment_received',
+        title: 'Payment received',
+        body: updatedInvoice
+          ? `KES ${payment.amount.toLocaleString()} via M-Pesa on ${updatedInvoice.invoice_number}`
+          : `KES ${payment.amount.toLocaleString()} via M-Pesa`,
+      })
     }
   }
 

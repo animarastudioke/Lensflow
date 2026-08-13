@@ -176,6 +176,14 @@ export async function createBooking(formData: FormData) {
     throw new Error('Failed to create booking')
   }
 
+  const { createNotification } = await import('@/lib/actions/notifications')
+  await createNotification(membership.studio_id, {
+    type: 'booking_created',
+    title: 'New booking',
+    body: validated.session_name,
+    link: `/dashboard/${studioSlug}/bookings`,
+  })
+
   revalidatePath(`/dashboard/${studioSlug}/bookings`)
   redirect(`/dashboard/${studioSlug}/bookings`)
 }

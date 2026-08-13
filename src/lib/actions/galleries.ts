@@ -568,6 +568,23 @@ export async function incrementGalleryDownload(shareToken: string) {
   const supabase = await createClient()
 
   await supabase.rpc('increment_gallery_download', { token: shareToken })
+
+  const { data: gallery } = await supabase
+    .from('galleries')
+    .select('studio_id, name, studio:studios(slug)')
+    .eq('share_token', shareToken)
+    .single()
+
+  if (gallery) {
+    const studioSlug = (gallery.studio as unknown as { slug: string } | null)?.slug
+    const { createNotification } = await import('@/lib/actions/notifications')
+    await createNotification(gallery.studio_id, {
+      type: 'gallery_downloaded',
+      title: 'Gallery downloaded',
+      body: `A client downloaded a photo from "${gallery.name}"`,
+      link: studioSlug ? `/dashboard/${studioSlug}/galleries` : undefined,
+    })
+  }
 }
 
 // Share Settings Actions
