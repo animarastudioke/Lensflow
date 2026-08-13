@@ -12,6 +12,8 @@ const PUBLIC_PATHS = [
   '/auth/confirmed',
   '/g',
   '/api/g',
+  '/api/storage',
+  '/api/payments',
   '/store',
   '/portfolio',
   '/api/webhooks',

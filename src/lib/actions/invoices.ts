@@ -34,7 +34,7 @@ export interface InvoiceRow {
   notes: string | null
   created_at: string
   updated_at: string
-  client: { name: string; email: string } | null
+  client: { name: string; email: string; phone: string | null } | null
   items: InvoiceItemRow[]
 }
 
@@ -83,7 +83,7 @@ export async function getInvoice(invoiceId: string, studioSlug: string): Promise
 
   const { data: invoice } = await supabase
     .from('invoices')
-    .select('*, client:clients(name, email), items:invoice_items(*)')
+    .select('*, client:clients(name, email, phone), items:invoice_items(*)')
     .eq('id', invoiceId)
     .eq('studio_id', studioId)
     .single()

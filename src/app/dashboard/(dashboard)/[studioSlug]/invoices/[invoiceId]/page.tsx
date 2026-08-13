@@ -9,6 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { ArrowLeft, Edit } from 'lucide-react'
+import { MpesaPaymentDialog } from '@/components/invoices/MpesaPaymentDialog'
 
 interface InvoiceDetailPageProps {
   params: Promise<{ studioSlug: string; invoiceId: string }>
@@ -134,6 +135,17 @@ export default async function InvoiceDetailPage({ params }: InvoiceDetailPagePro
               <span className="font-mono tabular-nums">{formatCurrency(balanceDue, currency)}</span>
             </div>
           </div>
+
+          {balanceDue > 0 && currency === 'KES' && (
+            <div className="pt-2">
+              <MpesaPaymentDialog
+                invoiceId={invoice.id}
+                studioSlug={studioSlug}
+                balanceDue={balanceDue}
+                defaultPhone={invoice.client?.phone ?? undefined}
+              />
+            </div>
+          )}
         </CardContent>
       </Card>
 
