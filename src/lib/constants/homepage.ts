@@ -154,8 +154,7 @@ export const FAQ_ITEMS: FaqItem[] = [
   { question: 'Can I deliver both photos and videos?', answer: 'Yes. Galleries support high-resolution photo and video delivery, with proofing and downloads for both.' },
   { question: 'Can clients download their images?', answer: 'Yes. You control whether clients can download full-resolution originals, web-sized copies, or nothing at all, per gallery.' },
   { question: 'Can clients select favorites?', answer: 'Yes. Clients can favorite and comment on images directly in the gallery, which makes proofing and album design faster.' },
-  { question: 'Can I accept payments?', answer: 'Yes. LensFlow supports Stripe, PayPal, Flutterwave, and M-Pesa, so you can invoice and collect payments in the currencies your clients use.' },
-  { question: 'Does LensFlow support M-Pesa?', answer: 'Yes, M-Pesa is supported alongside card and mobile money payments for photographers working across African markets.' },
+  { question: 'Can I accept payments?', answer: 'Yes, via M-Pesa — invoice clients and collect deposits or full payment with a real-time STK push to their phone. Support for card payments is on the roadmap.' },
   { question: 'Can I create a portfolio website?', answer: 'Yes. The built-in website builder turns your galleries and pricing into a portfolio site, with no separate tool required.' },
   { question: 'Can I use my own domain?', answer: 'Yes. Connect a custom domain to your LensFlow website and client galleries.' },
   { question: 'Can I manage a team?', answer: 'Yes. Invite second shooters, editors, or studio managers with role-based permissions on your projects.' },
@@ -165,10 +164,7 @@ export const FAQ_ITEMS: FaqItem[] = [
 ]
 
 export const PAYMENT_METHODS = [
-  { label: 'Stripe', description: 'Cards, worldwide' },
   { label: 'M-Pesa', description: 'Mobile money, Kenya' },
-  { label: 'Flutterwave', description: 'Mobile money, Africa-wide' },
-  { label: 'PayPal', description: 'Cards and balance, worldwide' },
 ]
 
 export const STORE_PRODUCTS = [

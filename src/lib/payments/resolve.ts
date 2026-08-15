@@ -35,7 +35,7 @@ export async function applyMpesaPaymentOutcome(params: {
     })
     .eq('provider_checkout_id', params.checkoutRequestId)
     .eq('status', 'pending')
-    .select('id, invoice_id, amount, studio_id')
+    .select('id, invoice_id, plan_id, amount, studio_id')
     .maybeSingle()
 
   if (error) {
@@ -81,6 +81,38 @@ export async function applyMpesaPaymentOutcome(params: {
           : `KES ${payment.amount.toLocaleString()} via M-Pesa`,
       })
     }
+  }
+
+  if (success && payment.plan_id) {
+    const periodStart = new Date()
+    const periodEnd = new Date(periodStart.getTime() + 30 * 24 * 60 * 60 * 1000)
+
+    await supabaseAdmin
+      .from('subscriptions')
+      .update({
+        plan_id: payment.plan_id,
+        status: 'active',
+        billing_provider: 'mpesa',
+        current_period_start: periodStart.toISOString(),
+        current_period_end: periodEnd.toISOString(),
+        cancel_at_period_end: false,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('studio_id', payment.studio_id)
+      .in('status', ['active', 'trialing', 'past_due'])
+
+    const { data: plan } = await supabaseAdmin
+      .from('plans')
+      .select('name')
+      .eq('id', payment.plan_id)
+      .single()
+
+    const { createNotification } = await import('@/lib/actions/notifications')
+    await createNotification(payment.studio_id, {
+      type: 'payment_received',
+      title: 'Subscription upgraded',
+      body: plan ? `You're now on the ${plan.name} plan.` : 'Your subscription payment was received.',
+    })
   }
 
   return { handled: true, status: newStatus }

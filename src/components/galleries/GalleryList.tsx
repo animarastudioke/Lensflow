@@ -49,7 +49,6 @@ import {
   Edit,
   Delete,
   Share2,
-  Download,
   Settings,
   Image as ImageIcon,
   Calendar,
@@ -64,6 +63,8 @@ import {
   X,
 } from 'lucide-react'
 import { format } from 'date-fns'
+import { toast } from 'sonner'
+import { deleteGallery, updateGalleryStatus } from '@/lib/actions/galleries'
 
 export interface Gallery {
   id: string
@@ -84,80 +85,6 @@ export interface Gallery {
   passwordProtected: boolean
   expiresAt?: string
 }
-
-const mockGalleries: Gallery[] = [
-  {
-    id: '1',
-    name: 'Smith Wedding',
-    description: 'Beautiful wedding ceremony and reception photos',
-    coverImage: 'https://images.unsplash.com/photo-1519741497674-611481863552?w=400',
-    status: 'published',
-    type: 'wedding',
-    clientId: '1',
-    clientName: 'Sarah & John Smith',
-    shootDate: '2024-06-15',
-    mediaCount: 847,
-    viewCount: 1234,
-    downloadCount: 567,
-    createdAt: '2024-06-10',
-    updatedAt: '2024-06-16',
-    shareToken: 'abc123',
-    passwordProtected: true,
-    expiresAt: '2025-06-15',
-  },
-  {
-    id: '2',
-    name: 'Johnson Family Portraits',
-    description: 'Annual family portrait session',
-    coverImage: 'https://images.unsplash.com/photo-1511895426328-dc8714191300?w=400',
-    status: 'published',
-    type: 'portrait',
-    clientId: '2',
-    clientName: 'Marcus Johnson',
-    shootDate: '2024-05-20',
-    mediaCount: 156,
-    viewCount: 456,
-    downloadCount: 123,
-    createdAt: '2024-05-18',
-    updatedAt: '2024-05-22',
-    shareToken: 'def456',
-    passwordProtected: false,
-  },
-  {
-    id: '3',
-    name: 'Corporate Headshots - TechCorp',
-    description: 'Executive and team headshots for annual report',
-    coverImage: 'https://images.unsplash.com/photo-1573497019940-1c28c88b4f3e?w=400',
-    status: 'draft',
-    type: 'commercial',
-    clientId: '3',
-    clientName: 'TechCorp Inc.',
-    shootDate: '2024-07-01',
-    mediaCount: 89,
-    viewCount: 0,
-    downloadCount: 0,
-    createdAt: '2024-06-25',
-    updatedAt: '2024-06-28',
-    passwordProtected: true,
-  },
-  {
-    id: '4',
-    name: 'Summer Mini Sessions',
-    description: 'Outdoor mini sessions at Central Park',
-    coverImage: 'https://images.unsplash.com/photo-1470071459604-3b5ec3a7fe05?w=400',
-    status: 'archived',
-    type: 'portrait',
-    shootDate: '2024-07-15',
-    mediaCount: 234,
-    viewCount: 567,
-    downloadCount: 234,
-    createdAt: '2024-07-01',
-    updatedAt: '2024-07-20',
-    shareToken: 'ghi789',
-    passwordProtected: false,
-    expiresAt: '2024-08-15',
-  },
-]
 
 const statusColors = {
   draft: 'bg-muted text-muted-foreground',
@@ -188,7 +115,7 @@ interface GalleryListProps {
 }
 
 export function GalleryList({ studioSlug, initialGalleries, isLoading = false }: GalleryListProps) {
-  const [galleries, setGalleries] = React.useState<Gallery[]>(initialGalleries ?? mockGalleries)
+  const [galleries, setGalleries] = React.useState<Gallery[]>(initialGalleries ?? [])
   const [searchQuery, setSearchQuery] = React.useState('')
   const [statusFilter, setStatusFilter] = React.useState<string>('all')
   const [typeFilter, setTypeFilter] = React.useState<string>('all')
@@ -197,6 +124,7 @@ export function GalleryList({ studioSlug, initialGalleries, isLoading = false }:
   const [viewMode, setViewMode] = React.useState<'grid' | 'table'>('grid')
   const [selectedGalleries, setSelectedGalleries] = React.useState<string[]>([])
   const [deleteConfirm, setDeleteConfirm] = React.useState<string | null>(null)
+  const [isProcessing, setIsProcessing] = React.useState(false)
 
   // Filter and sort galleries
   const filteredGalleries = React.useMemo(() => {
@@ -238,41 +166,57 @@ export function GalleryList({ studioSlug, initialGalleries, isLoading = false }:
     setDeleteConfirm(id)
   }
 
-  const confirmDelete = (id: string) => {
-    setGalleries(prev => prev.filter(g => g.id !== id))
-    setDeleteConfirm(null)
-    setSelectedGalleries(prev => prev.filter(g => g !== id))
+  const removeGallery = async (id: string): Promise<{ error: string } | { success: true }> => {
+    try {
+      await deleteGallery(id, studioSlug)
+      return { success: true }
+    } catch (err) {
+      return { error: err instanceof Error ? err.message : 'Failed to delete gallery' }
+    }
   }
 
-  const handleBulkAction = (action: 'delete' | 'archive' | 'publish' | 'download') => {
-    if (selectedGalleries.length === 0) return
-
-    switch (action) {
-      case 'delete':
-        setGalleries(prev => prev.filter(g => !selectedGalleries.includes(g.id)))
-        setSelectedGalleries([])
-        break
-      case 'archive':
-        setGalleries(prev =>
-          prev.map(g =>
-            selectedGalleries.includes(g.id) ? { ...g, status: 'archived' as const } : g
-          )
-        )
-        setSelectedGalleries([])
-        break
-      case 'publish':
-        setGalleries(prev =>
-          prev.map(g =>
-            selectedGalleries.includes(g.id) ? { ...g, status: 'published' as const } : g
-          )
-        )
-        setSelectedGalleries([])
-        break
-      case 'download':
-        // Trigger bulk download
-        console.log('Downloading galleries:', selectedGalleries)
-        break
+  const confirmDelete = async (id: string) => {
+    setIsProcessing(true)
+    const result = await removeGallery(id)
+    if ('error' in result) {
+      toast.error(result.error)
+    } else {
+      setGalleries(prev => prev.filter(g => g.id !== id))
+      setSelectedGalleries(prev => prev.filter(g => g !== id))
+      toast.success('Gallery deleted')
     }
+    setDeleteConfirm(null)
+    setIsProcessing(false)
+  }
+
+  const handleBulkAction = async (action: 'delete' | 'archive' | 'publish') => {
+    if (selectedGalleries.length === 0 || isProcessing) return
+    setIsProcessing(true)
+
+    const status: Gallery['status'] = action === 'archive' ? 'archived' : 'published'
+    const results = await Promise.all(
+      selectedGalleries.map((id) =>
+        action === 'delete' ? removeGallery(id) : updateGalleryStatus(id, studioSlug, status)
+      )
+    )
+    const failed = results.filter((r) => 'error' in r).length
+    const succeededIds = selectedGalleries.filter((_, i) => !('error' in results[i]!))
+
+    if (action === 'delete') {
+      setGalleries(prev => prev.filter(g => !succeededIds.includes(g.id)))
+    } else {
+      setGalleries(prev =>
+        prev.map(g => (succeededIds.includes(g.id) ? { ...g, status } : g))
+      )
+    }
+    setSelectedGalleries(prev => prev.filter((id) => !succeededIds.includes(id)))
+
+    if (failed > 0) {
+      toast.error(`${failed} of ${selectedGalleries.length} galleries couldn't be updated`)
+    } else {
+      toast.success(action === 'delete' ? 'Galleries deleted' : action === 'archive' ? 'Galleries archived' : 'Galleries published')
+    }
+    setIsProcessing(false)
   }
 
   const toggleSelect = (id: string) => {
@@ -415,17 +359,13 @@ export function GalleryList({ studioSlug, initialGalleries, isLoading = false }:
           <span className="text-sm font-medium text-muted-foreground">
             {selectedGalleries.length} selected
           </span>
-          <Button variant="outline" size="sm" onClick={() => handleBulkAction('publish')}>
+          <Button variant="outline" size="sm" disabled={isProcessing} onClick={() => handleBulkAction('publish')}>
             Publish
           </Button>
-          <Button variant="outline" size="sm" onClick={() => handleBulkAction('archive')}>
+          <Button variant="outline" size="sm" disabled={isProcessing} onClick={() => handleBulkAction('archive')}>
             Archive
           </Button>
-          <Button variant="outline" size="sm" onClick={() => handleBulkAction('download')}>
-            <Download className="h-3.5 w-3.5 mr-1" />
-            Download
-          </Button>
-          <Button variant="destructive" size="sm" onClick={() => handleBulkAction('delete')}>
+          <Button variant="destructive" size="sm" disabled={isProcessing} onClick={() => handleBulkAction('delete')}>
             <Delete className="h-3.5 w-3.5 mr-1" />
             Delete
           </Button>
@@ -661,12 +601,6 @@ export function GalleryList({ studioSlug, initialGalleries, isLoading = false }:
                               Open Client View
                             </Link>
                           </DropdownMenuItem>
-                          <DropdownMenuItem asChild>
-                            <Link href={`/dashboard/${studioSlug}/galleries/${gallery.id}/settings`}>
-                              <Settings className="mr-2 h-4 w-4" />
-                              Settings
-                            </Link>
-                          </DropdownMenuItem>
                           <DropdownMenuSeparator />
                           {gallery.status !== 'archived' && (
                             <DropdownMenuItem className="text-destructive focus:text-destructive" onClick={() => handleDelete(gallery.id)}>
@@ -696,8 +630,8 @@ export function GalleryList({ studioSlug, initialGalleries, isLoading = false }:
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDeleteConfirm(null)}>Cancel</Button>
-            <Button variant="destructive" onClick={() => deleteConfirm && confirmDelete(deleteConfirm)}>Delete</Button>
+            <Button variant="outline" disabled={isProcessing} onClick={() => setDeleteConfirm(null)}>Cancel</Button>
+            <Button variant="destructive" disabled={isProcessing} onClick={() => deleteConfirm && confirmDelete(deleteConfirm)}>Delete</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

@@ -1,5 +1,6 @@
 import { DashboardLayout } from '@/components/layout/dashboard-layout'
 import { getAuthUserServer } from '@/lib/auth'
+import { getStudioForSettings } from '@/lib/actions/studios'
 import { redirect } from 'next/navigation'
 
 interface LayoutProps {
@@ -18,8 +19,8 @@ export default async function DashboardLayoutWrapper({
     redirect('/auth/login')
   }
 
-  // Get studio info (could be cached)
-  const studioName = 'Studio' // In production, fetch from database
+  const studio = await getStudioForSettings(studioSlug)
+  const studioName = studio?.name ?? studioSlug
 
   return (
     <DashboardLayout studioSlug={studioSlug} studioName={studioName}>

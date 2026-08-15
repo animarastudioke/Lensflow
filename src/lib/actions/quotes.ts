@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { z } from 'zod'
+import { requireEntitlement } from '@/lib/entitlements'
 
 export type QuoteStatus = 'draft' | 'sent' | 'viewed' | 'accepted' | 'declined' | 'expired'
 
@@ -186,6 +187,8 @@ export async function createQuote(formData: FormData) {
   if (!membership) {
     throw new Error('No active studio membership')
   }
+
+  await requireEntitlement(membership.studio_id, 'crm')
 
   let items: unknown
   try {

@@ -54,14 +54,14 @@ export function PaymentsDemo() {
       </div>
 
       <p className="mb-2 text-[11px] font-medium uppercase tracking-wide text-white/40">Pay balance with</p>
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+      <div className="flex flex-wrap gap-2">
         {PAYMENT_METHODS.map((option) => (
           <button
             key={option.label}
             type="button"
             onClick={() => setMethod(option.label)}
             className={cn(
-              'flex flex-col items-center gap-0.5 rounded-md border px-2 py-2.5 text-center transition-colors',
+              'flex flex-col items-center gap-0.5 rounded-md border px-3 py-2.5 text-center transition-colors',
               method === option.label
                 ? 'border-[#d6415a] bg-[#d6415a]/10'
                 : 'border-white/10 bg-white/[0.03] hover:border-white/25'

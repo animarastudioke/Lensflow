@@ -2,10 +2,11 @@
 
 import * as React from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
-import { Search, Bell, Moon, Sun, LogOut, User, Settings, HelpCircle, Shield, Crown } from 'lucide-react'
+import { Search, Bell, Moon, Sun, LogOut, Settings, HelpCircle, Crown } from 'lucide-react'
 import { useTheme } from 'next-themes'
 import { useAuthUser } from '@/lib/auth/hooks'
 import { Badge } from '@/components/ui/badge'
@@ -25,6 +26,7 @@ interface HeaderProps {
 }
 
 export function Header({ studioSlug, studioName = 'Studio' }: HeaderProps) {
+  const router = useRouter()
   const { setTheme, resolvedTheme } = useTheme()
   const { user, isLoading, signOut } = useAuthUser()
   const [searchQuery, setSearchQuery] = React.useState('')
@@ -47,6 +49,7 @@ export function Header({ studioSlug, studioName = 'Studio' }: HeaderProps) {
 
   const handleSignOut = async () => {
     await signOut()
+    router.push('/auth/login')
   }
 
   if (isLoading) {
@@ -199,33 +202,16 @@ export function Header({ studioSlug, studioName = 'Studio' }: HeaderProps) {
               </DropdownMenuLabel>
               <DropdownMenuSeparator />
               <DropdownMenuItem asChild>
-                <Link href="/dashboard/profile">
-                  <User className="mr-2 h-4 w-4" />
-                  Profile
-                </Link>
-              </DropdownMenuItem>
-              <DropdownMenuItem asChild>
-                <Link href="/dashboard/settings">
+                <Link href={`/dashboard/${studioSlug}/settings`}>
                   <Settings className="mr-2 h-4 w-4" />
                   Settings
                 </Link>
               </DropdownMenuItem>
-              {user?.role === 'super_admin' && (
-                <>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem asChild>
-                    <Link href="/admin">
-                      <Shield className="mr-2 h-4 w-4" />
-                      Admin Panel
-                    </Link>
-                  </DropdownMenuItem>
-                </>
-              )}
               {user?.role === 'studio_owner' && (
                 <>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem asChild>
-                    <Link href="/dashboard/billing">
+                    <Link href={`/dashboard/${studioSlug}/settings?tab=billing`}>
                       <Crown className="mr-2 h-4 w-4" />
                       Billing
                     </Link>

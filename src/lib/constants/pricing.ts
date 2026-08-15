@@ -32,13 +32,14 @@ export const PRICING_TIERS: PricingTier[] = [
     description: 'Everything a solo photographer needs to run their business.',
     features: [
       'Unlimited galleries',
-      'Full-resolution downloads',
+      'Full-resolution + bulk ZIP downloads',
+      'No LensFlow branding',
       'Booking & availability',
       'CRM & client management',
       'Contracts & invoicing',
-      'Accept payments',
+      'Accept payments (M-Pesa)',
     ],
-    cta: { label: 'Start free', href: '/auth/signup' },
+    cta: { label: 'Get Starter', href: '/auth/signup' },
   },
   {
     id: 'studio',
@@ -52,7 +53,7 @@ export const PRICING_TIERS: PricingTier[] = [
       'Portfolio website builder',
       'Custom domain',
     ],
-    cta: { label: 'Start free', href: '/auth/signup' },
+    cta: { label: 'Get Studio', href: '/auth/signup' },
     highlighted: true,
   },
   {
@@ -63,10 +64,10 @@ export const PRICING_TIERS: PricingTier[] = [
     description: 'For growing studios with more than one photographer.',
     features: [
       'Everything in Studio',
-      'Team seats & permissions',
+      'Team seats & permissions (up to 5)',
       'Priority support',
     ],
-    cta: { label: 'Start free', href: '/auth/signup' },
+    cta: { label: 'Get Team', href: '/auth/signup' },
   },
 ]
 
@@ -82,7 +83,7 @@ export const PRICING_FAQ = [
   },
   {
     question: 'What payment methods do you accept?',
-    answer: 'Stripe and PayPal for cards worldwide, plus Flutterwave and M-Pesa for mobile money and local currencies across Africa.',
+    answer: 'M-Pesa, for both your subscription and the payments you collect from clients. Support for card payments is on the roadmap.',
   },
   {
     question: 'What happens if I go over my storage limit?',

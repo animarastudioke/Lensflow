@@ -476,6 +476,39 @@ export async function deleteGallery(galleryId: string, studioSlug: string) {
   return { success: true }
 }
 
+export async function updateGalleryStatus(
+  galleryId: string,
+  studioSlug: string,
+  status: GalleryStatus
+): Promise<{ success: true } | { error: string }> {
+  const supabase = await createClient()
+
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'Unauthorized' }
+
+  const { data: studio } = await supabase
+    .from('studios')
+    .select('id')
+    .eq('slug', studioSlug)
+    .single()
+
+  if (!studio) return { error: 'Studio not found' }
+
+  const hasPermission = await checkGalleryPermission(studio.id, user.id, 'galleries.edit')
+  if (!hasPermission) return { error: 'Insufficient permissions to update gallery' }
+
+  const { error } = await supabase
+    .from('galleries')
+    .update({ status, updated_at: new Date().toISOString() })
+    .eq('id', galleryId)
+    .eq('studio_id', studio.id)
+
+  if (error) return { error: 'Failed to update gallery status' }
+
+  revalidatePath(`/dashboard/${studioSlug}/galleries`)
+  return { success: true }
+}
+
 export async function getGallery(galleryId: string, studioSlug: string): Promise<GalleryDetailRow | null> {
   const supabase = await createClient()
 

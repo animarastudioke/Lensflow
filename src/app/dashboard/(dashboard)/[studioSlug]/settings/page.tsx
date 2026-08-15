@@ -2,6 +2,7 @@ import { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import { getAuthUserServer } from '@/lib/auth'
 import { getStudioForSettings, getStudioSettings } from '@/lib/actions/studios'
+import { getStudioBillingOverview, getSubscriptionPaymentHistory } from '@/lib/actions/billing'
 import { SettingsPage } from '@/components/settings/SettingsPage'
 
 interface SettingsPageProps {
@@ -33,7 +34,11 @@ export default async function SettingsPageRoute({ params }: SettingsPageProps) {
     notFound()
   }
 
-  const settings = await getStudioSettings(studioSlug)
+  const [settings, billing, paymentHistory] = await Promise.all([
+    getStudioSettings(studioSlug),
+    getStudioBillingOverview(studioSlug),
+    getSubscriptionPaymentHistory(studioSlug),
+  ])
 
   return (
     <SettingsPage
@@ -41,6 +46,8 @@ export default async function SettingsPageRoute({ params }: SettingsPageProps) {
       studioName={studio.name}
       isOwner={studio.ownerId === user.id}
       settings={settings}
+      billing={billing}
+      paymentHistory={paymentHistory}
     />
   )
 }

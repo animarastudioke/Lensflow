@@ -1,6 +1,7 @@
 'use client'
 
 import * as React from 'react'
+import { useSearchParams } from 'next/navigation'
 import {
   Card,
   CardContent,
@@ -54,7 +55,6 @@ import {
   Download,
   Trash2,
   AlertTriangle,
-  Check,
 } from 'lucide-react'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
@@ -69,15 +69,22 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { CURRENCIES } from '@/lib/currencies'
+import { CURRENCIES, formatCurrency } from '@/lib/currencies'
 import { toast } from 'sonner'
 import { deleteStudio, updateStudioSettings, type StudioSettingsRow } from '@/lib/actions/studios'
+import type { SubscriptionInfo, SubscriptionPaymentRow } from '@/lib/actions/billing'
+import type { Plan, StorageUsage } from '@/lib/entitlements'
+import { PRICING_TIERS } from '@/lib/constants/pricing'
+import { SubscribeDialog } from '@/components/settings/SubscribeDialog'
+import { format } from 'date-fns'
 
 interface SettingsPageProps {
   studioSlug: string
   studioName: string
   isOwner: boolean
   settings: StudioSettingsRow | null
+  billing: { plan: Plan; storage: StorageUsage; subscription: SubscriptionInfo | null } | null
+  paymentHistory: SubscriptionPaymentRow[]
 }
 
 function NotificationRow({
@@ -103,11 +110,9 @@ function NotificationRow({
 function IntegrationCard({
   name,
   description,
-  connected = false,
 }: {
   name: string
   description: string
-  connected?: boolean
 }) {
   return (
     <div className="flex items-start justify-between gap-4 rounded-lg border border-border p-4">
@@ -120,22 +125,16 @@ function IntegrationCard({
           <p className="text-sm text-muted-foreground">{description}</p>
         </div>
       </div>
-      {connected ? (
-        <Badge variant="success" className="shrink-0 gap-1">
-          <Check className="h-3 w-3" />
-          Connected
-        </Badge>
-      ) : (
-        <Button variant="outline" size="sm" className="shrink-0">
-          Connect
-        </Button>
-      )}
+      <Badge variant="outline" className="shrink-0">
+        Coming soon
+      </Badge>
     </div>
   )
 }
 
-export function SettingsPage({ studioSlug, studioName, isOwner, settings }: SettingsPageProps) {
-  const [activeTab, setActiveTab] = React.useState<string>('general')
+export function SettingsPage({ studioSlug, studioName, isOwner, settings, billing, paymentHistory }: SettingsPageProps) {
+  const searchParams = useSearchParams()
+  const [activeTab, setActiveTab] = React.useState<string>(searchParams.get('tab') ?? 'general')
   const [isSaving, setIsSaving] = React.useState(false)
   const [saveStatus, setSaveStatus] = React.useState<'idle' | 'success' | 'error'>('idle')
   const [deleteConfirmText, setDeleteConfirmText] = React.useState('')
@@ -600,74 +599,106 @@ export function SettingsPage({ studioSlug, studioName, isOwner, settings }: Sett
               <CardDescription>Manage your LensFlow subscription</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-                <div>
-                  <div className="flex items-center gap-2">
-                    <span className="font-display text-xl font-semibold">Pro Plan</span>
-                    <Badge>Active</Badge>
+              {billing ? (
+                <>
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="font-display text-xl font-semibold">{billing.plan.name} Plan</span>
+                        <Badge variant={billing.plan.slug === 'free' ? 'secondary' : 'success'}>
+                          {billing.plan.slug === 'free' ? 'Free' : 'Active'}
+                        </Badge>
+                      </div>
+                      <p className="text-sm text-muted-foreground mt-1">
+                        {billing.plan.priceCents > 0 ? `$${billing.plan.priceCents / 100}/month` : 'No cost'}
+                        {billing.subscription?.currentPeriodEnd && billing.plan.slug !== 'free' && (
+                          <> · Renews {format(new Date(billing.subscription.currentPeriodEnd), 'MMM d, yyyy')}</>
+                        )}
+                      </p>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        {(billing.storage.usedBytes / 1_073_741_824).toFixed(1)} GB of {(billing.storage.limitBytes / 1_073_741_824).toFixed(0)} GB storage used
+                      </p>
+                    </div>
                   </div>
-                  <p className="text-sm text-muted-foreground mt-1">$49/month · Renews Sep 10, 2026</p>
-                </div>
-                <Button variant="outline" size="sm">Change plan</Button>
-              </div>
-            </CardContent>
-          </Card>
 
-          <Card>
-            <CardHeader>
-              <CardTitle>Payment Method</CardTitle>
-              <CardDescription>Used for your monthly subscription</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="flex items-center justify-between gap-4">
-                <div className="flex items-center gap-3">
-                  <div className="h-9 w-13 rounded border border-border bg-muted flex items-center justify-center px-2">
-                    <span className="text-xs font-semibold">VISA</span>
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium text-foreground">•••• •••• •••• 4242</p>
-                    <p className="text-sm text-muted-foreground">Expires 08/2028</p>
-                  </div>
-                </div>
-                <Button variant="outline" size="sm">Update</Button>
-              </div>
+                  {isOwner && (
+                    <div className="mt-5 grid gap-3 sm:grid-cols-3">
+                      {PRICING_TIERS.filter((t) => t.id !== 'free').map((tier) => {
+                        const isCurrent = billing.plan.slug === tier.id
+                        return (
+                          <div key={tier.id} className={`rounded-lg border p-3 ${isCurrent ? 'border-primary bg-primary/5' : 'border-border'}`}>
+                            <div className="flex items-center justify-between">
+                              <span className="text-sm font-medium">{tier.name}</span>
+                              <span className="text-sm text-muted-foreground">${tier.price}/mo</span>
+                            </div>
+                            {isCurrent ? (
+                              <Badge variant="outline" className="mt-2">Current plan</Badge>
+                            ) : (
+                              <SubscribeDialog
+                                studioSlug={studioSlug}
+                                planSlug={tier.id as 'starter' | 'studio' | 'team'}
+                                planName={tier.name}
+                                priceUsd={tier.price}
+                                trigger={
+                                  <Button variant="outline" size="sm" className="mt-2 w-full">
+                                    {billing.plan.slug === 'free' ? 'Subscribe' : 'Switch plan'}
+                                  </Button>
+                                }
+                              />
+                            )}
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )}
+                  {!isOwner && (
+                    <p className="text-sm text-muted-foreground mt-4">Only the studio owner can change the subscription plan.</p>
+                  )}
+                </>
+              ) : (
+                <p className="text-sm text-muted-foreground">Unable to load billing information.</p>
+              )}
             </CardContent>
           </Card>
 
           <Card>
             <CardHeader>
               <CardTitle>Billing History</CardTitle>
-              <CardDescription>Past invoices for your LensFlow subscription</CardDescription>
+              <CardDescription>Subscription payments collected via M-Pesa</CardDescription>
             </CardHeader>
             <CardContent className="p-0">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Date</TableHead>
-                    <TableHead>Amount</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead className="text-right">Receipt</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {[
-                    { date: 'Aug 1, 2026', amount: '$49.00' },
-                    { date: 'Jul 1, 2026', amount: '$49.00' },
-                    { date: 'Jun 1, 2026', amount: '$49.00' },
-                  ].map((row) => (
-                    <TableRow key={row.date}>
-                      <TableCell>{row.date}</TableCell>
-                      <TableCell className="font-mono">{row.amount}</TableCell>
-                      <TableCell><Badge variant="success">Paid</Badge></TableCell>
-                      <TableCell className="text-right">
-                        <Button variant="ghost" size="icon">
-                          <Download className="h-4 w-4" />
-                        </Button>
-                      </TableCell>
+              {paymentHistory.length === 0 ? (
+                <p className="text-sm text-muted-foreground p-6 text-center">No subscription payments yet</p>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Date</TableHead>
+                      <TableHead>Plan</TableHead>
+                      <TableHead>Amount</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead className="text-right">Receipt</TableHead>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+                  </TableHeader>
+                  <TableBody>
+                    {paymentHistory.map((row) => (
+                      <TableRow key={row.id}>
+                        <TableCell>{format(new Date(row.createdAt), 'MMM d, yyyy')}</TableCell>
+                        <TableCell>{row.planName ?? '—'}</TableCell>
+                        <TableCell className="font-mono">{formatCurrency(row.amount, row.currency)}</TableCell>
+                        <TableCell>
+                          <Badge variant={row.status === 'completed' ? 'success' : row.status === 'pending' ? 'warning' : 'destructive'}>
+                            {row.status}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-right text-xs text-muted-foreground font-mono">
+                          {row.receiptNumber ?? '—'}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
@@ -683,7 +714,6 @@ export function SettingsPage({ studioSlug, studioName, isOwner, settings }: Sett
               <IntegrationCard
                 name="Stripe"
                 description="Accept online payments for invoices and store orders"
-                connected
               />
               <IntegrationCard
                 name="Google Calendar"
@@ -717,11 +747,11 @@ export function SettingsPage({ studioSlug, studioName, isOwner, settings }: Sett
               <CardDescription>Download all your studio data as a ZIP archive</CardDescription>
             </CardHeader>
             <CardContent>
-              <Button variant="outline" size="sm">
+              <Button variant="outline" size="sm" disabled>
                 <Download className="h-4 w-4 mr-2" />
                 Request data export
               </Button>
-              <p className="text-sm text-muted-foreground mt-2">Includes galleries, clients, invoices, and contracts. We&apos;ll email a download link.</p>
+              <p className="text-sm text-muted-foreground mt-2">Coming soon — will include galleries, clients, invoices, and contracts, emailed as a download link.</p>
             </CardContent>
           </Card>
 

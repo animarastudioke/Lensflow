@@ -2,7 +2,7 @@
 
 import * as React from 'react'
 import Link from 'next/link'
-import { usePathname } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet'
@@ -25,7 +25,6 @@ import {
   Megaphone,
   NotepadText,
   LogOut,
-  User,
   CalendarDays,
   ListChecks,
   Receipt,
@@ -289,8 +288,14 @@ export function Sidebar({ studioSlug, collapsed, onCollapsedChange }: SidebarPro
 }
 
 export function MobileSidebarTrigger({ studioSlug }: { studioSlug: string }) {
-  const { user } = useAuthUser()
+  const router = useRouter()
+  const { user, signOut } = useAuthUser()
   const accessibleNavigation = navigation.filter((item) => hasAccess(user?.role, item))
+
+  const handleSignOut = async () => {
+    await signOut()
+    router.push('/auth/login')
+  }
 
   return (
     <Sheet>
@@ -350,14 +355,7 @@ export function MobileSidebarTrigger({ studioSlug }: { studioSlug: string }) {
                 </div>
               </div>
               <Link
-                href="/dashboard/profile"
-                className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
-              >
-                <User className="h-4 w-4" />
-                Profile
-              </Link>
-              <Link
-                href="/dashboard/settings"
+                href={`/dashboard/${studioSlug}/settings`}
                 className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
               >
                 <Settings className="h-4 w-4" />
@@ -366,7 +364,7 @@ export function MobileSidebarTrigger({ studioSlug }: { studioSlug: string }) {
               <Button
                 variant="ghost"
                 className="w-full justify-start gap-2 rounded-lg px-3 py-2 text-sm font-medium text-destructive hover:bg-destructive/10 transition-colors"
-                onClick={() => {}}
+                onClick={handleSignOut}
               >
                 <LogOut className="h-4 w-4" />
                 Sign out
