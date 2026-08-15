@@ -1,6 +1,7 @@
 'use server'
 
 import { createClient } from '@/lib/supabase/server'
+import { supabaseAdmin } from '@/lib/supabase/admin'
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { z } from 'zod'
@@ -31,6 +32,7 @@ export interface QuoteRow {
   discount: number
   total: number
   notes: string | null
+  share_token: string | null
   created_at: string
   updated_at: string
   client: { name: string; email: string } | null
@@ -88,6 +90,26 @@ export async function getQuote(quoteId: string, studioSlug: string): Promise<Quo
     .single()
 
   return quote as unknown as QuoteRow | null
+}
+
+export interface PublicQuote extends QuoteRow {
+  studio: { name: string; logo_url: string | null; brand_color: string | null; email: string | null; phone: string | null; address: string | null }
+  currency: string
+}
+
+/** Public, unauthenticated lookup by share_token — see getInvoiceByToken for the pattern this mirrors. */
+export async function getQuoteByToken(token: string): Promise<PublicQuote | null> {
+  const { data, error } = await supabaseAdmin
+    .from('quotes')
+    .select('*, client:clients(name, email), items:quote_items(*), studio:studios(name, logo_url, brand_color, email, phone, address, currency)')
+    .eq('share_token', token)
+    .single()
+
+  if (error || !data) return null
+
+  const studio = data.studio as unknown as { name: string; logo_url: string | null; brand_color: string | null; email: string | null; phone: string | null; address: string | null; currency: string }
+
+  return { ...(data as unknown as QuoteRow), studio, currency: studio.currency }
 }
 
 async function requireMembership(): Promise<{ error: string } | { studioId: string }> {

@@ -1,6 +1,7 @@
 'use server'
 
 import { createClient } from '@/lib/supabase/server'
+import { supabaseAdmin } from '@/lib/supabase/admin'
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { z } from 'zod'
@@ -32,6 +33,7 @@ export interface InvoiceRow {
   total: number
   amount_paid: number
   notes: string | null
+  share_token: string | null
   created_at: string
   updated_at: string
   client: { name: string; email: string; phone: string | null } | null
@@ -89,6 +91,30 @@ export async function getInvoice(invoiceId: string, studioSlug: string): Promise
     .single()
 
   return invoice as unknown as InvoiceRow | null
+}
+
+export interface PublicInvoice extends InvoiceRow {
+  studio: { name: string; logo_url: string | null; brand_color: string | null; email: string | null; phone: string | null; address: string | null }
+  currency: string
+}
+
+/**
+ * Public, unauthenticated lookup by share_token — the same model as
+ * getGalleryByToken and the questionnaire public-fill flow: a service-role
+ * client, since there is no anon RLS policy on invoices by design.
+ */
+export async function getInvoiceByToken(token: string): Promise<PublicInvoice | null> {
+  const { data, error } = await supabaseAdmin
+    .from('invoices')
+    .select('*, client:clients(name, email, phone), items:invoice_items(*), studio:studios(name, logo_url, brand_color, email, phone, address, currency)')
+    .eq('share_token', token)
+    .single()
+
+  if (error || !data) return null
+
+  const studio = data.studio as unknown as { name: string; logo_url: string | null; brand_color: string | null; email: string | null; phone: string | null; address: string | null; currency: string }
+
+  return { ...(data as unknown as InvoiceRow), studio, currency: studio.currency }
 }
 
 async function requireMembership(): Promise<{ error: string } | { studioId: string }> {
