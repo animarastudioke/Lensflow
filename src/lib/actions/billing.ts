@@ -1,8 +1,8 @@
 'use server'
 
 import { createClient } from '@/lib/supabase/server'
-import { getEffectivePlan, getStorageUsage } from '@/lib/entitlements'
-import type { Plan, StorageUsage } from '@/lib/entitlements'
+import { getEffectivePlan, getStorageUsage, getSubscriptionAccessState } from '@/lib/entitlements'
+import type { Plan, StorageUsage, SubscriptionAccessState } from '@/lib/entitlements'
 
 export interface SubscriptionInfo {
   status: string
@@ -13,7 +13,7 @@ export interface SubscriptionInfo {
 
 export async function getStudioBillingOverview(
   studioSlug: string
-): Promise<{ plan: Plan; storage: StorageUsage; subscription: SubscriptionInfo | null } | null> {
+): Promise<{ plan: Plan; storage: StorageUsage; subscription: SubscriptionInfo | null; accessState: SubscriptionAccessState; graceEndsAt: string | null } | null> {
   const supabase = await createClient()
   const { data: studio } = await supabase
     .from('studios')
@@ -23,9 +23,10 @@ export async function getStudioBillingOverview(
 
   if (!studio) return null
 
-  const [plan, storage, { data: subscriptionRow }] = await Promise.all([
+  const [plan, storage, access, { data: subscriptionRow }] = await Promise.all([
     getEffectivePlan(studio.id),
     getStorageUsage(studio.id),
+    getSubscriptionAccessState(studio.id),
     supabase
       .from('subscriptions')
       .select('status, current_period_end, cancel_at_period_end, billing_provider')
@@ -45,7 +46,7 @@ export async function getStudioBillingOverview(
       }
     : null
 
-  return { plan, storage, subscription }
+  return { plan, storage, subscription, accessState: access.state, graceEndsAt: access.graceEndsAt }
 }
 
 export interface SubscriptionPaymentRow {

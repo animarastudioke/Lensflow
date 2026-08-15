@@ -5,7 +5,7 @@ import { redirect } from 'next/navigation'
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 import { deleteObjectsByPrefix } from '@/lib/storage/r2'
-import { getFreePlan } from '@/lib/entitlements'
+import { getFreePlan, getEffectivePlan } from '@/lib/entitlements'
 import { supabaseAdmin } from '@/lib/supabase/admin'
 
 const createStudioSchema = z.object({
@@ -23,6 +23,23 @@ export async function createStudio(formData: FormData): Promise<{ error: string 
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) {
     return { error: 'Unauthorized' }
+  }
+
+  // Anti-abuse: a new studio always starts on the Free plan, so the only
+  // thing standing between "sign up once" and "create unlimited free
+  // studios from one account" is this check. A user can always create their
+  // first studio; creating another is blocked while they still own an
+  // active Free-plan studio (upgrading that studio clears the block).
+  const { data: ownedStudios } = await supabaseAdmin
+    .from('studios')
+    .select('id')
+    .eq('owner_id', user.id)
+
+  if (ownedStudios && ownedStudios.length > 0) {
+    const plans = await Promise.all(ownedStudios.map((s) => getEffectivePlan(s.id)))
+    if (plans.some((plan) => plan.slug === 'free')) {
+      return { error: 'You already have a studio on the Free plan. Upgrade it before creating another studio.' }
+    }
   }
 
   const parsed = createStudioSchema.safeParse({

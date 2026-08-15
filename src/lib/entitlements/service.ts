@@ -3,9 +3,11 @@ import {
   ENTITLED_SUBSCRIPTION_STATUSES,
   getStorageStatus,
   planHasEntitlement,
+  resolveSubscriptionAccessState,
   type EntitlementKey,
   type Plan,
   type StorageUsage,
+  type SubscriptionAccessState,
 } from './types'
 
 export { getStorageStatus }
@@ -96,11 +98,19 @@ async function getFreePlan(): Promise<Plan> {
  * get Starter entitlements — paid access requires a currently-valid
  * subscription state, so this falls back to Free rather than trusting
  * whatever plan_id is on file.
+ *
+ * A paid period that has run past its current_period_end still resolves to
+ * the paid plan while inside the grace window (see
+ * SUBSCRIPTION_GRACE_PERIOD_DAYS) — viewing/downloads keep working during
+ * grace, matching how a lapsed-but-not-yet-expired subscription should
+ * behave. Only new uploads are blocked during grace, which is enforced
+ * separately in reserveUploadQuota via getSubscriptionAccessState, since
+ * that's a narrower restriction than losing the plan's features outright.
  */
 export async function getEffectivePlan(studioId: string): Promise<Plan> {
   const { data, error } = await supabaseAdmin
     .from('subscriptions')
-    .select('status, plan:plans(*)')
+    .select('status, current_period_end, plan:plans(*)')
     .eq('studio_id', studioId)
     .in('status', ['active', 'trialing', 'past_due', 'incomplete'])
     .order('created_at', { ascending: false })
@@ -117,7 +127,39 @@ export async function getEffectivePlan(studioId: string): Promise<Plan> {
     return getFreePlan()
   }
 
+  if (resolveSubscriptionAccessState(data.current_period_end as string | null).state === 'expired') {
+    return getFreePlan()
+  }
+
   return mapPlanRow(data.plan as unknown as PlanRow)
+}
+
+export interface SubscriptionAccess {
+  state: SubscriptionAccessState
+  periodEnd: string | null
+  graceEndsAt: string | null
+}
+
+/**
+ * Finer-grained than getEffectivePlan: distinguishes "still within the paid
+ * period" from "past it but inside the grace window" from "fully expired,"
+ * for the one thing that's restricted during grace but not before it — new
+ * uploads. Free-plan subscriptions have no current_period_end and are
+ * always 'active' here (nothing to expire).
+ */
+export async function getSubscriptionAccessState(studioId: string): Promise<SubscriptionAccess> {
+  const { data } = await supabaseAdmin
+    .from('subscriptions')
+    .select('status, current_period_end')
+    .eq('studio_id', studioId)
+    .in('status', ['active', 'trialing', 'past_due', 'incomplete'])
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  const periodEnd = (data?.current_period_end as string | null) ?? null
+  const resolved = resolveSubscriptionAccessState(periodEnd)
+  return { state: resolved.state, periodEnd, graceEndsAt: resolved.graceEndsAt }
 }
 
 export async function hasEntitlement(studioId: string, key: EntitlementKey): Promise<boolean> {
@@ -168,6 +210,16 @@ export async function canAcceptUpload(
   studioId: string,
   requestedBytes: number
 ): Promise<{ allowed: true } | { allowed: false; reason: string }> {
+  const access = await getSubscriptionAccessState(studioId)
+  if (access.state !== 'active') {
+    return {
+      allowed: false,
+      reason: access.state === 'grace'
+        ? 'Your subscription period has ended and is in its grace window — new uploads are paused until you renew.'
+        : 'Your subscription has expired and this studio is back on the Free plan.',
+    }
+  }
+
   const usage = await getStorageUsage(studioId)
   if (usage.status === 'over_quota') {
     return {
@@ -182,6 +234,67 @@ export async function canAcceptUpload(
     }
   }
   return { allowed: true }
+}
+
+/**
+ * Concurrency-safe replacement for the read-then-decide check in
+ * canAcceptUpload: reserves `requestedBytes` against the studio's quota as
+ * one atomic database operation (an advisory-locked transaction — see
+ * migration 021), so two simultaneous near-the-limit uploads can't both
+ * read "under quota" and both proceed. Call this right before issuing a
+ * presigned upload URL; release the reservation via
+ * releaseUploadReservations() once the upload is finalized or abandoned.
+ */
+export async function reserveUploadQuota(
+  studioId: string,
+  mediaId: string,
+  requestedBytes: number
+): Promise<{ allowed: true } | { allowed: false; reason: string }> {
+  const access = await getSubscriptionAccessState(studioId)
+  if (access.state === 'grace') {
+    return {
+      allowed: false,
+      reason: 'Your subscription period has ended and is in its grace window — existing galleries stay available, but new uploads are paused until you renew.',
+    }
+  }
+  if (access.state === 'expired') {
+    return {
+      allowed: false,
+      reason: 'Your subscription has expired and this studio is back on the Free plan. Renew to resume uploading at your previous plan\'s limits.',
+    }
+  }
+
+  const plan = await getEffectivePlan(studioId)
+
+  const { data, error } = await supabaseAdmin
+    .rpc('reserve_upload_quota', {
+      p_studio_id: studioId,
+      p_media_id: mediaId,
+      p_bytes: requestedBytes,
+      p_limit_bytes: plan.storageLimitBytes,
+    })
+    .single()
+
+  if (error || !data) {
+    console.error('reserve_upload_quota RPC failed:', error)
+    return { allowed: false, reason: 'Could not verify storage quota. Try again.' }
+  }
+
+  const result = data as { allowed: boolean }
+  if (!result.allowed) {
+    return {
+      allowed: false,
+      reason: 'This upload would exceed your plan\'s storage limit. Upgrade your plan or free up space.',
+    }
+  }
+  return { allowed: true }
+}
+
+/** Releases in-flight upload reservations once finalized (now counted for real) or abandoned. */
+export async function releaseUploadReservations(mediaIds: string[]): Promise<void> {
+  if (mediaIds.length === 0) return
+  const { error } = await supabaseAdmin.rpc('release_upload_reservations', { p_media_ids: mediaIds })
+  if (error) console.error('release_upload_reservations RPC failed:', error)
 }
 
 /**

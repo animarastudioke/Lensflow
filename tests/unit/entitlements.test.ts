@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import { getStorageStatus, planHasEntitlement, type Plan } from '@/lib/entitlements/types'
+import {
+  getStorageStatus,
+  planHasEntitlement,
+  resolveSubscriptionAccessState,
+  SUBSCRIPTION_GRACE_PERIOD_DAYS,
+  type Plan,
+} from '@/lib/entitlements/types'
 
 describe('getStorageStatus', () => {
   it('is ok well under every threshold', () => {
@@ -110,5 +116,51 @@ describe('planHasEntitlement', () => {
   it('reflects the Team plan adding priority support on top of everything Studio has', () => {
     const team = makePlan({ slug: 'team', prioritySupport: true })
     expect(planHasEntitlement(team, 'priority_support')).toBe(true)
+  })
+})
+
+describe('resolveSubscriptionAccessState', () => {
+  const DAY_MS = 24 * 60 * 60 * 1000
+
+  it('is always active with no period end (the Free plan never expires)', () => {
+    expect(resolveSubscriptionAccessState(null).state).toBe('active')
+    expect(resolveSubscriptionAccessState(null).graceEndsAt).toBeNull()
+  })
+
+  it('is active right up to and including the period end', () => {
+    const now = new Date('2026-06-15T12:00:00Z')
+    const periodEnd = new Date('2026-06-15T12:00:00Z').toISOString()
+    expect(resolveSubscriptionAccessState(periodEnd, now).state).toBe('active')
+
+    const stillActive = new Date('2026-06-14T00:00:00Z')
+    expect(resolveSubscriptionAccessState(periodEnd, stillActive).state).toBe('active')
+  })
+
+  it('enters grace the moment the period end passes', () => {
+    const periodEnd = new Date('2026-06-15T00:00:00Z').toISOString()
+    const justAfter = new Date('2026-06-15T00:00:01Z')
+    expect(resolveSubscriptionAccessState(periodEnd, justAfter).state).toBe('grace')
+  })
+
+  it('stays in grace right up through the configured grace window', () => {
+    const periodEnd = new Date('2026-06-15T00:00:00Z').toISOString()
+    const lastGraceMoment = new Date(new Date(periodEnd).getTime() + SUBSCRIPTION_GRACE_PERIOD_DAYS * DAY_MS)
+    expect(resolveSubscriptionAccessState(periodEnd, lastGraceMoment).state).toBe('grace')
+  })
+
+  it('expires the moment the grace window passes', () => {
+    const periodEnd = new Date('2026-06-15T00:00:00Z').toISOString()
+    const justPastGrace = new Date(new Date(periodEnd).getTime() + SUBSCRIPTION_GRACE_PERIOD_DAYS * DAY_MS + 1000)
+    expect(resolveSubscriptionAccessState(periodEnd, justPastGrace).state).toBe('expired')
+  })
+
+  it('computes graceEndsAt as exactly periodEnd + the grace window, for both active and grace states', () => {
+    const periodEnd = new Date('2026-06-15T00:00:00Z')
+    const expectedGraceEndsAt = new Date(periodEnd.getTime() + SUBSCRIPTION_GRACE_PERIOD_DAYS * DAY_MS).toISOString()
+
+    expect(resolveSubscriptionAccessState(periodEnd.toISOString(), periodEnd).graceEndsAt).toBe(expectedGraceEndsAt)
+    expect(
+      resolveSubscriptionAccessState(periodEnd.toISOString(), new Date(periodEnd.getTime() + DAY_MS)).graceEndsAt
+    ).toBe(expectedGraceEndsAt)
   })
 })

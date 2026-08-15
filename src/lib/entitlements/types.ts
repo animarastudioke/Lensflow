@@ -11,6 +11,20 @@ export type SubscriptionStatus =
 /** Subscription states that grant the studio's paid entitlements. */
 export const ENTITLED_SUBSCRIPTION_STATUSES: readonly SubscriptionStatus[] = ['active', 'trialing']
 
+/**
+ * Days of continued access after a paid period's current_period_end passes
+ * with no renewal, before the studio is demoted to Free. M-Pesa STK Push
+ * has no recurring-billing primitive (each charge is a one-time payment —
+ * see subscription-payments.ts), so there is no auto-renewal to fail; a
+ * subscription simply reaches its period end and either gets manually
+ * renewed or lapses. This is what "cancellation" resolves to in this
+ * billing model: there's nothing to actively cancel, only a period that
+ * does or doesn't get paid again before it runs out.
+ */
+export const SUBSCRIPTION_GRACE_PERIOD_DAYS = 7
+
+export type SubscriptionAccessState = 'active' | 'grace' | 'expired'
+
 export interface Plan {
   id: string
   slug: PlanSlug
@@ -107,4 +121,26 @@ export function getStorageStatus(usedBytes: number, limitBytes: number): Storage
   if (ratio >= STORAGE_THRESHOLDS.critical) return 'critical'
   if (ratio >= STORAGE_THRESHOLDS.warning) return 'warning'
   return 'ok'
+}
+
+/**
+ * Pure date math for the paid-period/grace/expired decision, dependency-free
+ * for the same reason as getStorageStatus — unit-testable without a
+ * Supabase client. `periodEnd` null means "never expires" (the Free plan's
+ * subscription row has no period end).
+ */
+export function resolveSubscriptionAccessState(
+  periodEnd: string | null,
+  now: Date = new Date()
+): { state: SubscriptionAccessState; graceEndsAt: string | null } {
+  if (!periodEnd) return { state: 'active', graceEndsAt: null }
+
+  const periodEndMs = new Date(periodEnd).getTime()
+  const graceEndsAtMs = periodEndMs + SUBSCRIPTION_GRACE_PERIOD_DAYS * 24 * 60 * 60 * 1000
+  const graceEndsAt = new Date(graceEndsAtMs).toISOString()
+  const nowMs = now.getTime()
+
+  if (nowMs <= periodEndMs) return { state: 'active', graceEndsAt }
+  if (nowMs <= graceEndsAtMs) return { state: 'grace', graceEndsAt }
+  return { state: 'expired', graceEndsAt }
 }

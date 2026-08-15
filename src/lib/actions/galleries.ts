@@ -5,11 +5,13 @@ import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { z } from 'zod'
 import sharp from 'sharp'
-import { canAcceptUpload, canCreateGallery, getEffectivePlan, hasEntitlement } from '@/lib/entitlements'
+import { canCreateGallery, getEffectivePlan, hasEntitlement, reserveUploadQuota, releaseUploadReservations } from '@/lib/entitlements'
 import {
   buildMediaKey,
   createPresignedUploadUrl,
   deleteObject,
+  deleteObjects,
+  deleteObjectsByPrefix,
   downloadObject,
   getR2PublicUrl,
   uploadObject,
@@ -461,10 +463,36 @@ export async function deleteGallery(galleryId: string, studioSlug: string) {
     throw new Error('Insufficient permissions to delete gallery')
   }
 
-  // Soft delete - update status to archived
+  const { data: gallery } = await supabase
+    .from('galleries')
+    .select('id')
+    .eq('id', galleryId)
+    .eq('studio_id', studio.id)
+    .single()
+
+  if (!gallery) {
+    throw new Error('Gallery not found')
+  }
+
+  // The gallery row itself is soft-deleted (kept as 'archived' for booking/
+  // client history), but its media must actually be removed — both the R2
+  // objects and the DB rows — or the studio's storage quota (a live SUM
+  // over media.storage_bytes) never gets released and the objects sit in
+  // the bucket forever.
+  await deleteObjectsByPrefix(`studios/${studio.id}/galleries/${galleryId}/`).catch((r2Error) => {
+    console.error('Failed to delete gallery R2 objects:', r2Error)
+  })
+
+  await supabase.from('media').delete().eq('gallery_id', galleryId)
+
   const { error } = await supabase
     .from('galleries')
-    .update({ status: 'archived', updated_at: new Date().toISOString() })
+    .update({
+      status: 'archived',
+      media_count: 0,
+      cover_image: null,
+      updated_at: new Date().toISOString(),
+    })
     .eq('id', galleryId)
     .eq('studio_id', studio.id)
 
@@ -941,12 +969,16 @@ export async function requestGalleryUploadUrl(
     return { error: 'Only image uploads are supported' }
   }
 
-  const quota = await canAcceptUpload(membership.studio_id, sizeBytes)
+  const mediaId = crypto.randomUUID()
+
+  // Atomically reserves quota for this upload (see migration 021) rather than
+  // the old read-then-decide canAcceptUpload check, which two simultaneous
+  // near-the-limit uploads could both pass.
+  const quota = await reserveUploadQuota(membership.studio_id, mediaId, sizeBytes)
   if (!quota.allowed) {
     return { error: quota.reason }
   }
 
-  const mediaId = crypto.randomUUID()
   const key = buildMediaKey({
     studioId: membership.studio_id,
     galleryId,
@@ -1090,7 +1122,14 @@ export async function finalizeGalleryMediaUpload(
     })
   }
 
+  // Every reservation from requestGalleryUploadUrl for this batch is done
+  // its job now — the successful ones are about to become real media rows
+  // (counted for real via the storage view) and the skipped ones failed
+  // processing, so neither should keep holding quota until their TTL expires.
+  const allMediaIds = uploads.map((u) => u.mediaId)
+
   if (rows.length === 0) {
+    await releaseUploadReservations(allMediaIds)
     return { error: 'No valid image files were uploaded' }
   }
 
@@ -1098,8 +1137,11 @@ export async function finalizeGalleryMediaUpload(
 
   if (insertError) {
     console.error('Insert media rows error:', insertError)
+    await releaseUploadReservations(allMediaIds)
     return { error: 'Failed to save uploaded media' }
   }
+
+  await releaseUploadReservations(allMediaIds)
 
   const firstUploadedUrl = rows[0]?.url
 
@@ -1208,7 +1250,7 @@ async function requireGalleryAccess(galleryId: string) {
     throw new Error('Gallery not found')
   }
 
-  return supabase
+  return { supabase, studioId }
 }
 
 export async function createAlbum(
@@ -1219,7 +1261,7 @@ export async function createAlbum(
 ): Promise<{ album: GalleryAlbumRow } | { error: string }> {
   let supabase
   try {
-    supabase = await requireGalleryAccess(galleryId)
+    ;({ supabase } = await requireGalleryAccess(galleryId))
   } catch (err) {
     return { error: err instanceof Error ? err.message : 'Unauthorized' }
   }
@@ -1253,7 +1295,7 @@ export async function updateAlbum(
 ): Promise<{ album: GalleryAlbumRow } | { error: string }> {
   let supabase
   try {
-    supabase = await requireGalleryAccess(galleryId)
+    ;({ supabase } = await requireGalleryAccess(galleryId))
   } catch (err) {
     return { error: err instanceof Error ? err.message : 'Unauthorized' }
   }
@@ -1282,7 +1324,7 @@ export async function deleteAlbum(
 ): Promise<{ error: string } | undefined> {
   let supabase
   try {
-    supabase = await requireGalleryAccess(galleryId)
+    ;({ supabase } = await requireGalleryAccess(galleryId))
   } catch (err) {
     return { error: err instanceof Error ? err.message : 'Unauthorized' }
   }
@@ -1308,7 +1350,7 @@ export async function duplicateAlbum(
 ): Promise<{ album: GalleryAlbumRow } | { error: string }> {
   let supabase
   try {
-    supabase = await requireGalleryAccess(galleryId)
+    ;({ supabase } = await requireGalleryAccess(galleryId))
   } catch (err) {
     return { error: err instanceof Error ? err.message : 'Unauthorized' }
   }
@@ -1351,7 +1393,7 @@ export async function assignMediaToAlbum(
 ): Promise<{ albums: GalleryAlbumRow[] } | { error: string }> {
   let supabase
   try {
-    supabase = await requireGalleryAccess(galleryId)
+    ;({ supabase } = await requireGalleryAccess(galleryId))
   } catch (err) {
     return { error: err instanceof Error ? err.message : 'Unauthorized' }
   }
@@ -1400,7 +1442,7 @@ export async function setMediaFavorite(
 ): Promise<{ success: true } | { error: string }> {
   let supabase
   try {
-    supabase = await requireGalleryAccess(galleryId)
+    ;({ supabase } = await requireGalleryAccess(galleryId))
   } catch (err) {
     return { error: err instanceof Error ? err.message : 'Unauthorized' }
   }
@@ -1425,12 +1467,18 @@ export async function deleteMedia(
   galleryId: string,
   studioSlug: string
 ): Promise<{ success: true } | { error: string }> {
-  let supabase
+  let supabase, studioId
   try {
-    supabase = await requireGalleryAccess(galleryId)
+    ;({ supabase, studioId } = await requireGalleryAccess(galleryId))
   } catch (err) {
     return { error: err instanceof Error ? err.message : 'Unauthorized' }
   }
+
+  const { data: rowsToDelete } = await supabase
+    .from('media')
+    .select('id, original_key')
+    .in('id', mediaIds)
+    .eq('gallery_id', galleryId)
 
   const { error } = await supabase
     .from('media')
@@ -1441,6 +1489,24 @@ export async function deleteMedia(
   if (error) {
     console.error('Delete media error:', error)
     return { error: 'Failed to delete images' }
+  }
+
+  // R2 objects are best-effort cleanup after the DB delete has committed —
+  // a failure here leaves an orphaned object (recoverable later) rather than
+  // a dangling media row pointing at nothing.
+  const keysToDelete = (rowsToDelete ?? []).flatMap((row) => {
+    const keys = [
+      buildMediaKey({ studioId, galleryId, mediaId: row.id, variant: 'preview', extension: 'webp' }),
+      buildMediaKey({ studioId, galleryId, mediaId: row.id, variant: 'thumb', extension: 'webp' }),
+    ]
+    if (row.original_key) keys.push(row.original_key)
+    return keys
+  })
+
+  if (keysToDelete.length > 0) {
+    await deleteObjects(keysToDelete).catch((r2Error) => {
+      console.error('Failed to delete R2 objects for removed media:', r2Error)
+    })
   }
 
   const { count } = await supabase

@@ -73,7 +73,7 @@ import { CURRENCIES, formatCurrency } from '@/lib/currencies'
 import { toast } from 'sonner'
 import { deleteStudio, updateStudioSettings, type StudioSettingsRow } from '@/lib/actions/studios'
 import type { SubscriptionInfo, SubscriptionPaymentRow } from '@/lib/actions/billing'
-import type { Plan, StorageUsage } from '@/lib/entitlements'
+import type { Plan, StorageUsage, SubscriptionAccessState } from '@/lib/entitlements'
 import { PRICING_TIERS } from '@/lib/constants/pricing'
 import { SubscribeDialog } from '@/components/settings/SubscribeDialog'
 import { format } from 'date-fns'
@@ -83,7 +83,13 @@ interface SettingsPageProps {
   studioName: string
   isOwner: boolean
   settings: StudioSettingsRow | null
-  billing: { plan: Plan; storage: StorageUsage; subscription: SubscriptionInfo | null } | null
+  billing: {
+    plan: Plan
+    storage: StorageUsage
+    subscription: SubscriptionInfo | null
+    accessState: SubscriptionAccessState
+    graceEndsAt: string | null
+  } | null
   paymentHistory: SubscriptionPaymentRow[]
 }
 
@@ -611,7 +617,7 @@ export function SettingsPage({ studioSlug, studioName, isOwner, settings, billin
                       </div>
                       <p className="text-sm text-muted-foreground mt-1">
                         {billing.plan.priceCents > 0 ? `$${billing.plan.priceCents / 100}/month` : 'No cost'}
-                        {billing.subscription?.currentPeriodEnd && billing.plan.slug !== 'free' && (
+                        {billing.subscription?.currentPeriodEnd && billing.plan.slug !== 'free' && billing.accessState === 'active' && (
                           <> · Renews {format(new Date(billing.subscription.currentPeriodEnd), 'MMM d, yyyy')}</>
                         )}
                       </p>
@@ -620,6 +626,22 @@ export function SettingsPage({ studioSlug, studioName, isOwner, settings, billin
                       </p>
                     </div>
                   </div>
+
+                  {billing.accessState === 'grace' && (
+                    <div className="mt-4 rounded-lg border border-warning/40 bg-warning/10 p-3 text-sm text-warning-foreground">
+                      <p className="font-medium">Your {billing.plan.name} period ended{billing.subscription?.currentPeriodEnd ? ` on ${format(new Date(billing.subscription.currentPeriodEnd), 'MMM d, yyyy')}` : ''}.</p>
+                      <p className="mt-1 text-muted-foreground">
+                        Galleries, downloads, and everything else keep working as normal, but new uploads are paused
+                        {billing.graceEndsAt && <> until you renew — after {format(new Date(billing.graceEndsAt), 'MMM d, yyyy')} this studio moves to the Free plan</>}.
+                      </p>
+                    </div>
+                  )}
+                  {billing.accessState === 'expired' && (
+                    <div className="mt-4 rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-sm">
+                      <p className="font-medium text-destructive">Your subscription has expired.</p>
+                      <p className="mt-1 text-muted-foreground">This studio is back on the Free plan. Your galleries and data are safe — subscribe again to restore your previous plan&apos;s features and storage.</p>
+                    </div>
+                  )}
 
                   {isOwner && (
                     <div className="mt-5 grid gap-3 sm:grid-cols-3">
