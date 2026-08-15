@@ -51,6 +51,13 @@ export function getR2PublicUrl(key: string): string {
   return `${base}/${key}`
 }
 
+/** Reverses getR2PublicUrl — returns null for a URL that isn't one of our own public objects (e.g. an unrelated external URL). */
+export function keyFromR2PublicUrl(url: string): string | null {
+  const base = getEnv('R2_PUBLIC_URL').replace(/\/$/, '')
+  if (!url.startsWith(`${base}/`)) return null
+  return url.slice(base.length + 1)
+}
+
 export type R2AssetVariant = 'raw' | 'preview' | 'thumb' | 'original'
 
 /**

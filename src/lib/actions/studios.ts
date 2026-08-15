@@ -4,7 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
-import { deleteObjectsByPrefix } from '@/lib/storage/r2'
+import { deleteObjectsByPrefix, deleteObject, uploadObject, getR2PublicUrl, keyFromR2PublicUrl } from '@/lib/storage/r2'
 import { getFreePlan, getEffectivePlan } from '@/lib/entitlements'
 import { supabaseAdmin } from '@/lib/supabase/admin'
 
@@ -154,6 +154,8 @@ export interface StudioSettingsRow {
   business_type: string | null
   currency: string
   payment_terms: string
+  logo_url: string | null
+  brand_color: string | null
 }
 
 export async function getStudioSettings(studioSlug: string): Promise<StudioSettingsRow | null> {
@@ -161,7 +163,7 @@ export async function getStudioSettings(studioSlug: string): Promise<StudioSetti
 
   const { data: studio } = await supabase
     .from('studios')
-    .select('name, description, website_url, phone, email, address, legal_business_name, tax_id, business_type, currency, payment_terms')
+    .select('name, description, website_url, phone, email, address, legal_business_name, tax_id, business_type, currency, payment_terms, logo_url, brand_color')
     .eq('slug', studioSlug)
     .single()
 
@@ -257,6 +259,135 @@ export async function updateStudioSettings(studioSlug: string, formData: FormDat
   }
 
   revalidatePath(`/dashboard/${studioSlug}`, 'layout')
+}
+
+const brandColorSchema = z.object({
+  brand_color: z.string().regex(/^#[0-9a-fA-F]{6}$/, 'Enter a valid hex color, e.g. #3B82F6'),
+})
+
+export async function updateStudioBranding(studioSlug: string, formData: FormData): Promise<{ error: string } | undefined> {
+  const supabase = await createClient()
+
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) {
+    return { error: 'Unauthorized' }
+  }
+
+  const { data: membership } = await supabase
+    .from('studio_members')
+    .select('studio_id')
+    .eq('user_id', user.id)
+    .eq('status', 'active')
+    .single()
+
+  if (!membership) {
+    return { error: 'No active studio membership' }
+  }
+
+  const parsed = brandColorSchema.safeParse({ brand_color: formData.get('brand_color') })
+  if (!parsed.success) {
+    return { error: parsed.error.errors[0]?.message ?? 'Invalid input' }
+  }
+
+  const { error } = await supabase
+    .from('studios')
+    .update({ brand_color: parsed.data.brand_color, updated_at: new Date().toISOString() })
+    .eq('id', membership.studio_id)
+
+  if (error) {
+    console.error('Update studio branding error:', error)
+    return { error: 'Failed to save brand color' }
+  }
+
+  revalidatePath(`/dashboard/${studioSlug}/settings`)
+  revalidatePath(`/dashboard/${studioSlug}`, 'layout')
+}
+
+const LOGO_MAX_BYTES = 5 * 1024 * 1024
+const LOGO_MIME_EXTENSIONS: Record<string, string> = {
+  'image/png': 'png',
+  'image/jpeg': 'jpg',
+  'image/webp': 'webp',
+  'image/svg+xml': 'svg',
+}
+
+export async function uploadStudioLogo(
+  studioSlug: string,
+  formData: FormData
+): Promise<{ error: string } | { success: true; logoUrl: string }> {
+  const supabase = await createClient()
+
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) {
+    return { error: 'Unauthorized' }
+  }
+
+  const { data: membership } = await supabase
+    .from('studio_members')
+    .select('studio_id')
+    .eq('user_id', user.id)
+    .eq('status', 'active')
+    .single()
+
+  if (!membership) {
+    return { error: 'No active studio membership' }
+  }
+
+  const file = formData.get('logo')
+  if (!(file instanceof File) || file.size === 0) {
+    return { error: 'No file provided' }
+  }
+
+  const extension = LOGO_MIME_EXTENSIONS[file.type]
+  if (!extension) {
+    return { error: 'Logo must be a PNG, JPEG, WebP, or SVG image' }
+  }
+  if (file.size > LOGO_MAX_BYTES) {
+    return { error: 'Logo must be under 5MB' }
+  }
+
+  const { data: existingStudio } = await supabase
+    .from('studios')
+    .select('logo_url')
+    .eq('id', membership.studio_id)
+    .single()
+
+  // The key includes a random suffix rather than a fixed "logo" filename so
+  // a re-upload doesn't collide with a stale cached copy of the old one at
+  // the same URL — the old object is deleted below once the new one is live.
+  const key = `studios/${membership.studio_id}/branding/logo-${crypto.randomUUID()}.${extension}`
+  const buffer = Buffer.from(await file.arrayBuffer())
+
+  try {
+    await uploadObject(key, buffer, file.type)
+  } catch (err) {
+    console.error('Logo upload error:', err)
+    return { error: 'Failed to upload logo. Try again.' }
+  }
+
+  const logoUrl = getR2PublicUrl(key)
+
+  const { error } = await supabase
+    .from('studios')
+    .update({ logo_url: logoUrl, updated_at: new Date().toISOString() })
+    .eq('id', membership.studio_id)
+
+  if (error) {
+    console.error('Save logo_url error:', error)
+    await deleteObject(key).catch(() => {})
+    return { error: 'Failed to save logo' }
+  }
+
+  const oldKey = existingStudio?.logo_url ? keyFromR2PublicUrl(existingStudio.logo_url) : null
+  if (oldKey) {
+    await deleteObject(oldKey).catch((cleanupError) => {
+      console.error('Failed to delete previous logo from R2:', cleanupError)
+    })
+  }
+
+  revalidatePath(`/dashboard/${studioSlug}/settings`)
+  revalidatePath(`/dashboard/${studioSlug}`, 'layout')
+  return { success: true, logoUrl }
 }
 
 async function deleteStudioStorageObjects(studioId: string) {

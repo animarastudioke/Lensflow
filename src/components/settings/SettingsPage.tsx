@@ -71,7 +71,7 @@ import {
 } from '@/components/ui/table'
 import { CURRENCIES, formatCurrency } from '@/lib/currencies'
 import { toast } from 'sonner'
-import { deleteStudio, updateStudioSettings, type StudioSettingsRow } from '@/lib/actions/studios'
+import { deleteStudio, updateStudioSettings, updateStudioBranding, uploadStudioLogo, type StudioSettingsRow } from '@/lib/actions/studios'
 import type { SubscriptionInfo, SubscriptionPaymentRow } from '@/lib/actions/billing'
 import type { Plan, StorageUsage, SubscriptionAccessState } from '@/lib/entitlements'
 import { PRICING_TIERS } from '@/lib/constants/pricing'
@@ -152,6 +152,30 @@ export function SettingsPage({ studioSlug, studioName, isOwner, settings, billin
   const [currency, setCurrency] = React.useState(settings?.currency ?? 'USD')
   const [paymentTerms, setPaymentTerms] = React.useState(settings?.payment_terms ?? 'net30')
 
+  const [logoUrl, setLogoUrl] = React.useState(settings?.logo_url ?? null)
+  const [isUploadingLogo, setIsUploadingLogo] = React.useState(false)
+  const [brandColor, setBrandColor] = React.useState(settings?.brand_color ?? '#3B82F6')
+  const logoInputRef = React.useRef<HTMLInputElement>(null)
+
+  const handleLogoFileSelected = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file) return
+
+    setIsUploadingLogo(true)
+    const formData = new FormData()
+    formData.set('logo', file)
+    const result = await uploadStudioLogo(studioSlug, formData)
+    setIsUploadingLogo(false)
+
+    if ('error' in result) {
+      toast.error(result.error)
+      return
+    }
+    setLogoUrl(result.logoUrl)
+    toast.success('Logo updated')
+  }
+
   const handleSave = async () => {
     setIsSaving(true)
     setSaveStatus('idle')
@@ -163,6 +187,21 @@ export function SettingsPage({ studioSlug, studioName, isOwner, settings, billin
       formData.set('payment_terms', paymentTerms)
 
       const result = await updateStudioSettings(studioSlug, formData)
+      setIsSaving(false)
+      if (result?.error) {
+        setSaveStatus('error')
+        toast.error(result.error)
+        return
+      }
+      setSaveStatus('success')
+      setTimeout(() => setSaveStatus('idle'), 3000)
+      return
+    }
+
+    if (activeTab === 'branding') {
+      const formData = new FormData()
+      formData.set('brand_color', brandColor)
+      const result = await updateStudioBranding(studioSlug, formData)
       setIsSaving(false)
       if (result?.error) {
         setSaveStatus('error')
@@ -388,15 +427,31 @@ export function SettingsPage({ studioSlug, studioName, isOwner, settings, billin
             </CardHeader>
             <CardContent>
               <div className="flex items-center gap-6">
-                <div className="h-20 w-20 rounded-lg bg-primary flex items-center justify-center text-primary-foreground font-display text-2xl font-semibold shrink-0">
-                  A
-                </div>
+                {logoUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={logoUrl} alt="Studio logo" className="h-20 w-20 rounded-lg object-contain bg-muted shrink-0" />
+                ) : (
+                  <div className="h-20 w-20 rounded-lg bg-primary flex items-center justify-center text-primary-foreground font-display text-2xl font-semibold shrink-0">
+                    {studioName.charAt(0).toUpperCase()}
+                  </div>
+                )}
                 <div className="space-y-2">
-                  <Button variant="outline" size="sm">
-                    <Upload className="h-4 w-4 mr-2" />
-                    Upload logo
+                  <input
+                    ref={logoInputRef}
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp,image/svg+xml"
+                    className="hidden"
+                    onChange={handleLogoFileSelected}
+                  />
+                  <Button variant="outline" size="sm" disabled={isUploadingLogo} onClick={() => logoInputRef.current?.click()}>
+                    {isUploadingLogo ? (
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    ) : (
+                      <Upload className="h-4 w-4 mr-2" />
+                    )}
+                    {isUploadingLogo ? 'Uploading…' : 'Upload logo'}
                   </Button>
-                  <p className="text-sm text-muted-foreground">PNG or SVG, at least 256x256px</p>
+                  <p className="text-sm text-muted-foreground">PNG, JPEG, WebP, or SVG, up to 5MB</p>
                 </div>
               </div>
             </CardContent>
@@ -412,15 +467,17 @@ export function SettingsPage({ studioSlug, studioName, isOwner, settings, billin
                 <div className="space-y-2">
                   <Label>Primary Color</Label>
                   <div className="flex items-center gap-3">
-                    <Input type="color" defaultValue="#3B82F6" className="h-10 w-16 p-1" />
-                    <Input defaultValue="#3B82F6" className="flex-1 font-mono" />
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <Label>Accent Color</Label>
-                  <div className="flex items-center gap-3">
-                    <Input type="color" defaultValue="#F43F5E" className="h-10 w-16 p-1" />
-                    <Input defaultValue="#F43F5E" className="flex-1 font-mono" />
+                    <Input
+                      type="color"
+                      value={brandColor}
+                      onChange={(e) => setBrandColor(e.target.value)}
+                      className="h-10 w-16 p-1"
+                    />
+                    <Input
+                      value={brandColor}
+                      onChange={(e) => setBrandColor(e.target.value)}
+                      className="flex-1 font-mono"
+                    />
                   </div>
                 </div>
               </div>
