@@ -11,6 +11,7 @@ const PUBLIC_PATHS = [
   '/auth/callback',
   '/auth/confirmed',
   '/g',
+  '/q',
   '/api/g',
   '/api/storage',
   '/api/payments',

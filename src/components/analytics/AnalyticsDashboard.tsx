@@ -26,6 +26,7 @@ import {
   ArrowRight,
   Download,
   Loader2,
+  Receipt,
 } from 'lucide-react'
 import { Progress } from '@/components/ui/progress'
 import { formatCurrency } from '@/lib/currencies'
@@ -152,6 +153,8 @@ export function AnalyticsDashboard({ studioSlug }: AnalyticsDashboardProps) {
 
   const statCards = [
     { label: 'Revenue', value: formatCurrency(stats.totalRevenue, currency), change: stats.revenueChangePercent, icon: DollarSign },
+    { label: 'Expenses', value: formatCurrency(stats.totalExpenses, currency), change: null, icon: Receipt },
+    { label: 'Net Profit', value: formatCurrency(stats.netProfit, currency), change: null, icon: DollarSign, negative: stats.netProfit < 0 },
     { label: 'Bookings', value: stats.bookings.toLocaleString(), change: stats.bookingsChangePercent, icon: Calendar },
     { label: 'Active Clients', value: stats.activeClients.toLocaleString(), change: null, icon: Users },
     { label: 'Gallery Views', value: stats.galleryViews.toLocaleString(), change: null, icon: Camera },
@@ -183,14 +186,14 @@ export function AnalyticsDashboard({ studioSlug }: AnalyticsDashboardProps) {
       </div>
 
       {/* Stats Row */}
-      <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 divide-y lg:divide-y-0 divide-x-0 lg:divide-x divide-border border border-border">
+      <div className="grid grid-cols-2 lg:grid-cols-4 divide-y lg:divide-y-0 divide-x-0 lg:divide-x divide-border border border-border">
         {statCards.map((stat, index) => (
           <div key={index} className="px-5 py-5">
             <div className="flex items-center justify-between">
               <span className="label-caption">{stat.label}</span>
               <stat.icon className="h-4 w-4 text-muted-foreground/60" strokeWidth={1.5} />
             </div>
-            <div className="mt-2 font-mono text-2xl font-medium text-foreground tabular-nums">{stat.value}</div>
+            <div className={`mt-2 font-mono text-2xl font-medium tabular-nums ${stat.negative ? 'text-destructive' : 'text-foreground'}`}>{stat.value}</div>
             {stat.change !== null && (
               <p className={`text-xs mt-1 flex items-center gap-1 ${stat.change >= 0 ? 'text-success' : 'text-destructive'}`}>
                 {stat.change >= 0 ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}

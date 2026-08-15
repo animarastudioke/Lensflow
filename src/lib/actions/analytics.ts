@@ -29,6 +29,8 @@ export interface AnalyticsData {
     galleryDownloads: number
     outstandingInvoices: number
     avgOrderValue: number
+    totalExpenses: number
+    netProfit: number
   }
   revenueSeries: AnalyticsSeriesPoint[]
   bookingsSeries: AnalyticsSeriesPoint[]
@@ -106,6 +108,7 @@ export async function getAnalyticsOverview(studioSlug: string, range: AnalyticsR
     { count: contractsInPeriod },
     { count: confirmedBookingsInPeriod },
     { data: clientsWithSource },
+    { data: expensesInPeriod },
   ] = await Promise.all([
     supabase.from('invoices').select('total, paid_at').eq('studio_id', studio.id).not('paid_at', 'is', null).gte('paid_at', rangeStart.toISOString()),
     supabase.from('invoices').select('total').eq('studio_id', studio.id).not('paid_at', 'is', null).gte('paid_at', previousRangeStart.toISOString()).lt('paid_at', rangeStart.toISOString()),
@@ -120,6 +123,7 @@ export async function getAnalyticsOverview(studioSlug: string, range: AnalyticsR
     supabase.from('contracts').select('id', { count: 'exact', head: true }).eq('studio_id', studio.id).eq('status', 'signed').gte('created_at', rangeStart.toISOString()),
     supabase.from('bookings').select('id', { count: 'exact', head: true }).eq('studio_id', studio.id).eq('status', 'confirmed').gte('created_at', rangeStart.toISOString()),
     supabase.from('clients').select('source').eq('studio_id', studio.id).not('source', 'is', null),
+    supabase.from('expenses').select('amount').eq('studio_id', studio.id).gte('expense_date', rangeStart.toISOString().slice(0, 10)),
   ])
 
   // Revenue
@@ -151,6 +155,10 @@ export async function getAnalyticsOverview(studioSlug: string, range: AnalyticsR
   // Store
   const avgOrderValue = orders && orders.length > 0 ? orders.reduce((sum, o) => sum + o.total, 0) / orders.length : 0
 
+  // Expenses / profit
+  const totalExpenses = (expensesInPeriod ?? []).reduce((sum, e) => sum + e.amount, 0)
+  const netProfit = totalRevenue - totalExpenses
+
   // Client sources
   const sourceCounts = new Map<string, number>()
   for (const client of clientsWithSource ?? []) {
@@ -174,6 +182,8 @@ export async function getAnalyticsOverview(studioSlug: string, range: AnalyticsR
       galleryDownloads,
       outstandingInvoices: outstandingTotal,
       avgOrderValue,
+      totalExpenses,
+      netProfit,
     },
     revenueSeries: Array.from(revenueSeriesMap.values()),
     bookingsSeries: Array.from(bookingsSeriesMap.values()),

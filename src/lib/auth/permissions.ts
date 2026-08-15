@@ -51,6 +51,20 @@ export type Permission =
   | 'bookings:manage_calendar'
   | 'bookings:manage_packages'
   | 'bookings:manage_availability'
+  | 'calendar:read'
+  | 'tasks:create'
+  | 'tasks:read'
+  | 'tasks:update'
+  | 'tasks:delete'
+  | 'expenses:create'
+  | 'expenses:read'
+  | 'expenses:update'
+  | 'expenses:delete'
+  | 'questionnaires:create'
+  | 'questionnaires:read'
+  | 'questionnaires:update'
+  | 'questionnaires:delete'
+  | 'questionnaires:send'
   | 'contracts:create'
   | 'contracts:read'
   | 'contracts:update'
@@ -154,6 +168,20 @@ export const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     'bookings:manage_calendar',
     'bookings:manage_packages',
     'bookings:manage_availability',
+    'calendar:read',
+    'tasks:create',
+    'tasks:read',
+    'tasks:update',
+    'tasks:delete',
+    'expenses:create',
+    'expenses:read',
+    'expenses:update',
+    'expenses:delete',
+    'questionnaires:create',
+    'questionnaires:read',
+    'questionnaires:update',
+    'questionnaires:delete',
+    'questionnaires:send',
     'contracts:create',
     'contracts:read',
     'contracts:update',
@@ -254,6 +282,20 @@ export const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     'bookings:manage_calendar',
     'bookings:manage_packages',
     'bookings:manage_availability',
+    'calendar:read',
+    'tasks:create',
+    'tasks:read',
+    'tasks:update',
+    'tasks:delete',
+    'expenses:create',
+    'expenses:read',
+    'expenses:update',
+    'expenses:delete',
+    'questionnaires:create',
+    'questionnaires:read',
+    'questionnaires:update',
+    'questionnaires:delete',
+    'questionnaires:send',
     'contracts:create',
     'contracts:read',
     'contracts:update',
@@ -332,6 +374,19 @@ export const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     'bookings:create',
     'bookings:read',
     'bookings:update',
+    'calendar:read',
+    'tasks:create',
+    'tasks:read',
+    'tasks:update',
+    'tasks:delete',
+    'expenses:create',
+    'expenses:read',
+    'expenses:update',
+    'expenses:delete',
+    'questionnaires:create',
+    'questionnaires:read',
+    'questionnaires:update',
+    'questionnaires:send',
     'contracts:create',
     'contracts:read',
     'contracts:update',
@@ -372,6 +427,11 @@ export const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     'media:manage_metadata',
     'bookings:read',
     'bookings:update',
+    'calendar:read',
+    'tasks:read',
+    'tasks:update',
+    'expenses:read',
+    'questionnaires:read',
     'contracts:read',
     'quotes:read',
     'invoices:read',

@@ -26,6 +26,10 @@ import {
   NotepadText,
   LogOut,
   User,
+  CalendarDays,
+  ListChecks,
+  Receipt,
+  ClipboardList,
 } from 'lucide-react'
 import { useAuthUser, type UserRole } from '@/lib/auth/hooks'
 
@@ -73,6 +77,18 @@ const navigation = [
     permission: 'bookings:read',
   },
   {
+    title: 'Calendar',
+    href: (studioSlug: string) => `/dashboard/${studioSlug}/calendar`,
+    icon: CalendarDays,
+    permission: 'calendar:read',
+  },
+  {
+    title: 'Tasks',
+    href: (studioSlug: string) => `/dashboard/${studioSlug}/tasks`,
+    icon: ListChecks,
+    permission: 'tasks:read',
+  },
+  {
     title: 'Contracts',
     href: (studioSlug: string) => `/dashboard/${studioSlug}/contracts`,
     icon: FileText,
@@ -95,6 +111,18 @@ const navigation = [
     href: (studioSlug: string) => `/dashboard/${studioSlug}/payments`,
     icon: DollarSign,
     permission: 'payments:read',
+  },
+  {
+    title: 'Expenses',
+    href: (studioSlug: string) => `/dashboard/${studioSlug}/expenses`,
+    icon: Receipt,
+    permission: 'expenses:read',
+  },
+  {
+    title: 'Questionnaires',
+    href: (studioSlug: string) => `/dashboard/${studioSlug}/questionnaires`,
+    icon: ClipboardList,
+    permission: 'questionnaires:read',
   },
   {
     title: 'Store',
