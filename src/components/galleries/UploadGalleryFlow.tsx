@@ -16,8 +16,13 @@ import {
   AlignJustify,
 } from 'lucide-react'
 import { toast } from 'sonner'
-import { finalizeGalleryMediaUpload, requestGalleryUploadUrl, updateGalleryLayout } from '@/lib/actions/galleries'
+import { finalizeGalleryMediaUpload, requestGalleryUploadUrls, updateGalleryLayout } from '@/lib/actions/galleries'
 import type { GalleryLayoutType } from '@/lib/actions/galleries'
+import { mapWithConcurrency } from '@/lib/utils/concurrency'
+
+// Cap on simultaneous PUTs to R2 — high enough to overlap network latency
+// across files, low enough not to saturate the browser's connection pool.
+const UPLOAD_CONCURRENCY = 5
 
 interface UploadGalleryFlowProps {
   studioSlug: string
@@ -55,20 +60,40 @@ export function UploadGalleryFlow({
     setIsUploading(true)
     setUploadError(null)
 
-    const uploaded: { mediaId: string; key: string; filename: string }[] = []
     let quotaError: string | null = null
 
-    for (const file of files) {
-      const presigned = await requestGalleryUploadUrl(galleryId, file.name, file.type, file.size)
+    // Auth/permission/quota checks for the whole batch happen in one round
+    // trip; only the presign itself is per file.
+    const presignResponse = await requestGalleryUploadUrls(
+      galleryId,
+      files.map((file) => ({ filename: file.name, contentType: file.type, sizeBytes: file.size }))
+    )
 
-      if ('error' in presigned) {
-        console.error('Failed to get upload URL:', presigned.error)
-        quotaError = presigned.error
-        break
+    if ('error' in presignResponse) {
+      setUploadError(presignResponse.error)
+      toast.error(presignResponse.error)
+      setIsUploading(false)
+      return
+    }
+
+    // requestGalleryUploadUrls returns results in the same order as the
+    // input files, so pair by index rather than filename — duplicate
+    // filenames in one batch (e.g. two "IMG_0001.jpg" from different folders)
+    // would otherwise collide on a filename-keyed lookup.
+    const presignResults = presignResponse.results
+
+    // Files PUT to R2 in parallel (bounded) instead of one at a time — the
+    // browser talks directly to R2, not through this Vercel function, so the
+    // 4.5MB serverless body-size cap never applies.
+    const uploadResults = await mapWithConcurrency(files, UPLOAD_CONCURRENCY, async (file, index) => {
+      const presigned = presignResults[index]
+
+      if (!presigned || 'error' in presigned) {
+        console.error('Failed to get upload URL:', presigned?.error)
+        quotaError = presigned?.error ?? quotaError
+        return null
       }
 
-      // Direct-to-R2 PUT — the browser talks to R2, not through this Vercel
-      // function, so the 4.5MB serverless body-size cap never applies.
       const putResponse = await fetch(presigned.uploadUrl, {
         method: 'PUT',
         body: file,
@@ -77,11 +102,15 @@ export function UploadGalleryFlow({
 
       if (!putResponse.ok) {
         console.error('Direct R2 upload error:', putResponse.status, putResponse.statusText)
-        continue
+        return null
       }
 
-      uploaded.push({ mediaId: presigned.mediaId, key: presigned.key, filename: file.name })
-    }
+      return { mediaId: presigned.mediaId, key: presigned.key, filename: file.name }
+    })
+
+    const uploaded = uploadResults.filter(
+      (r): r is { mediaId: string; key: string; filename: string } => r !== null
+    )
 
     if (uploaded.length === 0) {
       const message = quotaError || 'Failed to upload photos. Please try again.'

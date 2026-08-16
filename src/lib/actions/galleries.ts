@@ -16,6 +16,7 @@ import {
   getR2PublicUrl,
   uploadObject,
 } from '@/lib/storage/r2'
+import { mapWithConcurrency } from '@/lib/utils/concurrency'
 
 // Types
 export type GalleryType = 'wedding' | 'portrait' | 'commercial' | 'event' | 'other'
@@ -806,10 +807,8 @@ export async function regenerateShareToken(galleryId: string, studioSlug: string
   return { success: true, newToken }
 }
 
-// Helper function to check permissions
-async function checkGalleryPermission(studioId: string, userId: string, permission: string): Promise<boolean> {
+async function fetchStudioMemberRole(studioId: string, userId: string): Promise<string | null> {
   const supabase = await createClient()
-
   const { data: membership } = await supabase
     .from('studio_members')
     .select('role')
@@ -818,7 +817,15 @@ async function checkGalleryPermission(studioId: string, userId: string, permissi
     .eq('status', 'active')
     .single()
 
-  if (!membership) return false
+  return membership?.role ?? null
+}
+
+// Helper function to check permissions. Pass `preloadedRole` when the caller
+// already fetched the membership row (e.g. right before this call) to skip
+// the redundant studio_members lookup.
+async function checkGalleryPermission(studioId: string, userId: string, permission: string, preloadedRole?: string): Promise<boolean> {
+  const role = preloadedRole ?? (await fetchStudioMemberRole(studioId, userId))
+  if (!role) return false
 
   // Check role permissions hierarchy
   const rolePermissions: Record<string, string[]> = {
@@ -830,7 +837,7 @@ async function checkGalleryPermission(studioId: string, userId: string, permissi
     client: [],
   }
 
-  const permissions = rolePermissions[membership.role] || []
+  const permissions = rolePermissions[role] || []
   return permissions.includes('*') || permissions.includes(permission) || permissions.includes(permission.split('.')[0] + '.*')
 }
 
@@ -916,21 +923,25 @@ function fileExtension(filename: string): string {
 // Photos are uploaded directly from the browser to Cloudflare R2 (bypassing this
 // server action) because Vercel Serverless Functions hard-cap request bodies at 4.5MB,
 // well under the size of real photos. The browser instead PUTs the file straight to a
-// short-lived presigned R2 URL obtained from requestGalleryUploadUrl below, then this
+// short-lived presigned R2 URL obtained from requestGalleryUploadUrls below, then this
 // action does the sharp processing server-side by downloading the raw upload from R2 —
 // which is not subject to that inbound request-body limit.
 
 /**
- * Issues a presigned R2 upload URL for a single file. This is the server-side
- * storage-quota enforcement point: the check happens here, before any upload
- * URL is handed out, never only in the browser.
+ * Issues presigned R2 upload URLs for a batch of files in one round trip.
+ * Auth/membership/permission/gallery checks run once for the whole batch
+ * (they used to run per file, which meant ~7 sequential DB round trips per
+ * photo for a multi-file gallery upload); only the per-file quota
+ * reservation + presign — which must stay per file since quota reservation
+ * is an atomic, individually-locked operation — run per file, in parallel.
  */
-export async function requestGalleryUploadUrl(
+export async function requestGalleryUploadUrls(
   galleryId: string,
-  filename: string,
-  contentType: string,
-  sizeBytes: number
-): Promise<{ uploadUrl: string; key: string; mediaId: string } | { error: string }> {
+  files: { filename: string; contentType: string; sizeBytes: number }[]
+): Promise<
+  | { results: ({ filename: string } & ({ uploadUrl: string; key: string; mediaId: string } | { error: string }))[] }
+  | { error: string }
+> {
   const supabase = await createClient()
 
   const { data: { user } } = await supabase.auth.getUser()
@@ -949,7 +960,7 @@ export async function requestGalleryUploadUrl(
     return { error: 'No active studio membership' }
   }
 
-  const hasPermission = await checkGalleryPermission(membership.studio_id, user.id, 'galleries.edit')
+  const hasPermission = await checkGalleryPermission(membership.studio_id, user.id, 'galleries.edit', membership.role)
   if (!hasPermission) {
     return { error: 'Insufficient permissions to upload media' }
   }
@@ -965,30 +976,36 @@ export async function requestGalleryUploadUrl(
     return { error: 'Gallery not found' }
   }
 
-  if (!contentType.startsWith('image/')) {
-    return { error: 'Only image uploads are supported' }
-  }
+  const studioId = membership.studio_id
 
-  const mediaId = crypto.randomUUID()
+  const results = await mapWithConcurrency(files, 6, async (file) => {
+    if (!file.contentType.startsWith('image/')) {
+      return { filename: file.filename, error: 'Only image uploads are supported' }
+    }
 
-  // Atomically reserves quota for this upload (see migration 021) rather than
-  // the old read-then-decide canAcceptUpload check, which two simultaneous
-  // near-the-limit uploads could both pass.
-  const quota = await reserveUploadQuota(membership.studio_id, mediaId, sizeBytes)
-  if (!quota.allowed) {
-    return { error: quota.reason }
-  }
+    const mediaId = crypto.randomUUID()
 
-  const key = buildMediaKey({
-    studioId: membership.studio_id,
-    galleryId,
-    mediaId,
-    variant: 'raw',
-    extension: fileExtension(filename),
+    // Atomically reserves quota for this upload (see migration 021) rather than
+    // the old read-then-decide canAcceptUpload check, which two simultaneous
+    // near-the-limit uploads could both pass.
+    const quota = await reserveUploadQuota(studioId, mediaId, file.sizeBytes)
+    if (!quota.allowed) {
+      return { filename: file.filename, error: quota.reason }
+    }
+
+    const key = buildMediaKey({
+      studioId,
+      galleryId,
+      mediaId,
+      variant: 'raw',
+      extension: fileExtension(file.filename),
+    })
+
+    const uploadUrl = await createPresignedUploadUrl(key, file.contentType)
+    return { filename: file.filename, uploadUrl, key, mediaId }
   })
 
-  const uploadUrl = await createPresignedUploadUrl(key, contentType)
-  return { uploadUrl, key, mediaId }
+  return { results }
 }
 
 export async function finalizeGalleryMediaUpload(
@@ -1014,7 +1031,7 @@ export async function finalizeGalleryMediaUpload(
     return { error: 'No active studio membership' }
   }
 
-  const hasPermission = await checkGalleryPermission(membership.studio_id, user.id, 'galleries.edit')
+  const hasPermission = await checkGalleryPermission(membership.studio_id, user.id, 'galleries.edit', membership.role)
   if (!hasPermission) {
     return { error: 'Insufficient permissions to upload media' }
   }
@@ -1040,7 +1057,7 @@ export async function finalizeGalleryMediaUpload(
   // Free-tier uploads are processed exactly as before (preview + thumb only).
   const plan = await getEffectivePlan(studioId)
 
-  const rows: {
+  type MediaRow = {
     id: string
     gallery_id: string
     filename: string
@@ -1052,41 +1069,49 @@ export async function finalizeGalleryMediaUpload(
     storage_bytes: number
     width: number
     height: number
-  }[] = []
+  }
 
-  for (const upload of uploads) {
-    if (!upload.key.startsWith(expectedPrefix) || !upload.key.includes(`/assets/${upload.mediaId}/`)) continue
+  // Each file requires a download + two sharp encodes + up to three uploads —
+  // heavy enough that running the whole batch one file at a time made a
+  // multi-photo gallery upload take roughly N times as long as necessary.
+  // A small worker pool keeps memory/CPU bounded while still overlapping
+  // network I/O across files.
+  const processed = await mapWithConcurrency(uploads, 4, async (upload): Promise<MediaRow | null> => {
+    if (!upload.key.startsWith(expectedPrefix) || !upload.key.includes(`/assets/${upload.mediaId}/`)) return null
 
     let buffer: Buffer
     try {
       buffer = await downloadObject(upload.key)
     } catch (downloadError) {
       console.error('Gallery media download error:', downloadError)
-      continue
+      return null
     }
 
     const image = sharp(buffer)
     const metadata = await image.metadata()
 
-    const previewBuffer = await image
-      .resize({ width: MAX_UPLOAD_DIMENSION, height: MAX_UPLOAD_DIMENSION, fit: 'inside', withoutEnlargement: true })
-      .webp({ quality: 90 })
-      .toBuffer()
-
-    const thumbBuffer = await sharp(buffer)
-      .resize({ width: THUMBNAIL_WIDTH, withoutEnlargement: true })
-      .webp({ quality: 80 })
-      .toBuffer()
+    const [previewBuffer, thumbBuffer] = await Promise.all([
+      image
+        .resize({ width: MAX_UPLOAD_DIMENSION, height: MAX_UPLOAD_DIMENSION, fit: 'inside', withoutEnlargement: true })
+        .webp({ quality: 90 })
+        .toBuffer(),
+      sharp(buffer)
+        .resize({ width: THUMBNAIL_WIDTH, withoutEnlargement: true })
+        .webp({ quality: 80 })
+        .toBuffer(),
+    ])
 
     const previewKey = buildMediaKey({ studioId, galleryId, mediaId: upload.mediaId, variant: 'preview', extension: 'webp' })
     const thumbKey = buildMediaKey({ studioId, galleryId, mediaId: upload.mediaId, variant: 'thumb', extension: 'webp' })
 
     try {
-      await uploadObject(previewKey, previewBuffer, 'image/webp')
-      await uploadObject(thumbKey, thumbBuffer, 'image/webp')
+      await Promise.all([
+        uploadObject(previewKey, previewBuffer, 'image/webp'),
+        uploadObject(thumbKey, thumbBuffer, 'image/webp'),
+      ])
     } catch (uploadError) {
       console.error('Gallery media upload error:', uploadError)
-      continue
+      return null
     }
 
     let originalKey: string | null = null
@@ -1107,7 +1132,7 @@ export async function finalizeGalleryMediaUpload(
       console.error('Failed to delete raw R2 upload:', cleanupError)
     })
 
-    rows.push({
+    return {
       id: upload.mediaId,
       gallery_id: galleryId,
       filename: upload.filename,
@@ -1119,10 +1144,12 @@ export async function finalizeGalleryMediaUpload(
       storage_bytes: previewBuffer.byteLength + thumbBuffer.byteLength + originalBytes,
       width: metadata.width ?? 0,
       height: metadata.height ?? 0,
-    })
-  }
+    }
+  })
 
-  // Every reservation from requestGalleryUploadUrl for this batch is done
+  const rows = processed.filter((row): row is MediaRow => row !== null)
+
+  // Every reservation from requestGalleryUploadUrls for this batch is done
   // its job now — the successful ones are about to become real media rows
   // (counted for real via the storage view) and the skipped ones failed
   // processing, so neither should keep holding quota until their TTL expires.
