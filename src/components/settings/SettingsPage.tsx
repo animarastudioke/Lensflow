@@ -1,7 +1,7 @@
 'use client'
 
 import * as React from 'react'
-import { useSearchParams } from 'next/navigation'
+import { useSearchParams, useRouter } from 'next/navigation'
 import {
   Card,
   CardContent,
@@ -73,6 +73,7 @@ import { CURRENCIES, formatCurrency } from '@/lib/currencies'
 import { toast } from 'sonner'
 import { deleteStudio, updateStudioSettings, updateStudioBranding, uploadStudioLogo, type StudioSettingsRow } from '@/lib/actions/studios'
 import type { SubscriptionInfo, SubscriptionPaymentRow } from '@/lib/actions/billing'
+import { cancelSubscription, resumeSubscription } from '@/lib/actions/subscription-payments'
 import type { Plan, StorageUsage, SubscriptionAccessState } from '@/lib/entitlements'
 import { PRICING_TIERS } from '@/lib/constants/pricing'
 import { SubscribeDialog } from '@/components/settings/SubscribeDialog'
@@ -146,6 +147,36 @@ export function SettingsPage({ studioSlug, studioName, isOwner, settings, billin
   const [deleteConfirmText, setDeleteConfirmText] = React.useState('')
   const [isDeletingStudio, setIsDeletingStudio] = React.useState(false)
   const [deleteDialogOpen, setDeleteDialogOpen] = React.useState(false)
+
+  const router = useRouter()
+  const [cancelDialogOpen, setCancelDialogOpen] = React.useState(false)
+  const [isCancelling, setIsCancelling] = React.useState(false)
+  const [isResuming, setIsResuming] = React.useState(false)
+
+  async function handleCancelSubscription() {
+    setIsCancelling(true)
+    const result = await cancelSubscription(studioSlug)
+    setIsCancelling(false)
+    setCancelDialogOpen(false)
+    if ('error' in result) {
+      toast.error(result.error)
+      return
+    }
+    toast.success('Your plan will move to Free at the end of the current period.')
+    router.refresh()
+  }
+
+  async function handleResumeSubscription() {
+    setIsResuming(true)
+    const result = await resumeSubscription(studioSlug)
+    setIsResuming(false)
+    if ('error' in result) {
+      toast.error(result.error)
+      return
+    }
+    toast.success('Your plan will keep renewing as normal.')
+    router.refresh()
+  }
 
   const generalFormRef = React.useRef<HTMLFormElement>(null)
   const [businessType, setBusinessType] = React.useState(settings?.business_type ?? 'llc')
@@ -675,7 +706,9 @@ export function SettingsPage({ studioSlug, studioName, isOwner, settings, billin
                       <p className="text-sm text-muted-foreground mt-1">
                         {billing.plan.priceCents > 0 ? `$${billing.plan.priceCents / 100}/month` : 'No cost'}
                         {billing.subscription?.currentPeriodEnd && billing.plan.slug !== 'free' && billing.accessState === 'active' && (
-                          <> · Renews {format(new Date(billing.subscription.currentPeriodEnd), 'MMM d, yyyy')}</>
+                          billing.subscription.cancelAtPeriodEnd
+                            ? <> · Cancels {format(new Date(billing.subscription.currentPeriodEnd), 'MMM d, yyyy')} — moves to Free</>
+                            : <> · Renews {format(new Date(billing.subscription.currentPeriodEnd), 'MMM d, yyyy')}</>
                         )}
                       </p>
                       <p className="text-xs text-muted-foreground mt-1">
@@ -732,6 +765,59 @@ export function SettingsPage({ studioSlug, studioName, isOwner, settings, billin
                   )}
                   {!isOwner && (
                     <p className="text-sm text-muted-foreground mt-4">Only the studio owner can change the subscription plan.</p>
+                  )}
+
+                  {isOwner && billing.plan.slug !== 'free' && billing.subscription && billing.accessState === 'active' && (
+                    <div className="mt-5 border-t border-border pt-4">
+                      {billing.subscription.cancelAtPeriodEnd ? (
+                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                          <p className="text-sm text-muted-foreground">
+                            Your plan won&apos;t renew and moves to Free on{' '}
+                            {billing.subscription.currentPeriodEnd && format(new Date(billing.subscription.currentPeriodEnd), 'MMM d, yyyy')}.
+                          </p>
+                          <Button variant="outline" size="sm" disabled={isResuming} onClick={handleResumeSubscription}>
+                            {isResuming && <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />}
+                            Keep my plan
+                          </Button>
+                        </div>
+                      ) : (
+                        <Button variant="ghost" size="sm" className="text-muted-foreground" onClick={() => setCancelDialogOpen(true)}>
+                          Cancel subscription
+                        </Button>
+                      )}
+                      <AlertDialog open={cancelDialogOpen} onOpenChange={setCancelDialogOpen}>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Cancel your {billing.plan.name} plan?</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              You&apos;ll keep {billing.plan.name} access until{' '}
+                              {billing.subscription?.currentPeriodEnd && format(new Date(billing.subscription.currentPeriodEnd), 'MMM d, yyyy')},
+                              then this studio moves to the Free plan. Your galleries and data are safe either way — you can resubscribe anytime.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel disabled={isCancelling}>Keep my plan</AlertDialogCancel>
+                            <AlertDialogAction
+                              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                              disabled={isCancelling}
+                              onClick={(e) => {
+                                e.preventDefault()
+                                handleCancelSubscription()
+                              }}
+                            >
+                              {isCancelling ? (
+                                <>
+                                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                  Cancelling...
+                                </>
+                              ) : (
+                                'Cancel subscription'
+                              )}
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                    </div>
                   )}
                 </>
               ) : (

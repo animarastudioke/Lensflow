@@ -17,11 +17,12 @@ export const ENTITLED_SUBSCRIPTION_STATUSES: readonly SubscriptionStatus[] = ['a
  * has no recurring-billing primitive (each charge is a one-time payment —
  * see subscription-payments.ts), so there is no auto-renewal to fail; a
  * subscription simply reaches its period end and either gets manually
- * renewed or lapses. This is what "cancellation" resolves to in this
- * billing model: there's nothing to actively cancel, only a period that
- * does or doesn't get paid again before it runs out.
+ * renewed or lapses. An owner can also set cancelAtPeriodEnd explicitly
+ * (see cancelSubscription in subscription-payments.ts) to stop being
+ * prompted to renew before that happens — either way, access degrades the
+ * same way once the period plus this grace window has passed.
  */
-export const SUBSCRIPTION_GRACE_PERIOD_DAYS = 7
+export const SUBSCRIPTION_GRACE_PERIOD_DAYS = 30
 
 export type SubscriptionAccessState = 'active' | 'grace' | 'expired'
 

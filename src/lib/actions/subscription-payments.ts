@@ -111,6 +111,54 @@ export async function initiatePlanSubscriptionPayment(
   }
 }
 
+/**
+ * Marks the studio's current subscription so it won't be renewed. There's
+ * no auto-charge to actually stop (M-Pesa STK Push is push-once — see
+ * SUBSCRIPTION_GRACE_PERIOD_DAYS's doc comment), so this is purely a
+ * declared intent: the billing UI stops prompting to renew and instead
+ * shows the date access reverts to Free. Access through the remainder of
+ * the already-paid period is unaffected — getEffectivePlan/access-state
+ * resolution only look at current_period_end, never this flag.
+ */
+export async function cancelSubscription(studioSlug: string): Promise<{ error: string } | { success: true }> {
+  const membership = await requireOwnerMembership()
+  if ('error' in membership) return membership
+
+  const { error } = await supabaseAdmin
+    .from('subscriptions')
+    .update({ cancel_at_period_end: true, updated_at: new Date().toISOString() })
+    .eq('studio_id', membership.studioId)
+    .in('status', ['active', 'trialing', 'past_due'])
+
+  if (error) {
+    console.error('Cancel subscription error:', error)
+    return { error: 'Failed to cancel subscription' }
+  }
+
+  revalidatePath(`/dashboard/${studioSlug}/settings`)
+  return { success: true }
+}
+
+/** Reverses cancelSubscription before the current period ends. */
+export async function resumeSubscription(studioSlug: string): Promise<{ error: string } | { success: true }> {
+  const membership = await requireOwnerMembership()
+  if ('error' in membership) return membership
+
+  const { error } = await supabaseAdmin
+    .from('subscriptions')
+    .update({ cancel_at_period_end: false, updated_at: new Date().toISOString() })
+    .eq('studio_id', membership.studioId)
+    .in('status', ['active', 'trialing', 'past_due'])
+
+  if (error) {
+    console.error('Resume subscription error:', error)
+    return { error: 'Failed to resume subscription' }
+  }
+
+  revalidatePath(`/dashboard/${studioSlug}/settings`)
+  return { success: true }
+}
+
 export interface SubscriptionPaymentStatus {
   status: 'pending' | 'completed' | 'failed'
   failureReason: string | null
