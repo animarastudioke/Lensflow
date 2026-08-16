@@ -34,10 +34,130 @@ describe('getStorageStatus', () => {
   })
 
   it('reflects a downgrade scenario: usage carried over, new limit exceeded', () => {
-    // Team studio used 700GB, downgrades to Starter's 50GB limit.
+    // Team studio used 700GB, downgrades to Starter's 100GB limit.
     const usedBytes = 700 * 1024 ** 3
-    const starterLimitBytes = 50 * 1024 ** 3
+    const starterLimitBytes = 100 * 1024 ** 3
     expect(getStorageStatus(usedBytes, starterLimitBytes)).toBe('over_quota')
+  })
+})
+
+// Plan fixtures mirroring the live plan catalog (supabase/migrations/016 +
+// 024's storage-limit correction): Free 3GB, Starter 100GB, Studio 500GB,
+// Team 1TB. Kept here (not imported from the DB) so these tests stay
+// dependency-free per-tier assertions of the product spec itself, not of
+// whatever happens to be seeded live.
+const PLAN_FIXTURES: Record<'free' | 'starter' | 'studio' | 'team', Plan> = {
+  free: makePlan({
+    slug: 'free',
+    name: 'Free',
+    priceCents: 0,
+    storageLimitBytes: 3 * 1024 ** 3,
+    maxActiveGalleries: 1,
+    maxTeamSeats: 1,
+    showPoweredByBadge: true,
+  }),
+  starter: makePlan({
+    slug: 'starter',
+    name: 'Starter',
+    priceCents: 1200,
+    storageLimitBytes: 100 * 1024 ** 3,
+    maxActiveGalleries: null,
+    maxTeamSeats: 1,
+    canDownloadOriginals: true,
+    canBulkDownload: true,
+    canAcceptPayments: true,
+    canUseBooking: true,
+    canUseCrm: true,
+    showPoweredByBadge: false,
+  }),
+  studio: makePlan({
+    slug: 'studio',
+    name: 'Studio',
+    priceCents: 2900,
+    storageLimitBytes: 500 * 1024 ** 3,
+    maxActiveGalleries: null,
+    maxTeamSeats: 1,
+    canDownloadOriginals: true,
+    canBulkDownload: true,
+    canUseStore: true,
+    canUseWebsiteBuilder: true,
+    canUseCustomDomain: true,
+    canAcceptPayments: true,
+    canUseBooking: true,
+    canUseCrm: true,
+    showPoweredByBadge: false,
+  }),
+  team: makePlan({
+    slug: 'team',
+    name: 'Team',
+    priceCents: 5900,
+    storageLimitBytes: 1024 ** 4,
+    maxActiveGalleries: null,
+    maxTeamSeats: 5,
+    canDownloadOriginals: true,
+    canBulkDownload: true,
+    canUseStore: true,
+    canUseWebsiteBuilder: true,
+    canUseCustomDomain: true,
+    canAcceptPayments: true,
+    canUseBooking: true,
+    canUseCrm: true,
+    prioritySupport: true,
+    showPoweredByBadge: false,
+  }),
+}
+
+describe('plan tiers (spec matrix)', () => {
+  it('Free: 3GB, 1 active gallery, 1 seat, no paid features', () => {
+    const free = PLAN_FIXTURES.free
+    expect(free.storageLimitBytes).toBe(3 * 1024 ** 3)
+    expect(free.maxActiveGalleries).toBe(1)
+    expect(free.maxTeamSeats).toBe(1)
+    for (const key of ['original_download', 'bulk_download', 'store', 'website_builder', 'custom_domain', 'payments', 'booking', 'crm'] as const) {
+      expect(planHasEntitlement(free, key)).toBe(false)
+    }
+    expect(getStorageStatus(3 * 1024 ** 3, free.storageLimitBytes)).toBe('over_quota')
+  })
+
+  it('Starter (Solo): 100GB, unlimited galleries, downloads/booking/CRM/payments, no store/website/custom domain, no extra seats', () => {
+    const starter = PLAN_FIXTURES.starter
+    expect(starter.storageLimitBytes).toBe(100 * 1024 ** 3)
+    expect(starter.maxActiveGalleries).toBeNull()
+    expect(starter.maxTeamSeats).toBe(1)
+    expect(planHasEntitlement(starter, 'original_download')).toBe(true)
+    expect(planHasEntitlement(starter, 'bulk_download')).toBe(true)
+    expect(planHasEntitlement(starter, 'booking')).toBe(true)
+    expect(planHasEntitlement(starter, 'crm')).toBe(true)
+    expect(planHasEntitlement(starter, 'payments')).toBe(true)
+    expect(planHasEntitlement(starter, 'store')).toBe(false)
+    expect(planHasEntitlement(starter, 'website_builder')).toBe(false)
+    expect(planHasEntitlement(starter, 'custom_domain')).toBe(false)
+  })
+
+  it('Studio: 500GB, store/website/custom domain on top of everything Starter has', () => {
+    const studio = PLAN_FIXTURES.studio
+    expect(studio.storageLimitBytes).toBe(500 * 1024 ** 3)
+    expect(planHasEntitlement(studio, 'store')).toBe(true)
+    expect(planHasEntitlement(studio, 'website_builder')).toBe(true)
+    expect(planHasEntitlement(studio, 'custom_domain')).toBe(true)
+    expect(planHasEntitlement(studio, 'priority_support')).toBe(false)
+  })
+
+  it('Team: 1TB, 5 seats, priority support on top of everything Studio has', () => {
+    const team = PLAN_FIXTURES.team
+    expect(team.storageLimitBytes).toBe(1024 ** 4)
+    expect(team.maxTeamSeats).toBe(5)
+    expect(planHasEntitlement(team, 'store')).toBe(true)
+    expect(planHasEntitlement(team, 'website_builder')).toBe(true)
+    expect(planHasEntitlement(team, 'custom_domain')).toBe(true)
+    expect(planHasEntitlement(team, 'priority_support')).toBe(true)
+  })
+
+  it('storage limits strictly increase Free < Starter < Studio < Team', () => {
+    const { free, starter, studio, team } = PLAN_FIXTURES
+    expect(free.storageLimitBytes).toBeLessThan(starter.storageLimitBytes)
+    expect(starter.storageLimitBytes).toBeLessThan(studio.storageLimitBytes)
+    expect(studio.storageLimitBytes).toBeLessThan(team.storageLimitBytes)
   })
 })
 
