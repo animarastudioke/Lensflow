@@ -28,7 +28,7 @@ export const PRICING_TIERS: PricingTier[] = [
     id: 'starter',
     name: 'Starter',
     price: 12,
-    storage: '50 GB storage',
+    storage: '100 GB storage',
     description: 'Everything a solo photographer needs to run their business.',
     features: [
       'Unlimited galleries',
@@ -45,7 +45,7 @@ export const PRICING_TIERS: PricingTier[] = [
     id: 'studio',
     name: 'Studio',
     price: 29,
-    storage: '250 GB storage',
+    storage: '500 GB storage',
     description: 'For studios ready to sell more and build their brand.',
     features: [
       'Everything in Starter',
