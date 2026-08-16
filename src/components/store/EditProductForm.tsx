@@ -21,9 +21,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { ArrowLeft, Loader2 } from 'lucide-react'
+import { ArrowLeft, Loader2, UploadCloud, FileCheck2 } from 'lucide-react'
 import { toast } from 'sonner'
-import { updateProduct } from '@/lib/actions/products'
+import { updateProduct, requestProductFileUploadUrl, finalizeProductFileUpload } from '@/lib/actions/products'
 
 interface EditProductFormProps {
   studioSlug: string
@@ -39,8 +39,11 @@ interface EditProductFormProps {
     inventory: number | null
     sku: string
     featured: boolean
+    digitalFileName: string | null
   }
 }
+
+const MAX_DIGITAL_FILE_SIZE_BYTES = 524288000 // 500MB, matches the gallery video cap
 
 export function EditProductForm({ studioSlug, initialValues }: EditProductFormProps) {
   const [isSubmitting, setIsSubmitting] = React.useState(false)
@@ -48,6 +51,51 @@ export function EditProductForm({ studioSlug, initialValues }: EditProductFormPr
   const [type, setType] = React.useState(initialValues.type)
   const [status, setStatus] = React.useState(initialValues.status)
   const [featured, setFeatured] = React.useState(initialValues.featured)
+  const [digitalFileName, setDigitalFileName] = React.useState(initialValues.digitalFileName)
+  const [isUploadingFile, setIsUploadingFile] = React.useState(false)
+
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file) return
+
+    if (file.size > MAX_DIGITAL_FILE_SIZE_BYTES) {
+      toast.error('File exceeds the 500MB limit')
+      return
+    }
+
+    setIsUploadingFile(true)
+    try {
+      const presigned = await requestProductFileUploadUrl(studioSlug, initialValues.id, file.name, file.type || 'application/octet-stream')
+      if ('error' in presigned) {
+        toast.error(presigned.error)
+        return
+      }
+
+      const putResponse = await fetch(presigned.uploadUrl, {
+        method: 'PUT',
+        body: file,
+        headers: { 'Content-Type': file.type || 'application/octet-stream' },
+      })
+      if (!putResponse.ok) {
+        toast.error('Upload failed. Try again.')
+        return
+      }
+
+      const result = await finalizeProductFileUpload(studioSlug, initialValues.id, presigned.key, file.name)
+      if ('error' in result) {
+        toast.error(result.error)
+        return
+      }
+
+      setDigitalFileName(file.name)
+      toast.success('File uploaded')
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to upload file')
+    } finally {
+      setIsUploadingFile(false)
+    }
+  }
 
   const onSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
@@ -147,6 +195,52 @@ export function EditProductForm({ studioSlug, initialValues }: EditProductFormPr
             </div>
           </CardContent>
         </Card>
+
+        {type === 'digital' && (
+          <Card className="mt-6">
+            <CardHeader>
+              <CardTitle>Digital file</CardTitle>
+              <CardDescription>The file a client receives immediately after paying. Required to sell this product online.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {digitalFileName && (
+                <div className="flex items-center gap-2 text-sm text-foreground rounded-md border border-border bg-muted/30 px-3 py-2">
+                  <FileCheck2 className="h-4 w-4 text-success shrink-0" />
+                  <span className="truncate">{digitalFileName}</span>
+                </div>
+              )}
+              <div>
+                <input
+                  type="file"
+                  id="digital-file"
+                  className="hidden"
+                  onChange={handleFileSelect}
+                  disabled={isUploadingFile}
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={isUploadingFile}
+                  onClick={() => document.getElementById('digital-file')?.click()}
+                >
+                  {isUploadingFile ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Uploading...
+                    </>
+                  ) : (
+                    <>
+                      <UploadCloud className="h-4 w-4 mr-2" />
+                      {digitalFileName ? 'Replace file' : 'Upload file'}
+                    </>
+                  )}
+                </Button>
+                <p className="text-xs text-muted-foreground mt-2">Up to 500MB. Uploaded directly, never made public — only paying customers get a download link.</p>
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         <Card className="mt-6">
           <CardHeader>

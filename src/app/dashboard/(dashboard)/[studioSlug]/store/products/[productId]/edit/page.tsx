@@ -47,6 +47,7 @@ export default async function EditProductPage({ params }: EditProductPageProps) 
         inventory: product.inventory,
         sku: product.sku ?? '',
         featured: product.featured,
+        digitalFileName: product.digital_file_name,
       }}
     />
   )

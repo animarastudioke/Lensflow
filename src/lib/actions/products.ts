@@ -5,6 +5,7 @@ import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { z } from 'zod'
 import { requireEntitlement } from '@/lib/entitlements'
+import { createPresignedUploadUrl, deleteObject, headObject } from '@/lib/storage/r2'
 
 export type ProductType = 'digital' | 'print' | 'album' | 'package' | 'service'
 export type ProductStatus = 'active' | 'draft' | 'archived'
@@ -26,6 +27,8 @@ export interface ProductRow {
   featured: boolean
   sales_count: number
   revenue: number
+  digital_file_key: string | null
+  digital_file_name: string | null
   created_at: string
   updated_at: string
 }
@@ -268,6 +271,13 @@ export async function deleteProduct(productId: string, studioSlug: string): Prom
     return { error: 'No active studio membership' }
   }
 
+  const { data: existing } = await supabase
+    .from('products')
+    .select('digital_file_key')
+    .eq('id', productId)
+    .eq('studio_id', membership.studio_id)
+    .single()
+
   const { error } = await supabase
     .from('products')
     .delete()
@@ -279,7 +289,122 @@ export async function deleteProduct(productId: string, studioSlug: string): Prom
     return { error: 'Failed to delete product' }
   }
 
+  if (existing?.digital_file_key) {
+    await deleteObject(existing.digital_file_key).catch((r2Error) => {
+      console.error('Failed to delete product digital file from R2:', r2Error)
+    })
+  }
+
   revalidatePath(`/dashboard/${studioSlug}/store`)
+}
+
+function productFileExtension(filename: string): string {
+  return (filename.match(/\.[^/.]+$/)?.[0] ?? '').replace('.', '').toLowerCase()
+}
+
+/**
+ * Digital products are uploaded directly from the browser to R2 (same
+ * bypass-Vercel's-body-limit reasoning as gallery uploads): the client PUTs
+ * straight to a presigned URL, then finalizeProductFileUpload records it —
+ * only after HEAD-verifying it actually landed, never trusting the client's
+ * word for it.
+ */
+export async function requestProductFileUploadUrl(
+  studioSlug: string,
+  productId: string,
+  filename: string,
+  contentType: string
+): Promise<{ uploadUrl: string; key: string } | { error: string }> {
+  const supabase = await createClient()
+
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'Unauthorized' }
+
+  const { data: membership } = await supabase
+    .from('studio_members')
+    .select('studio_id')
+    .eq('user_id', user.id)
+    .eq('status', 'active')
+    .single()
+
+  if (!membership) return { error: 'No active studio membership' }
+
+  const { data: product } = await supabase
+    .from('products')
+    .select('id')
+    .eq('id', productId)
+    .eq('studio_id', membership.studio_id)
+    .single()
+
+  if (!product) return { error: 'Product not found' }
+
+  const extension = productFileExtension(filename) || 'bin'
+  const key = `studios/${membership.studio_id}/products/${productId}/digital/${crypto.randomUUID()}.${extension}`
+  const uploadUrl = await createPresignedUploadUrl(key, contentType, 3600)
+
+  return { uploadUrl, key }
+}
+
+export async function finalizeProductFileUpload(
+  studioSlug: string,
+  productId: string,
+  key: string,
+  filename: string
+): Promise<{ success: true } | { error: string }> {
+  const supabase = await createClient()
+
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'Unauthorized' }
+
+  const { data: membership } = await supabase
+    .from('studio_members')
+    .select('studio_id')
+    .eq('user_id', user.id)
+    .eq('status', 'active')
+    .single()
+
+  if (!membership) return { error: 'No active studio membership' }
+
+  const expectedPrefix = `studios/${membership.studio_id}/products/${productId}/digital/`
+  if (!key.startsWith(expectedPrefix)) {
+    return { error: 'Invalid upload key' }
+  }
+
+  const head = await headObject(key)
+  if (!head.exists) {
+    return { error: 'Upload did not complete — try again' }
+  }
+
+  const { data: existing } = await supabase
+    .from('products')
+    .select('digital_file_key')
+    .eq('id', productId)
+    .eq('studio_id', membership.studio_id)
+    .single()
+
+  if (!existing) return { error: 'Product not found' }
+
+  const { error } = await supabase
+    .from('products')
+    .update({ digital_file_key: key, digital_file_name: filename, updated_at: new Date().toISOString() })
+    .eq('id', productId)
+    .eq('studio_id', membership.studio_id)
+
+  if (error) {
+    console.error('Finalize product file upload error:', error)
+    return { error: 'Failed to save the uploaded file' }
+  }
+
+  if (existing.digital_file_key && existing.digital_file_key !== key) {
+    await deleteObject(existing.digital_file_key).catch((r2Error) => {
+      console.error('Failed to delete replaced product digital file from R2:', r2Error)
+    })
+  }
+
+  revalidatePath(`/dashboard/${studioSlug}/store/products/${productId}`)
+  revalidatePath(`/dashboard/${studioSlug}/store/products/${productId}/edit`)
+
+  return { success: true }
 }
 
 export async function archiveProducts(productIds: string[], studioSlug: string): Promise<{ error: string } | undefined> {

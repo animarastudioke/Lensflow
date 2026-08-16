@@ -42,6 +42,7 @@ import {
   DollarSign,
   ArrowUpDown,
   Truck,
+  ExternalLink,
 } from 'lucide-react'
 import {
   DropdownMenu,
@@ -81,6 +82,7 @@ interface Product {
   featured: boolean
   salesCount: number
   revenue: number
+  digitalFileKey: string | null
   createdAt: string
   updatedAt: string
 }
@@ -130,6 +132,7 @@ function mapProductRow(row: ProductRow): Product {
     featured: row.featured,
     salesCount: row.sales_count,
     revenue: row.revenue,
+    digitalFileKey: row.digital_file_key,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   }
@@ -140,8 +143,8 @@ function mapOrderRow(row: OrderRow): Order {
     id: row.id,
     orderNumber: row.order_number,
     clientId: row.client_id ?? '',
-    clientName: row.client?.name ?? 'No client',
-    clientEmail: row.client?.email ?? '',
+    clientName: row.client?.name ?? (row.email ? row.email : 'No client'),
+    clientEmail: row.client?.email ?? row.email ?? '',
     status: row.status,
     items: row.items.map((item) => ({
       productId: item.product_id ?? '',
@@ -173,6 +176,10 @@ function getProductStatusBadge(status: Product['status']) {
   }
   const config = statusConfig[status]
   return <Badge variant={config.variant}>{config.label}</Badge>
+}
+
+function isSellableOnline(product: Product): boolean {
+  return product.type === 'digital' && product.status === 'active' && !!product.digitalFileKey
 }
 
 function getOrderStatusBadge(status: Order['status']) {
@@ -431,13 +438,24 @@ export function StoreList({ studioSlug, initialProducts, initialOrders, isLoadin
                 <h1 className="text-display-md font-display font-semibold text-foreground">Products</h1>
                 <p className="text-body text-muted-foreground mt-1">Manage your store products and inventory</p>
               </div>
-              <Link href={`/dashboard/${studioSlug}/store/products/new`}>
-                <Button>
-                  <Plus className="h-4 w-4 mr-2" />
-                  Add Product
+              <div className="flex items-center gap-2">
+                <Button variant="outline" asChild>
+                  <a href={`/store/${studioSlug}`} target="_blank" rel="noreferrer">
+                    <ExternalLink className="h-4 w-4 mr-2" />
+                    View live store
+                  </a>
                 </Button>
-              </Link>
+                <Link href={`/dashboard/${studioSlug}/store/products/new`}>
+                  <Button>
+                    <Plus className="h-4 w-4 mr-2" />
+                    Add Product
+                  </Button>
+                </Link>
+              </div>
             </div>
+            <p className="text-xs text-muted-foreground -mt-2">
+              Only active digital products with a file attached appear in the live store — see &ldquo;Online&rdquo; below.
+            </p>
 
             {/* View Toggle & Filters */}
             <Card>
@@ -581,6 +599,7 @@ export function StoreList({ studioSlug, initialProducts, initialOrders, isLoadin
                             </TableCell>
                             <TableCell className="hidden md:table-cell">
                               <Badge variant="outline" className="text-xs">{product.type}</Badge>
+                              {isSellableOnline(product) && <Badge variant="success" className="ml-1 text-xs">Online</Badge>}
                             </TableCell>
                             <TableCell className="hidden md:table-cell">
                               {getProductStatusBadge(product.status)}
@@ -670,6 +689,7 @@ export function StoreList({ studioSlug, initialProducts, initialOrders, isLoadin
                                 {getProductStatusBadge(product.status)}
                                 <Badge variant="outline" className="text-xs">{product.type}</Badge>
                                 {product.featured && <Badge variant="secondary" className="text-xs">Featured</Badge>}
+                                {isSellableOnline(product) && <Badge variant="success" className="text-xs">Online</Badge>}
                               </div>
                             </div>
                           </div>

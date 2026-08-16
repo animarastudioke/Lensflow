@@ -79,8 +79,10 @@ export default async function OrderDetailPage({ params }: OrderDetailPageProps) 
           <CardTitle className="text-sm font-medium">Customer</CardTitle>
         </CardHeader>
         <CardContent>
-          <p className="text-sm font-medium">{order.client?.name ?? 'No client'}</p>
-          {order.client?.email && <p className="text-sm text-muted-foreground">{order.client.email}</p>}
+          <p className="text-sm font-medium">{order.client?.name ?? order.email ?? 'No client'}</p>
+          {(order.client?.email ?? order.email) && (
+            <p className="text-sm text-muted-foreground">{order.client?.email ?? order.email}</p>
+          )}
         </CardContent>
       </Card>
 

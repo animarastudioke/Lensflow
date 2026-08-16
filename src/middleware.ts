@@ -20,6 +20,7 @@ const PUBLIC_PATHS = [
   '/api/storage',
   '/api/payments',
   '/store',
+  '/api/store',
   '/portfolio',
   '/api/webhooks',
   '/api/public',

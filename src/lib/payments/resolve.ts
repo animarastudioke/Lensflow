@@ -35,7 +35,7 @@ export async function applyMpesaPaymentOutcome(params: {
     })
     .eq('provider_checkout_id', params.checkoutRequestId)
     .eq('status', 'pending')
-    .select('id, invoice_id, plan_id, amount, studio_id')
+    .select('id, invoice_id, plan_id, order_id, amount, studio_id')
     .maybeSingle()
 
   if (error) {
@@ -113,6 +113,56 @@ export async function applyMpesaPaymentOutcome(params: {
       title: 'Subscription upgraded',
       body: plan ? `You're now on the ${plan.name} plan.` : 'Your subscription payment was received.',
     })
+  }
+
+  if (success && payment.order_id) {
+    const { data: order } = await supabaseAdmin
+      .from('orders')
+      .update({
+        payment_status: 'paid',
+        status: 'delivered',
+        payment_method: 'mpesa',
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', payment.order_id)
+      .select('id, order_number, studio_id')
+      .single()
+
+    if (order) {
+      // Sales stats are a display-only counter, not money — a read-then-write
+      // race under concurrent orders for the same product is an acceptable
+      // trade for not needing a dedicated RPC here.
+      const { data: items } = await supabaseAdmin
+        .from('order_items')
+        .select('product_id, quantity, total')
+        .eq('order_id', order.id)
+
+      for (const item of items ?? []) {
+        if (!item.product_id) continue
+        const { data: product } = await supabaseAdmin
+          .from('products')
+          .select('sales_count, revenue')
+          .eq('id', item.product_id)
+          .single()
+        if (product) {
+          await supabaseAdmin
+            .from('products')
+            .update({
+              sales_count: product.sales_count + item.quantity,
+              revenue: Number(product.revenue) + Number(item.total),
+              updated_at: new Date().toISOString(),
+            })
+            .eq('id', item.product_id)
+        }
+      }
+
+      const { createNotification } = await import('@/lib/actions/notifications')
+      await createNotification(order.studio_id, {
+        type: 'payment_received',
+        title: 'Order paid',
+        body: `KES ${payment.amount.toLocaleString()} via M-Pesa on order ${order.order_number}`,
+      })
+    }
   }
 
   return { handled: true, status: newStatus }

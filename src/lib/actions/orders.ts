@@ -19,6 +19,7 @@ export interface OrderRow {
   id: string
   studio_id: string
   client_id: string | null
+  email: string | null
   order_number: string
   status: OrderStatus
   subtotal: number
