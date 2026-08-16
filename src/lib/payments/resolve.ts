@@ -1,4 +1,15 @@
 import { supabaseAdmin } from '@/lib/supabase/admin'
+import { sendEmail } from '@/lib/email/resend'
+import { paymentReceiptEmail } from '@/lib/email/templates'
+
+async function getStudioBranding(studioId: string) {
+  const { data: studio } = await supabaseAdmin
+    .from('studios')
+    .select('name, logo_url, brand_color')
+    .eq('id', studioId)
+    .single()
+  return studio ? { name: studio.name, logoUrl: studio.logo_url, brandColor: studio.brand_color } : null
+}
 
 /**
  * Applies a resolved M-Pesa result to the matching payment row and, on
@@ -52,7 +63,7 @@ export async function applyMpesaPaymentOutcome(params: {
   if (success && payment.invoice_id) {
     const { data: invoice } = await supabaseAdmin
       .from('invoices')
-      .select('total, amount_paid')
+      .select('total, amount_paid, invoice_number, share_token, client:clients(name, email)')
       .eq('id', payment.invoice_id)
       .single()
 
@@ -80,6 +91,22 @@ export async function applyMpesaPaymentOutcome(params: {
           ? `KES ${payment.amount.toLocaleString()} via M-Pesa on ${updatedInvoice.invoice_number}`
           : `KES ${payment.amount.toLocaleString()} via M-Pesa`,
       })
+
+      const client = invoice.client as unknown as { name: string; email: string } | null
+      const studio = client?.email ? await getStudioBranding(payment.studio_id) : null
+      if (client?.email && studio) {
+        const appBase = (process.env['NEXT_PUBLIC_APP_URL'] ?? 'http://localhost:3000').replace(/\/$/, '')
+        const { subject, html } = paymentReceiptEmail({
+          studio,
+          clientName: client.name,
+          referenceNumber: invoice.invoice_number,
+          amountKes: payment.amount,
+          receiptNumber: params.receiptNumber,
+          documentUrl: invoice.share_token ? `${appBase}/invoice/${invoice.share_token}` : null,
+        })
+        const result = await sendEmail({ to: client.email, subject, html })
+        if (!result.success) console.error('Failed to send invoice payment receipt email:', result.error)
+      }
     }
   }
 
@@ -125,7 +152,7 @@ export async function applyMpesaPaymentOutcome(params: {
         updated_at: new Date().toISOString(),
       })
       .eq('id', payment.order_id)
-      .select('id, order_number, studio_id')
+      .select('id, order_number, studio_id, email, share_token')
       .single()
 
     if (order) {
@@ -162,6 +189,21 @@ export async function applyMpesaPaymentOutcome(params: {
         title: 'Order paid',
         body: `KES ${payment.amount.toLocaleString()} via M-Pesa on order ${order.order_number}`,
       })
+
+      const studio = order.email ? await getStudioBranding(order.studio_id) : null
+      if (order.email && studio) {
+        const appBase = (process.env['NEXT_PUBLIC_APP_URL'] ?? 'http://localhost:3000').replace(/\/$/, '')
+        const { subject, html } = paymentReceiptEmail({
+          studio,
+          clientName: order.email,
+          referenceNumber: order.order_number,
+          amountKes: payment.amount,
+          receiptNumber: params.receiptNumber,
+          documentUrl: order.share_token ? `${appBase}/store/order/${order.share_token}` : null,
+        })
+        const result = await sendEmail({ to: order.email, subject, html })
+        if (!result.success) console.error('Failed to send order payment receipt email:', result.error)
+      }
     }
   }
 

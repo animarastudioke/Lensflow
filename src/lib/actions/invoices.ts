@@ -6,6 +6,8 @@ import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { z } from 'zod'
 import { requireEntitlement } from '@/lib/entitlements'
+import { sendEmail } from '@/lib/email/resend'
+import { invoiceSentEmail } from '@/lib/email/templates'
 
 export type InvoiceStatus = 'draft' | 'sent' | 'viewed' | 'paid' | 'partial' | 'overdue' | 'cancelled' | 'refunded'
 
@@ -134,6 +136,42 @@ async function requireMembership(): Promise<{ error: string } | { studioId: stri
   return { studioId: membership.studio_id }
 }
 
+/**
+ * Best-effort — a failed send should never block the invoice itself from
+ * being marked sent, so this only ever logs, never throws or returns an
+ * error the caller has to handle.
+ */
+async function sendInvoiceSentEmail(invoiceId: string, studioId: string): Promise<void> {
+  const { data: invoice } = await supabaseAdmin
+    .from('invoices')
+    .select('invoice_number, total, due_date, share_token, client:clients(name, email)')
+    .eq('id', invoiceId)
+    .single()
+
+  const client = invoice?.client as unknown as { name: string; email: string } | null
+  if (!invoice || !client?.email || !invoice.share_token) return
+
+  const { data: studio } = await supabaseAdmin
+    .from('studios')
+    .select('name, logo_url, brand_color, currency')
+    .eq('id', studioId)
+    .single()
+  if (!studio) return
+
+  const { subject, html } = invoiceSentEmail({
+    studio: { name: studio.name, logoUrl: studio.logo_url, brandColor: studio.brand_color },
+    clientName: client.name,
+    invoiceNumber: invoice.invoice_number,
+    total: invoice.total,
+    currency: studio.currency,
+    dueDate: invoice.due_date,
+    shareToken: invoice.share_token,
+  })
+
+  const result = await sendEmail({ to: client.email, subject, html })
+  if (!result.success) console.error('Failed to send invoice-sent email:', result.error)
+}
+
 export async function updateInvoiceStatus(
   invoiceId: string,
   status: InvoiceStatus,
@@ -167,6 +205,10 @@ export async function updateInvoiceStatus(
   if (error) {
     console.error('Update invoice status error:', error)
     return { error: 'Failed to update invoice' }
+  }
+
+  if (status === 'sent') {
+    await sendInvoiceSentEmail(invoiceId, membership.studioId)
   }
 
   revalidatePath(`/dashboard/${studioSlug}/invoices`)
@@ -360,6 +402,10 @@ export async function createInvoice(formData: FormData) {
   if (itemsError) {
     console.error('Create invoice items error:', itemsError)
     throw new Error('Failed to save invoice line items')
+  }
+
+  if (validated.status === 'sent') {
+    await sendInvoiceSentEmail(invoice.id, membership.studio_id)
   }
 
   revalidatePath(`/dashboard/${studioSlug}/invoices`)

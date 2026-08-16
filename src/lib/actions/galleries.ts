@@ -18,6 +18,8 @@ import {
   headObject,
   uploadObject,
 } from '@/lib/storage/r2'
+import { sendEmail } from '@/lib/email/resend'
+import { galleryPublishedEmail } from '@/lib/email/templates'
 import { mapWithConcurrency } from '@/lib/utils/concurrency'
 
 // Types
@@ -551,6 +553,13 @@ export async function updateGalleryStatus(
   const hasPermission = await checkGalleryPermission(studio.id, user.id, 'galleries.edit')
   if (!hasPermission) return { error: 'Insufficient permissions to update gallery' }
 
+  const { data: existing } = await supabase
+    .from('galleries')
+    .select('status, name, share_token, client:clients(name, email)')
+    .eq('id', galleryId)
+    .eq('studio_id', studio.id)
+    .single()
+
   const { error } = await supabase
     .from('galleries')
     .update({ status, updated_at: new Date().toISOString() })
@@ -558,6 +567,30 @@ export async function updateGalleryStatus(
     .eq('studio_id', studio.id)
 
   if (error) return { error: 'Failed to update gallery status' }
+
+  // Only on the transition into 'published', not every re-save of an
+  // already-published gallery — otherwise editing settings would re-notify
+  // the client every time.
+  if (status === 'published' && existing && existing.status !== 'published') {
+    const client = existing.client as unknown as { name: string; email: string } | null
+    if (client?.email && existing.share_token) {
+      const { data: studioBranding } = await supabase
+        .from('studios')
+        .select('name, logo_url, brand_color')
+        .eq('id', studio.id)
+        .single()
+      if (studioBranding) {
+        const { subject, html } = galleryPublishedEmail({
+          studio: { name: studioBranding.name, logoUrl: studioBranding.logo_url, brandColor: studioBranding.brand_color },
+          clientName: client.name,
+          galleryName: existing.name,
+          shareToken: existing.share_token,
+        })
+        const result = await sendEmail({ to: client.email, subject, html })
+        if (!result.success) console.error('Failed to send gallery-published email:', result.error)
+      }
+    }
+  }
 
   revalidatePath(`/dashboard/${studioSlug}/galleries`)
   return { success: true }

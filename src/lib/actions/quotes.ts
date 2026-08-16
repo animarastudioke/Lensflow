@@ -6,6 +6,8 @@ import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { z } from 'zod'
 import { requireEntitlement } from '@/lib/entitlements'
+import { sendEmail } from '@/lib/email/resend'
+import { quoteSentEmail } from '@/lib/email/templates'
 
 export type QuoteStatus = 'draft' | 'sent' | 'viewed' | 'accepted' | 'declined' | 'expired'
 
@@ -129,6 +131,37 @@ async function requireMembership(): Promise<{ error: string } | { studioId: stri
   return { studioId: membership.studio_id }
 }
 
+/** Best-effort — see sendInvoiceSentEmail in invoices.ts for the same reasoning. */
+async function sendQuoteSentEmail(quoteId: string, studioId: string): Promise<void> {
+  const { data: quote } = await supabaseAdmin
+    .from('quotes')
+    .select('quote_number, total, share_token, client:clients(name, email)')
+    .eq('id', quoteId)
+    .single()
+
+  const client = quote?.client as unknown as { name: string; email: string } | null
+  if (!quote || !client?.email || !quote.share_token) return
+
+  const { data: studio } = await supabaseAdmin
+    .from('studios')
+    .select('name, logo_url, brand_color, currency')
+    .eq('id', studioId)
+    .single()
+  if (!studio) return
+
+  const { subject, html } = quoteSentEmail({
+    studio: { name: studio.name, logoUrl: studio.logo_url, brandColor: studio.brand_color },
+    clientName: client.name,
+    quoteNumber: quote.quote_number,
+    total: quote.total,
+    currency: studio.currency,
+    shareToken: quote.share_token,
+  })
+
+  const result = await sendEmail({ to: client.email, subject, html })
+  if (!result.success) console.error('Failed to send quote-sent email:', result.error)
+}
+
 export async function updateQuoteStatus(
   quoteId: string,
   status: QuoteStatus,
@@ -147,6 +180,10 @@ export async function updateQuoteStatus(
   if (error) {
     console.error('Update quote status error:', error)
     return { error: 'Failed to update quote' }
+  }
+
+  if (status === 'sent') {
+    await sendQuoteSentEmail(quoteId, membership.studioId)
   }
 
   revalidatePath(`/dashboard/${studioSlug}/quotes`)
@@ -285,6 +322,10 @@ export async function createQuote(formData: FormData) {
   if (itemsError) {
     console.error('Create quote items error:', itemsError)
     throw new Error('Failed to save quote line items')
+  }
+
+  if (validated.status === 'sent') {
+    await sendQuoteSentEmail(quote.id, membership.studio_id)
   }
 
   revalidatePath(`/dashboard/${studioSlug}/quotes`)

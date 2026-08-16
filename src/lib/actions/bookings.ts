@@ -5,6 +5,8 @@ import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { z } from 'zod'
 import { requireEntitlement } from '@/lib/entitlements'
+import { sendEmail } from '@/lib/email/resend'
+import { bookingConfirmationEmail } from '@/lib/email/templates'
 
 export type BookingStatus = 'inquiry' | 'confirmed' | 'scheduled' | 'completed' | 'cancelled' | 'no_show'
 
@@ -183,6 +185,24 @@ export async function createBooking(formData: FormData) {
     body: validated.session_name,
     link: `/dashboard/${studioSlug}/bookings`,
   })
+
+  if (validated.client_id) {
+    const [{ data: client }, { data: studio }] = await Promise.all([
+      supabase.from('clients').select('name, email').eq('id', validated.client_id).single(),
+      supabase.from('studios').select('name, logo_url, brand_color').eq('id', membership.studio_id).single(),
+    ])
+    if (client?.email && studio) {
+      const { subject, html } = bookingConfirmationEmail({
+        studio: { name: studio.name, logoUrl: studio.logo_url, brandColor: studio.brand_color },
+        clientName: client.name,
+        sessionName: validated.session_name,
+        sessionDate: validated.session_date,
+        location: validated.location,
+      })
+      const result = await sendEmail({ to: client.email, subject, html })
+      if (!result.success) console.error('Failed to send booking confirmation email:', result.error)
+    }
+  }
 
   revalidatePath(`/dashboard/${studioSlug}/bookings`)
   redirect(`/dashboard/${studioSlug}/bookings`)
