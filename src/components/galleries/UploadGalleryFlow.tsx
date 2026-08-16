@@ -272,41 +272,52 @@ export function UploadGalleryFlow({
     setIsUploading(true)
     setUploadError(null)
 
-    const imageFiles = files.filter((f) => f.type.startsWith('image/') && f.size <= MAX_IMAGE_SIZE_BYTES)
-    const oversizedImages = files.filter((f) => f.type.startsWith('image/') && f.size > MAX_IMAGE_SIZE_BYTES)
-    const videoFiles = files.filter((f) => f.type.startsWith('video/') && f.size <= MAX_VIDEO_SIZE_BYTES)
-    const oversizedVideos = files.filter((f) => f.type.startsWith('video/') && f.size > MAX_VIDEO_SIZE_BYTES)
+    // Everything below can throw — a Server Action rejecting (e.g. a
+    // misconfigured environment on the server) is a real, if rare,
+    // possibility, and without a catch here the promise would go unhandled
+    // and isUploading would never reset, leaving the button stuck spinning
+    // forever with no explanation instead of surfacing an error.
+    try {
+      const imageFiles = files.filter((f) => f.type.startsWith('image/') && f.size <= MAX_IMAGE_SIZE_BYTES)
+      const oversizedImages = files.filter((f) => f.type.startsWith('image/') && f.size > MAX_IMAGE_SIZE_BYTES)
+      const videoFiles = files.filter((f) => f.type.startsWith('video/') && f.size <= MAX_VIDEO_SIZE_BYTES)
+      const oversizedVideos = files.filter((f) => f.type.startsWith('video/') && f.size > MAX_VIDEO_SIZE_BYTES)
 
-    const [imageResult, videoResult] = await Promise.all([uploadImages(imageFiles), uploadVideos(videoFiles)])
+      const [imageResult, videoResult] = await Promise.all([uploadImages(imageFiles), uploadVideos(videoFiles)])
 
-    const totalUploaded = imageResult.uploaded + videoResult.uploaded
-    const errors = [imageResult.error, videoResult.error].filter((e): e is string => !!e)
+      const totalUploaded = imageResult.uploaded + videoResult.uploaded
+      const errors = [imageResult.error, videoResult.error].filter((e): e is string => !!e)
 
-    if (oversizedImages.length > 0) {
-      toast.error(`${oversizedImages.length} photo${oversizedImages.length !== 1 ? 's' : ''} skipped — over the 25MB limit`)
-    }
-    if (oversizedVideos.length > 0) {
-      toast.error(`${oversizedVideos.length} video${oversizedVideos.length !== 1 ? 's' : ''} skipped — over the 500MB limit`)
-    }
+      if (oversizedImages.length > 0) {
+        toast.error(`${oversizedImages.length} photo${oversizedImages.length !== 1 ? 's' : ''} skipped — over the 25MB limit`)
+      }
+      if (oversizedVideos.length > 0) {
+        toast.error(`${oversizedVideos.length} video${oversizedVideos.length !== 1 ? 's' : ''} skipped — over the 500MB limit`)
+      }
 
-    if (totalUploaded === 0) {
-      const message = errors[0] || 'Failed to upload files. Please try again.'
+      if (totalUploaded === 0) {
+        const message = errors[0] || 'Failed to upload files. Please try again.'
+        setUploadError(message)
+        toast.error(message)
+        return
+      }
+
+      if (errors.length > 0) {
+        errors.forEach((e) => toast.error(e))
+      }
+      if (totalUploaded < files.length) {
+        toast.warning(`${totalUploaded} of ${files.length} files uploaded successfully`)
+      }
+
+      setUploadedCount(totalUploaded)
+      setStep('layout')
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Something went wrong uploading these files. Please try again.'
       setUploadError(message)
       toast.error(message)
+    } finally {
       setIsUploading(false)
-      return
     }
-
-    if (errors.length > 0) {
-      errors.forEach((e) => toast.error(e))
-    }
-    if (totalUploaded < files.length) {
-      toast.warning(`${totalUploaded} of ${files.length} files uploaded successfully`)
-    }
-
-    setUploadedCount(totalUploaded)
-    setIsUploading(false)
-    setStep('layout')
   }
 
   const handleFinish = async () => {
