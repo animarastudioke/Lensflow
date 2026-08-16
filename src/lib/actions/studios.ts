@@ -7,6 +7,7 @@ import { z } from 'zod'
 import { deleteObjectsByPrefix, deleteObject, uploadObject, getR2PublicUrl, keyFromR2PublicUrl } from '@/lib/storage/r2'
 import { getFreePlan, getEffectivePlan } from '@/lib/entitlements'
 import { supabaseAdmin } from '@/lib/supabase/admin'
+import { recordFreeWorkspaceSignupRisk } from '@/lib/actions/signup-risk'
 
 const createStudioSchema = z.object({
   name: z.string().min(2, 'Studio name must be at least 2 characters').max(100),
@@ -110,6 +111,18 @@ export async function createStudio(formData: FormData): Promise<{ error: string 
     })
   } catch (subscriptionError) {
     console.error('Failed to create default subscription:', subscriptionError)
+  }
+
+  // Best-effort, score-based abuse signal - see recordFreeWorkspaceSignupRisk
+  // for why this never blocks studio creation on its own.
+  try {
+    await recordFreeWorkspaceSignupRisk({
+      userId: user.id,
+      studioId: studio.id,
+      userCreatedAt: user.created_at,
+    })
+  } catch (riskError) {
+    console.error('Failed to record signup risk signal:', riskError)
   }
 
   redirect(`/dashboard/${studio.slug}`)
