@@ -73,7 +73,7 @@ import { CURRENCIES, formatCurrency } from '@/lib/currencies'
 import { toast } from 'sonner'
 import { deleteStudio, updateStudioSettings, updateStudioBranding, uploadStudioLogo, type StudioSettingsRow } from '@/lib/actions/studios'
 import type { SubscriptionInfo, SubscriptionPaymentRow } from '@/lib/actions/billing'
-import { cancelSubscription, resumeSubscription } from '@/lib/actions/subscription-payments'
+import { cancelSubscription, resumeSubscription, cancelPendingDowngrade } from '@/lib/actions/subscription-payments'
 import type { Plan, StorageUsage, SubscriptionAccessState } from '@/lib/entitlements'
 import { PRICING_TIERS } from '@/lib/constants/pricing'
 import { SubscribeDialog } from '@/components/settings/SubscribeDialog'
@@ -152,6 +152,19 @@ export function SettingsPage({ studioSlug, studioName, isOwner, settings, billin
   const [cancelDialogOpen, setCancelDialogOpen] = React.useState(false)
   const [isCancelling, setIsCancelling] = React.useState(false)
   const [isResuming, setIsResuming] = React.useState(false)
+  const [isCancellingDowngrade, setIsCancellingDowngrade] = React.useState(false)
+
+  async function handleCancelPendingDowngrade() {
+    setIsCancellingDowngrade(true)
+    const result = await cancelPendingDowngrade(studioSlug)
+    setIsCancellingDowngrade(false)
+    if ('error' in result) {
+      toast.error(result.error)
+      return
+    }
+    toast.success('Scheduled plan change cancelled — your current plan will keep renewing.')
+    router.refresh()
+  }
 
   async function handleCancelSubscription() {
     setIsCancelling(true)
@@ -765,6 +778,21 @@ export function SettingsPage({ studioSlug, studioName, isOwner, settings, billin
                   )}
                   {!isOwner && (
                     <p className="text-sm text-muted-foreground mt-4">Only the studio owner can change the subscription plan.</p>
+                  )}
+
+                  {isOwner && billing.subscription?.pendingPlanName && billing.accessState === 'active' && (
+                    <div className="mt-4 rounded-lg border border-info/40 bg-info/10 p-3 text-sm">
+                      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                        <p>
+                          Switching to the <strong>{billing.subscription.pendingPlanName}</strong> plan
+                          {billing.subscription.currentPeriodEnd && <> on {format(new Date(billing.subscription.currentPeriodEnd), 'MMM d, yyyy')}</>} — already paid for.
+                        </p>
+                        <Button variant="outline" size="sm" disabled={isCancellingDowngrade} onClick={handleCancelPendingDowngrade}>
+                          {isCancellingDowngrade && <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />}
+                          Keep current plan
+                        </Button>
+                      </div>
+                    </div>
                   )}
 
                   {isOwner && billing.plan.slug !== 'free' && billing.subscription && billing.accessState === 'active' && (

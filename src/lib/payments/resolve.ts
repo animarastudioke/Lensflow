@@ -111,35 +111,71 @@ export async function applyMpesaPaymentOutcome(params: {
   }
 
   if (success && payment.plan_id) {
-    const periodStart = new Date()
-    const periodEnd = new Date(periodStart.getTime() + 30 * 24 * 60 * 60 * 1000)
-
-    await supabaseAdmin
-      .from('subscriptions')
-      .update({
-        plan_id: payment.plan_id,
-        status: 'active',
-        billing_provider: 'mpesa',
-        current_period_start: periodStart.toISOString(),
-        current_period_end: periodEnd.toISOString(),
-        cancel_at_period_end: false,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('studio_id', payment.studio_id)
-      .in('status', ['active', 'trialing', 'past_due'])
-
-    const { data: plan } = await supabaseAdmin
+    const { data: newPlan } = await supabaseAdmin
       .from('plans')
-      .select('name')
+      .select('name, price_cents')
       .eq('id', payment.plan_id)
       .single()
 
+    const { data: existingSub } = await supabaseAdmin
+      .from('subscriptions')
+      .select('id, current_period_end, plan:plans(price_cents)')
+      .eq('studio_id', payment.studio_id)
+      .in('status', ['active', 'trialing', 'past_due'])
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+
+    const currentPriceCents = (existingSub?.plan as unknown as { price_cents: number } | null)?.price_cents ?? 0
+    const stillWithinPaidPeriod = Boolean(
+      existingSub?.current_period_end && new Date(existingSub.current_period_end) > new Date()
+    )
+    // A downgrade paid for while the current (higher) plan's period hasn't
+    // ended yet is scheduled rather than applied immediately, so the studio
+    // keeps what it already paid for - see pending_plan_id on subscriptions
+    // and getEffectivePlan in src/lib/entitlements/service.ts.
+    const isDowngrade = Boolean(newPlan) && newPlan!.price_cents < currentPriceCents && stillWithinPaidPeriod
+
     const { createNotification } = await import('@/lib/actions/notifications')
-    await createNotification(payment.studio_id, {
-      type: 'payment_received',
-      title: 'Subscription upgraded',
-      body: plan ? `You're now on the ${plan.name} plan.` : 'Your subscription payment was received.',
-    })
+
+    if (isDowngrade && existingSub) {
+      await supabaseAdmin
+        .from('subscriptions')
+        .update({ pending_plan_id: payment.plan_id, updated_at: new Date().toISOString() })
+        .eq('id', existingSub.id)
+
+      await createNotification(payment.studio_id, {
+        type: 'payment_received',
+        title: 'Plan change scheduled',
+        body: newPlan
+          ? `You're switching to the ${newPlan.name} plan on ${new Date(existingSub.current_period_end as string).toLocaleDateString()}.`
+          : 'Your subscription payment was received.',
+      })
+    } else {
+      const periodStart = new Date()
+      const periodEnd = new Date(periodStart.getTime() + 30 * 24 * 60 * 60 * 1000)
+
+      await supabaseAdmin
+        .from('subscriptions')
+        .update({
+          plan_id: payment.plan_id,
+          status: 'active',
+          billing_provider: 'mpesa',
+          current_period_start: periodStart.toISOString(),
+          current_period_end: periodEnd.toISOString(),
+          cancel_at_period_end: false,
+          pending_plan_id: null,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('studio_id', payment.studio_id)
+        .in('status', ['active', 'trialing', 'past_due'])
+
+      await createNotification(payment.studio_id, {
+        type: 'payment_received',
+        title: 'Subscription upgraded',
+        body: newPlan ? `You're now on the ${newPlan.name} plan.` : 'Your subscription payment was received.',
+      })
+    }
   }
 
   if (success && payment.order_id) {

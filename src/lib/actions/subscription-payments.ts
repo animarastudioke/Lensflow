@@ -159,6 +159,26 @@ export async function resumeSubscription(studioSlug: string): Promise<{ error: s
   return { success: true }
 }
 
+/** Cancels a scheduled downgrade (set via a lower-plan payment while a higher plan's period is still active) - the current plan just keeps renewing as normal. */
+export async function cancelPendingDowngrade(studioSlug: string): Promise<{ error: string } | { success: true }> {
+  const membership = await requireOwnerMembership()
+  if ('error' in membership) return membership
+
+  const { error } = await supabaseAdmin
+    .from('subscriptions')
+    .update({ pending_plan_id: null, updated_at: new Date().toISOString() })
+    .eq('studio_id', membership.studioId)
+    .in('status', ['active', 'trialing', 'past_due'])
+
+  if (error) {
+    console.error('Cancel pending downgrade error:', error)
+    return { error: 'Failed to cancel the scheduled plan change' }
+  }
+
+  revalidatePath(`/dashboard/${studioSlug}/settings`)
+  return { success: true }
+}
+
 export interface SubscriptionPaymentStatus {
   status: 'pending' | 'completed' | 'failed'
   failureReason: string | null

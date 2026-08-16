@@ -9,6 +9,7 @@ export interface SubscriptionInfo {
   currentPeriodEnd: string | null
   cancelAtPeriodEnd: boolean
   billingProvider: string | null
+  pendingPlanName: string | null
 }
 
 export async function getStudioBillingOverview(
@@ -29,7 +30,7 @@ export async function getStudioBillingOverview(
     getSubscriptionAccessState(studio.id),
     supabase
       .from('subscriptions')
-      .select('status, current_period_end, cancel_at_period_end, billing_provider')
+      .select('status, current_period_end, cancel_at_period_end, billing_provider, pending_plan:plans!subscriptions_pending_plan_id_fkey(name)')
       .eq('studio_id', studio.id)
       .in('status', ['active', 'trialing', 'past_due'])
       .order('created_at', { ascending: false })
@@ -43,6 +44,7 @@ export async function getStudioBillingOverview(
         currentPeriodEnd: subscriptionRow.current_period_end,
         cancelAtPeriodEnd: subscriptionRow.cancel_at_period_end,
         billingProvider: subscriptionRow.billing_provider,
+        pendingPlanName: (subscriptionRow.pending_plan as unknown as { name: string } | null)?.name ?? null,
       }
     : null
 

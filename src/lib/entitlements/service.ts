@@ -92,6 +92,54 @@ async function getFreePlan(): Promise<Plan> {
   return freePlanCache
 }
 
+async function getPlanById(planId: string): Promise<Plan | null> {
+  const { data, error } = await supabaseAdmin.from('plans').select('*').eq('id', planId).maybeSingle()
+  if (error || !data) return null
+  return mapPlanRow(data as PlanRow)
+}
+
+const DAY_MS = 24 * 60 * 60 * 1000
+
+/**
+ * A scheduled downgrade (subscriptions.pending_plan_id) is due once the
+ * current paid period has ended. There's no cron in this system — instead,
+ * this materializes the transition the first time anything reads the
+ * studio's plan after it comes due: applies the pending plan and gives it
+ * a fresh 30-day period starting from the old current_period_end (the
+ * moment already paid for), matching how a normal plan payment starts a
+ * period in resolve.ts.
+ *
+ * Idempotent by construction: the UPDATE's WHERE clause only matches while
+ * pending_plan_id still equals what we read, so a second concurrent caller
+ * that loses the race simply finds no row to update and falls through to
+ * re-read the (by then already-updated) subscription on its own.
+ */
+async function materializeDuePendingDowngrade(
+  studioId: string,
+  periodEnd: string,
+  pendingPlanId: string
+): Promise<Plan | null> {
+  const pendingPlan = await getPlanById(pendingPlanId)
+  if (!pendingPlan) return null
+
+  const newPeriodEnd = new Date(new Date(periodEnd).getTime() + 30 * DAY_MS).toISOString()
+
+  await supabaseAdmin
+    .from('subscriptions')
+    .update({
+      plan_id: pendingPlanId,
+      pending_plan_id: null,
+      current_period_start: periodEnd,
+      current_period_end: newPeriodEnd,
+      cancel_at_period_end: false,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('studio_id', studioId)
+    .eq('pending_plan_id', pendingPlanId)
+
+  return pendingPlan
+}
+
 /**
  * Resolves the plan a studio actually gets right now. A studio that
  * selected Starter but whose payment is past_due/canceled/expired does NOT
@@ -110,7 +158,7 @@ async function getFreePlan(): Promise<Plan> {
 export async function getEffectivePlan(studioId: string): Promise<Plan> {
   const { data, error } = await supabaseAdmin
     .from('subscriptions')
-    .select('status, current_period_end, plan:plans(*)')
+    .select('status, current_period_end, pending_plan_id, plan:plans(*)')
     .eq('studio_id', studioId)
     .in('status', ['active', 'trialing', 'past_due', 'incomplete'])
     .order('created_at', { ascending: false })
@@ -127,7 +175,16 @@ export async function getEffectivePlan(studioId: string): Promise<Plan> {
     return getFreePlan()
   }
 
-  if (resolveSubscriptionAccessState(data.current_period_end as string | null).state === 'expired') {
+  const periodEnd = data.current_period_end as string | null
+  const accessState = resolveSubscriptionAccessState(periodEnd).state
+  const pendingPlanId = data.pending_plan_id as string | null
+
+  if (accessState !== 'active' && pendingPlanId && periodEnd) {
+    const pendingPlan = await materializeDuePendingDowngrade(studioId, periodEnd, pendingPlanId)
+    if (pendingPlan) return pendingPlan
+  }
+
+  if (accessState === 'expired') {
     return getFreePlan()
   }
 
@@ -148,6 +205,11 @@ export interface SubscriptionAccess {
  * always 'active' here (nothing to expire).
  */
 export async function getSubscriptionAccessState(studioId: string): Promise<SubscriptionAccess> {
+  // Materializes a due scheduled downgrade first (no-op otherwise), so the
+  // read below sees the post-cutover period rather than reporting the old
+  // plan's already-paid-for period as 'grace'/'expired'.
+  await getEffectivePlan(studioId)
+
   const { data } = await supabaseAdmin
     .from('subscriptions')
     .select('status, current_period_end')
