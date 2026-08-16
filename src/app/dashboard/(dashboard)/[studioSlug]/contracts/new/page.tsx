@@ -2,7 +2,11 @@ import { Metadata } from 'next'
 import { redirect } from 'next/navigation'
 import { getAuthUserServer } from '@/lib/auth'
 import { getClients } from '@/lib/actions/clients'
+import { getStudioForSettings } from '@/lib/actions/studios'
+import { hasEntitlement } from '@/lib/entitlements'
 import { NewContractForm } from '@/components/contracts/NewContractForm'
+import { FeatureUpgradePrompt } from '@/components/billing/FeatureUpgradePrompt'
+import { FileText } from 'lucide-react'
 
 interface NewContractPageProps {
   params: Promise<{ studioSlug: string }>
@@ -24,6 +28,22 @@ export default async function NewContractPage({ params }: NewContractPageProps) 
 
   if (!user) {
     redirect('/auth/login')
+  }
+
+  const studio = await getStudioForSettings(studioSlug)
+  const entitled = studio ? await hasEntitlement(studio.id, 'crm') : false
+
+  if (!entitled) {
+    return (
+      <FeatureUpgradePrompt
+        studioSlug={studioSlug}
+        icon={FileText}
+        featureName="Contracts"
+        description="Send contracts for e-signature and keep them tied to each client and project. Included on Starter and up."
+        minPlanName="Starter"
+        minPlanPrice={12}
+      />
+    )
   }
 
   const { clients } = await getClients(studioSlug)

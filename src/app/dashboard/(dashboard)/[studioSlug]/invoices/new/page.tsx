@@ -2,7 +2,11 @@ import { Metadata } from 'next'
 import { getAuthUserServer } from '@/lib/auth'
 import { redirect } from 'next/navigation'
 import { getClients } from '@/lib/actions/clients'
+import { getStudioForSettings } from '@/lib/actions/studios'
+import { hasEntitlement } from '@/lib/entitlements'
 import { NewInvoiceForm } from '@/components/invoices/NewInvoiceForm'
+import { FeatureUpgradePrompt } from '@/components/billing/FeatureUpgradePrompt'
+import { DollarSign } from 'lucide-react'
 
 interface NewInvoicePageProps {
   params: Promise<{ studioSlug: string }>
@@ -24,6 +28,22 @@ export default async function NewInvoicePage({ params }: NewInvoicePageProps) {
 
   if (!user) {
     redirect('/auth/login')
+  }
+
+  const studio = await getStudioForSettings(studioSlug)
+  const entitled = studio ? await hasEntitlement(studio.id, 'payments') : false
+
+  if (!entitled) {
+    return (
+      <FeatureUpgradePrompt
+        studioSlug={studioSlug}
+        icon={DollarSign}
+        featureName="Invoicing & payments"
+        description="Send invoices and collect payments from clients via M-Pesa. Included on Starter and up."
+        minPlanName="Starter"
+        minPlanPrice={12}
+      />
+    )
   }
 
   const { clients } = await getClients(studioSlug)

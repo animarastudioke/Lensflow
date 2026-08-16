@@ -1,7 +1,11 @@
 import { Metadata } from 'next'
 import { redirect } from 'next/navigation'
 import { getAuthUserServer } from '@/lib/auth'
+import { getStudioForSettings } from '@/lib/actions/studios'
+import { hasEntitlement } from '@/lib/entitlements'
 import { NewClientForm } from '@/components/clients/NewClientForm'
+import { FeatureUpgradePrompt } from '@/components/billing/FeatureUpgradePrompt'
+import { Users } from 'lucide-react'
 
 interface NewClientPageProps {
   params: Promise<{ studioSlug: string }>
@@ -28,6 +32,22 @@ export default async function NewClientPage({ params, searchParams }: NewClientP
   }
 
   const isLead = status === 'lead'
+
+  const studio = await getStudioForSettings(studioSlug)
+  const entitled = studio ? await hasEntitlement(studio.id, 'crm') : false
+
+  if (!entitled) {
+    return (
+      <FeatureUpgradePrompt
+        studioSlug={studioSlug}
+        icon={Users}
+        featureName="Clients & CRM"
+        description="Track leads, manage client details, and build your book of business. Included on Starter and up."
+        minPlanName="Starter"
+        minPlanPrice={12}
+      />
+    )
+  }
 
   return (
     <NewClientForm

@@ -2,7 +2,11 @@ import { Metadata } from 'next'
 import { getAuthUserServer } from '@/lib/auth'
 import { redirect } from 'next/navigation'
 import { getClients } from '@/lib/actions/clients'
+import { getStudioForSettings } from '@/lib/actions/studios'
+import { hasEntitlement } from '@/lib/entitlements'
 import { NewBookingForm } from '@/components/bookings/NewBookingForm'
+import { FeatureUpgradePrompt } from '@/components/billing/FeatureUpgradePrompt'
+import { CalendarDays } from 'lucide-react'
 
 interface NewBookingPageProps {
   params: Promise<{ studioSlug: string }>
@@ -24,6 +28,22 @@ export default async function NewBookingPage({ params }: NewBookingPageProps) {
 
   if (!user) {
     redirect('/auth/login')
+  }
+
+  const studio = await getStudioForSettings(studioSlug)
+  const entitled = studio ? await hasEntitlement(studio.id, 'booking') : false
+
+  if (!entitled) {
+    return (
+      <FeatureUpgradePrompt
+        studioSlug={studioSlug}
+        icon={CalendarDays}
+        featureName="Booking & availability"
+        description="Let clients see your availability and book sessions online. Included on Starter and up."
+        minPlanName="Starter"
+        minPlanPrice={12}
+      />
+    )
   }
 
   const { clients } = await getClients(studioSlug)
