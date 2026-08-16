@@ -8,12 +8,14 @@ import sharp from 'sharp'
 import { canCreateGallery, getEffectivePlan, hasEntitlement, reserveUploadQuota, releaseUploadReservations } from '@/lib/entitlements'
 import {
   buildMediaKey,
+  createPresignedDownloadUrl,
   createPresignedUploadUrl,
   deleteObject,
   deleteObjects,
   deleteObjectsByPrefix,
   downloadObject,
   getR2PublicUrl,
+  headObject,
   uploadObject,
 } from '@/lib/storage/r2'
 import { mapWithConcurrency } from '@/lib/utils/concurrency'
@@ -60,12 +62,35 @@ export interface GalleryMediaRow {
   url: string
   thumbnail_url: string | null
   type: 'image' | 'video'
+  original_key: string | null
+  /** Presigned, no-Content-Disposition playback URL — only set for video items, computed at read time. */
+  video_playback_url?: string
   size: number | null
   width: number | null
   height: number | null
   is_favorite: boolean
   album_id: string | null
   created_at: string
+}
+
+/**
+ * Video has no public "preview" render the way photos do — the original file
+ * itself is what plays. Rather than making video originals public (breaking
+ * the "no public URLs for originals" rule the download route relies on),
+ * attach a long-expiry presigned GET URL with no filename param, so no
+ * Content-Disposition header is set and browsers stream it inline instead of
+ * forcing a download.
+ */
+async function attachVideoPlaybackUrls<T extends { type: 'image' | 'video'; original_key: string | null }>(
+  media: T[]
+): Promise<(T & { video_playback_url?: string })[]> {
+  return Promise.all(
+    media.map(async (item) => {
+      if (item.type !== 'video' || !item.original_key) return item
+      const video_playback_url = await createPresignedDownloadUrl(item.original_key, undefined, 14400)
+      return { ...item, video_playback_url }
+    })
+  )
 }
 
 export interface GalleryAlbumRow {
@@ -557,13 +582,17 @@ export async function getGallery(galleryId: string, studioSlug: string): Promise
       share_settings:gallery_share_settings(*),
       studio:studios(name, logo_url, brand_color),
       albums:gallery_albums(id, name, description, cover_image, media_count, order, created_at),
-      media:media(id, filename, url, thumbnail_url, type, size, width, height, is_favorite, album_id, created_at)
+      media:media(id, filename, url, thumbnail_url, type, original_key, size, width, height, is_favorite, album_id, created_at)
     `)
     .eq('id', galleryId)
     .eq('studio_id', studio.id)
     .single()
 
-  return (gallery as unknown as GalleryDetailRow) ?? null
+  if (!gallery) return null
+
+  const media = await attachVideoPlaybackUrls((gallery.media ?? []) as GalleryMediaRow[])
+
+  return { ...(gallery as unknown as GalleryDetailRow), media }
 }
 
 export async function getGalleryByToken(shareToken: string) {
@@ -577,7 +606,7 @@ export async function getGalleryByToken(shareToken: string) {
       client:clients(id, name, email),
       share_settings:gallery_share_settings(*),
       albums:gallery_albums(id, name, description, cover_image, media_count, order, created_at),
-      media:media(id, filename, url, thumbnail_url, type, size, width, height, metadata, is_favorite, comment_count, created_at, album_id)
+      media:media(id, filename, url, thumbnail_url, type, original_key, size, width, height, metadata, is_favorite, comment_count, created_at, album_id)
     `)
     .eq('share_token', shareToken)
     .eq('status', 'published')
@@ -603,7 +632,9 @@ export async function getGalleryByToken(shareToken: string) {
     showPoweredByBadge: plan.showPoweredByBadge,
   }
 
-  return { ...gallery, entitlements }
+  const media = await attachVideoPlaybackUrls((gallery.media ?? []) as unknown as GalleryMediaRow[])
+
+  return { ...gallery, media, entitlements }
 }
 
 export async function verifyGalleryPassword(shareToken: string, password: string) {
@@ -901,6 +932,7 @@ export async function getGalleries(studioSlug: string, options?: {
 
 const MAX_UPLOAD_DIMENSION = 2400
 const THUMBNAIL_WIDTH = 600
+const MAX_VIDEO_SIZE_BYTES = 500 * 1024 * 1024 // 500MB — generous for a highlight reel, well under Free's 3GB total
 
 const EXTENSION_MIME_TYPES: Record<string, string> = {
   jpg: 'image/jpeg',
@@ -1166,6 +1198,244 @@ export async function finalizeGalleryMediaUpload(
     console.error('Insert media rows error:', insertError)
     await releaseUploadReservations(allMediaIds)
     return { error: 'Failed to save uploaded media' }
+  }
+
+  await releaseUploadReservations(allMediaIds)
+
+  const firstUploadedUrl = rows[0]?.url
+
+  await supabase
+    .from('galleries')
+    .update({
+      media_count: gallery.media_count + rows.length,
+      cover_image: gallery.cover_image ?? firstUploadedUrl,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', galleryId)
+
+  revalidatePath(`/dashboard/${studioSlug}/galleries/${galleryId}`)
+
+  return { success: true, uploaded: rows.length }
+}
+
+// Video uploads deliberately skip the photo pipeline's download-into-memory +
+// sharp-reprocess step: a 500MB video would blow past a serverless function's
+// memory/time budget, and there is no reliable way to transcode video on
+// Vercel serverless anyway. Instead the browser uploads the video file
+// straight to its final R2 key, and separately captures + uploads a poster
+// frame (via <video> + <canvas>, see UploadGalleryFlow.tsx) using the same
+// preview/thumb key convention as photos — so the existing public-preview
+// rendering paths (gallery grids, cover images) work unmodified for video.
+export async function requestVideoUploadUrls(
+  galleryId: string,
+  files: { filename: string; contentType: string; sizeBytes: number }[]
+): Promise<
+  | {
+      results: ({ filename: string } & (
+        | {
+            mediaId: string
+            videoUploadUrl: string
+            videoKey: string
+            posterPreviewUploadUrl: string
+            posterPreviewKey: string
+            posterThumbUploadUrl: string
+            posterThumbKey: string
+          }
+        | { error: string }
+      ))[]
+    }
+  | { error: string }
+> {
+  const supabase = await createClient()
+
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) {
+    return { error: 'Unauthorized' }
+  }
+
+  const { data: membership } = await supabase
+    .from('studio_members')
+    .select('studio_id, role')
+    .eq('user_id', user.id)
+    .eq('status', 'active')
+    .single()
+
+  if (!membership) {
+    return { error: 'No active studio membership' }
+  }
+
+  const hasPermission = await checkGalleryPermission(membership.studio_id, user.id, 'galleries.edit', membership.role)
+  if (!hasPermission) {
+    return { error: 'Insufficient permissions to upload media' }
+  }
+
+  const { data: gallery } = await supabase
+    .from('galleries')
+    .select('id')
+    .eq('id', galleryId)
+    .eq('studio_id', membership.studio_id)
+    .single()
+
+  if (!gallery) {
+    return { error: 'Gallery not found' }
+  }
+
+  const studioId = membership.studio_id
+
+  const results = await mapWithConcurrency(files, 4, async (file) => {
+    if (!file.contentType.startsWith('video/')) {
+      return { filename: file.filename, error: 'Only video uploads are supported' }
+    }
+    if (file.sizeBytes > MAX_VIDEO_SIZE_BYTES) {
+      return { filename: file.filename, error: `Video exceeds the ${Math.round(MAX_VIDEO_SIZE_BYTES / (1024 * 1024))}MB limit` }
+    }
+
+    const mediaId = crypto.randomUUID()
+
+    const quota = await reserveUploadQuota(studioId, mediaId, file.sizeBytes)
+    if (!quota.allowed) {
+      return { filename: file.filename, error: quota.reason }
+    }
+
+    const videoKey = buildMediaKey({ studioId, galleryId, mediaId, variant: 'original', extension: fileExtension(file.filename) })
+    const posterPreviewKey = buildMediaKey({ studioId, galleryId, mediaId, variant: 'preview', extension: 'webp' })
+    const posterThumbKey = buildMediaKey({ studioId, galleryId, mediaId, variant: 'thumb', extension: 'webp' })
+
+    const [videoUploadUrl, posterPreviewUploadUrl, posterThumbUploadUrl] = await Promise.all([
+      createPresignedUploadUrl(videoKey, file.contentType, 3600),
+      createPresignedUploadUrl(posterPreviewKey, 'image/webp'),
+      createPresignedUploadUrl(posterThumbKey, 'image/webp'),
+    ])
+
+    return {
+      filename: file.filename,
+      mediaId,
+      videoUploadUrl,
+      videoKey,
+      posterPreviewUploadUrl,
+      posterPreviewKey,
+      posterThumbUploadUrl,
+      posterThumbKey,
+    }
+  })
+
+  return { results }
+}
+
+export async function finalizeVideoUpload(
+  galleryId: string,
+  studioSlug: string,
+  uploads: {
+    mediaId: string
+    videoKey: string
+    posterPreviewKey: string
+    posterThumbKey: string
+    filename: string
+    width: number
+    height: number
+  }[]
+): Promise<{ success: true; uploaded: number } | { error: string }> {
+  const supabase = await createClient()
+
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) {
+    return { error: 'Unauthorized' }
+  }
+
+  const { data: membership } = await supabase
+    .from('studio_members')
+    .select('studio_id, role')
+    .eq('user_id', user.id)
+    .eq('status', 'active')
+    .single()
+
+  if (!membership) {
+    return { error: 'No active studio membership' }
+  }
+
+  const hasPermission = await checkGalleryPermission(membership.studio_id, user.id, 'galleries.edit', membership.role)
+  if (!hasPermission) {
+    return { error: 'Insufficient permissions to upload media' }
+  }
+
+  const { data: gallery } = await supabase
+    .from('galleries')
+    .select('id, cover_image, media_count')
+    .eq('id', galleryId)
+    .eq('studio_id', membership.studio_id)
+    .single()
+
+  if (!gallery) {
+    return { error: 'Gallery not found' }
+  }
+
+  if (uploads.length === 0) {
+    return { error: 'No files provided' }
+  }
+
+  const studioId = membership.studio_id
+  const expectedPrefix = `studios/${studioId}/galleries/${galleryId}/assets/`
+
+  type MediaRow = {
+    id: string
+    gallery_id: string
+    filename: string
+    url: string
+    thumbnail_url: string
+    original_key: string
+    type: 'video'
+    size: number
+    storage_bytes: number
+    width: number
+    height: number
+  }
+
+  // Never trust the client's reported file size for what gets charged
+  // against the studio's storage quota — HEAD the objects it claims to have
+  // uploaded and use R2's own ContentLength. A cheap existence check too:
+  // an upload that never actually landed doesn't get a phantom media row.
+  const processed = await mapWithConcurrency(uploads, 4, async (upload): Promise<MediaRow | null> => {
+    if (!upload.videoKey.startsWith(expectedPrefix) || !upload.videoKey.includes(`/assets/${upload.mediaId}/`)) return null
+    if (!upload.posterPreviewKey.startsWith(expectedPrefix) || !upload.posterThumbKey.startsWith(expectedPrefix)) return null
+
+    const [video, preview, thumb] = await Promise.all([
+      headObject(upload.videoKey),
+      headObject(upload.posterPreviewKey),
+      headObject(upload.posterThumbKey),
+    ])
+
+    if (!video.exists || !preview.exists || !thumb.exists) return null
+
+    return {
+      id: upload.mediaId,
+      gallery_id: galleryId,
+      filename: upload.filename,
+      url: getR2PublicUrl(upload.posterPreviewKey),
+      thumbnail_url: getR2PublicUrl(upload.posterThumbKey),
+      original_key: upload.videoKey,
+      type: 'video',
+      size: video.sizeBytes,
+      storage_bytes: video.sizeBytes + preview.sizeBytes + thumb.sizeBytes,
+      width: upload.width,
+      height: upload.height,
+    }
+  })
+
+  const rows = processed.filter((row): row is MediaRow => row !== null)
+
+  const allMediaIds = uploads.map((u) => u.mediaId)
+
+  if (rows.length === 0) {
+    await releaseUploadReservations(allMediaIds)
+    return { error: 'No valid video files were uploaded' }
+  }
+
+  const { error: insertError } = await supabase.from('media').insert(rows)
+
+  if (insertError) {
+    console.error('Insert video media rows error:', insertError)
+    await releaseUploadReservations(allMediaIds)
+    return { error: 'Failed to save uploaded video' }
   }
 
   await releaseUploadReservations(allMediaIds)

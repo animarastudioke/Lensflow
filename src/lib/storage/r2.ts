@@ -2,6 +2,7 @@ import {
   S3Client,
   PutObjectCommand,
   GetObjectCommand,
+  HeadObjectCommand,
   DeleteObjectCommand,
   DeleteObjectsCommand,
   ListObjectsV2Command,
@@ -119,6 +120,22 @@ export async function uploadObject(
       ContentType: contentType,
     })
   )
+}
+
+/**
+ * Lightweight existence + size check without downloading the object body —
+ * used to server-verify large direct-to-R2 uploads (e.g. video) where
+ * downloading the whole file just to confirm it landed would be wasteful,
+ * while still never trusting a client-reported file size for quota/billing.
+ */
+export async function headObject(key: string): Promise<{ exists: boolean; sizeBytes: number }> {
+  const client = getR2Client()
+  try {
+    const result = await client.send(new HeadObjectCommand({ Bucket: getR2BucketName(), Key: key }))
+    return { exists: true, sizeBytes: result.ContentLength ?? 0 }
+  } catch {
+    return { exists: false, sizeBytes: 0 }
+  }
 }
 
 export async function downloadObject(key: string): Promise<Buffer> {

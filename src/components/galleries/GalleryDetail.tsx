@@ -66,6 +66,7 @@ import {
   Copy,
   Loader2,
   FolderOpen,
+  PlayCircle,
 } from 'lucide-react'
 import {
   DropdownMenu,
@@ -99,6 +100,7 @@ interface GalleryImage {
   height: number
   size: number
   mimeType: 'image' | 'video'
+  videoPlaybackUrl?: string
   isFavorite: boolean
   albumId?: string
   sortOrder: number
@@ -731,6 +733,11 @@ export function GalleryDetail({ studioSlug, initialGallery }: GalleryDetailProps
                         className="object-cover transition-transform duration-300 group-hover:scale-105"
                         sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, (max-width: 1280px) 20vw, 16vw"
                       />
+                      {image.mimeType === 'video' && (
+                        <div className="absolute inset-0 flex items-center justify-center">
+                          <PlayCircle className="h-8 w-8 text-white drop-shadow-lg" />
+                        </div>
+                      )}
                       {image.isFavorite && (
                         <div className="absolute bottom-2 left-2">
                           <Heart className="h-5 w-5 text-red-500 fill-red-500 drop-shadow-lg" />
@@ -885,6 +892,11 @@ export function GalleryDetail({ studioSlug, initialGallery }: GalleryDetailProps
                       height={Math.round((400 / (image.width || 1)) * image.height)}
                       className="w-full h-auto object-cover transition-transform duration-300 hover:scale-[1.02]"
                     />
+                    {image.mimeType === 'video' && (
+                      <div className="absolute inset-0 flex items-center justify-center">
+                        <PlayCircle className="h-8 w-8 text-white drop-shadow-lg" />
+                      </div>
+                    )}
                     {image.isFavorite && (
                       <div className="absolute bottom-2 left-2">
                         <Heart className="h-5 w-5 text-red-500 fill-red-500 drop-shadow-lg" />

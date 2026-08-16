@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { Loader2, Eye, Download, Heart, Share2, ChevronLeft, ChevronRight, X, Grid, Info, Lock, Calendar } from 'lucide-react'
+import { Loader2, Eye, Download, Heart, Share2, ChevronLeft, ChevronRight, X, Grid, Info, Lock, Calendar, PlayCircle } from 'lucide-react'
 import { format } from 'date-fns'
 import { toast } from 'sonner'
 import { GalleryCoverPreview, type CoverTemplate } from '@/components/galleries/GalleryCoverPreview'
@@ -20,6 +20,8 @@ interface MediaItem {
   url: string
   thumbnailUrl: string
   type: 'image' | 'video'
+  /** Presigned inline-playback URL — only set for video items. */
+  videoPlaybackUrl?: string
   size: number
   width: number
   height: number
@@ -110,6 +112,7 @@ function transformMedia(dbMedia: any[]): MediaItem[] {
     url: m.url,
     thumbnailUrl: m.thumbnail_url,
     type: m.type,
+    videoPlaybackUrl: m.video_playback_url,
     size: m.size,
     width: m.width,
     height: m.height,
@@ -410,7 +413,7 @@ export function ClientGalleryContent({
 
       {item.type === 'video' && (
         <div className="absolute bottom-1 right-1 bg-black/50 text-white px-2 py-1 rounded text-xs flex items-center gap-1">
-          <Download className="h-3 w-3" />
+          <PlayCircle className="h-3 w-3" />
           Video
         </div>
       )}
@@ -646,12 +649,30 @@ export function ClientGalleryContent({
           </Button>
 
           <div className="relative max-w-[90vw] max-h-[90vh]">
-            <img
-              src={media[lightboxIndex]!.url}
-              alt={media[lightboxIndex]!.filename}
-              className="max-w-[90vw] max-h-[90vh] object-contain"
-              onClick={e => e.stopPropagation()}
-            />
+            {media[lightboxIndex]!.type === 'video' ? (
+              media[lightboxIndex]!.videoPlaybackUrl ? (
+                <video
+                  key={media[lightboxIndex]!.id}
+                  src={media[lightboxIndex]!.videoPlaybackUrl}
+                  poster={media[lightboxIndex]!.url}
+                  controls
+                  autoPlay
+                  className="max-w-[90vw] max-h-[90vh]"
+                  onClick={e => e.stopPropagation()}
+                />
+              ) : (
+                <div className="flex items-center justify-center text-white text-sm p-12" onClick={e => e.stopPropagation()}>
+                  This video isn&apos;t available right now.
+                </div>
+              )
+            ) : (
+              <img
+                src={media[lightboxIndex]!.url}
+                alt={media[lightboxIndex]!.filename}
+                className="max-w-[90vw] max-h-[90vh] object-contain"
+                onClick={e => e.stopPropagation()}
+              />
+            )}
           </div>
 
           <Button
