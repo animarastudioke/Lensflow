@@ -67,6 +67,11 @@ import {
   Loader2,
   FolderOpen,
   PlayCircle,
+  ChevronLeft,
+  ChevronRight,
+  ZoomIn,
+  ZoomOut,
+  RotateCw,
 } from 'lucide-react'
 import {
   DropdownMenu,
@@ -185,12 +190,12 @@ export function GalleryDetail({ studioSlug, initialGallery }: GalleryDetailProps
   const [activeTab, setActiveTab] = React.useState<'images' | 'albums' | 'settings' | 'analytics'>('images')
   const [viewMode, setViewMode] = React.useState<'grid' | 'list' | 'masonry'>('grid')
   const [selectedImages, setSelectedImages] = React.useState<string[]>([])
-  const [, setCurrentImageIndex] = React.useState(0)
-  const [, setIsLightboxOpen] = React.useState(false)
+  const [currentImageIndex, setCurrentImageIndex] = React.useState(0)
+  const [isLightboxOpen, setIsLightboxOpen] = React.useState(false)
   const [sortBy, setSortBy] = React.useState<'custom' | 'date' | 'name' | 'favorites'>('custom')
   const [sortOrder, setSortOrder] = React.useState<'asc' | 'desc'>('asc')
-  const [, setLightboxZoom] = React.useState(1)
-  const [, setLightboxRotation] = React.useState(0)
+  const [lightboxZoom, setLightboxZoom] = React.useState(1)
+  const [lightboxRotation, setLightboxRotation] = React.useState(0)
   const [albumFilter, setAlbumFilter] = React.useState<string | null>(null)
 
   const [albumDialogOpen, setAlbumDialogOpen] = React.useState(false)
@@ -240,6 +245,31 @@ export function GalleryDetail({ studioSlug, initialGallery }: GalleryDetailProps
     setLightboxZoom(1)
     setLightboxRotation(0)
   }
+
+  const closeLightbox = () => setIsLightboxOpen(false)
+
+  const showPrevImage = React.useCallback(() => {
+    setCurrentImageIndex((prev) => (prev === 0 ? filteredImages.length - 1 : prev - 1))
+    setLightboxZoom(1)
+    setLightboxRotation(0)
+  }, [filteredImages.length])
+
+  const showNextImage = React.useCallback(() => {
+    setCurrentImageIndex((prev) => (prev === filteredImages.length - 1 ? 0 : prev + 1))
+    setLightboxZoom(1)
+    setLightboxRotation(0)
+  }, [filteredImages.length])
+
+  React.useEffect(() => {
+    if (!isLightboxOpen) return
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') closeLightbox()
+      else if (e.key === 'ArrowLeft') showPrevImage()
+      else if (e.key === 'ArrowRight') showNextImage()
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [isLightboxOpen, showPrevImage, showNextImage])
 
   const handleDeleteImages = async () => {
     if (!confirm(`Delete ${selectedImages.length} image(s)?`)) return
@@ -440,7 +470,7 @@ export function GalleryDetail({ studioSlug, initialGallery }: GalleryDetailProps
         break
       }
       case 'download':
-        // Trigger download
+        window.location.href = `/api/dashboard/galleries/${gallery.id}/bulk-download?ids=${selectedImages.join(',')}`
         break
       case 'album':
         openAddToAlbum(selectedImages)
@@ -816,13 +846,11 @@ export function GalleryDetail({ studioSlug, initialGallery }: GalleryDetailProps
                                 <Eye className="mr-2 h-4 w-4" />
                                 View Full Size
                               </DropdownMenuItem>
-                              <DropdownMenuItem>
-                                <Download className="mr-2 h-4 w-4" />
-                                Download
-                              </DropdownMenuItem>
-                              <DropdownMenuItem>
-                                <Edit className="mr-2 h-4 w-4" />
-                                Edit Metadata
+                              <DropdownMenuItem asChild>
+                                <a href={`/api/dashboard/media/${image.id}/download`}>
+                                  <Download className="mr-2 h-4 w-4" />
+                                  Download
+                                </a>
                               </DropdownMenuItem>
                               <DropdownMenuItem
                                 onClick={() => handleToggleFavorite(image.id, !image.isFavorite)}
@@ -1301,6 +1329,136 @@ export function GalleryDetail({ studioSlug, initialGallery }: GalleryDetailProps
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Lightbox */}
+      {isLightboxOpen && filteredImages.length > 0 && filteredImages[currentImageIndex] && (
+        <div
+          className="fixed inset-0 z-50 bg-black/95 flex items-center justify-center"
+          onClick={closeLightbox}
+          role="dialog"
+          aria-modal="true"
+          aria-label="Media preview"
+        >
+          <div className="absolute top-4 right-4 flex items-center gap-2 z-10">
+            {filteredImages[currentImageIndex]!.mimeType !== 'video' && (
+              <>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-10 w-10 bg-white/10 hover:bg-white/20 text-white"
+                  onClick={(e) => { e.stopPropagation(); setLightboxZoom((z) => Math.max(0.5, z - 0.25)) }}
+                  aria-label="Zoom out"
+                >
+                  <ZoomOut className="h-5 w-5" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-10 w-10 bg-white/10 hover:bg-white/20 text-white"
+                  onClick={(e) => { e.stopPropagation(); setLightboxZoom((z) => Math.min(3, z + 0.25)) }}
+                  aria-label="Zoom in"
+                >
+                  <ZoomIn className="h-5 w-5" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-10 w-10 bg-white/10 hover:bg-white/20 text-white"
+                  onClick={(e) => { e.stopPropagation(); setLightboxRotation((r) => (r + 90) % 360) }}
+                  aria-label="Rotate"
+                >
+                  <RotateCw className="h-5 w-5" />
+                </Button>
+              </>
+            )}
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-10 w-10 bg-white/10 hover:bg-white/20 text-white"
+              onClick={(e) => { e.stopPropagation(); closeLightbox() }}
+              aria-label="Close"
+            >
+              <X className="h-5 w-5" />
+            </Button>
+          </div>
+
+          {filteredImages.length > 1 && (
+            <>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="absolute left-4 top-1/2 -translate-y-1/2 h-12 w-12 bg-white/10 hover:bg-white/20 text-white"
+                onClick={(e) => { e.stopPropagation(); showPrevImage() }}
+                aria-label="Previous"
+              >
+                <ChevronLeft className="h-6 w-6" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="absolute right-4 top-1/2 -translate-y-1/2 h-12 w-12 bg-white/10 hover:bg-white/20 text-white"
+                onClick={(e) => { e.stopPropagation(); showNextImage() }}
+                aria-label="Next"
+              >
+                <ChevronRight className="h-6 w-6" />
+              </Button>
+            </>
+          )}
+
+          <div className="relative max-w-[90vw] max-h-[80vh]" onClick={(e) => e.stopPropagation()}>
+            {filteredImages[currentImageIndex]!.mimeType === 'video' ? (
+              filteredImages[currentImageIndex]!.videoPlaybackUrl ? (
+                <video
+                  key={filteredImages[currentImageIndex]!.id}
+                  src={filteredImages[currentImageIndex]!.videoPlaybackUrl}
+                  poster={filteredImages[currentImageIndex]!.thumbnailUrl}
+                  controls
+                  autoPlay
+                  className="max-w-[90vw] max-h-[80vh]"
+                />
+              ) : (
+                <div className="flex items-center justify-center text-white text-sm p-12">
+                  This video isn&apos;t available right now.
+                </div>
+              )
+            ) : (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={filteredImages[currentImageIndex]!.url}
+                alt={filteredImages[currentImageIndex]!.filename}
+                className="max-w-[90vw] max-h-[80vh] object-contain transition-transform"
+                style={{ transform: `scale(${lightboxZoom}) rotate(${lightboxRotation}deg)` }}
+              />
+            )}
+          </div>
+
+          <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-3 text-white text-sm">
+            <span className="max-w-[240px] truncate">{filteredImages[currentImageIndex]!.filename}</span>
+            <span className="text-white/60">{currentImageIndex + 1} / {filteredImages.length}</span>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-white hover:bg-white/20"
+              onClick={(e) => {
+                e.stopPropagation()
+                handleToggleFavorite(filteredImages[currentImageIndex]!.id, !filteredImages[currentImageIndex]!.isFavorite)
+              }}
+            >
+              <Heart className={cn('h-4 w-4 mr-1', filteredImages[currentImageIndex]!.isFavorite ? 'fill-red-500 text-red-500' : '')} />
+              Favorite
+            </Button>
+            <Button variant="ghost" size="sm" className="text-white hover:bg-white/20" asChild>
+              <a
+                href={`/api/dashboard/media/${filteredImages[currentImageIndex]!.id}/download`}
+                onClick={(e) => e.stopPropagation()}
+              >
+                <Download className="h-4 w-4 mr-1" />
+                Download
+              </a>
+            </Button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
