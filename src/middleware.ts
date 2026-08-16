@@ -129,9 +129,19 @@ export async function middleware(request: NextRequest) {
 
   // CSP for non-authenticated pages
   if (!session) {
+    // Public galleries (/g/[token]) load media straight from R2: preview/
+    // thumbnail images via the public bucket domain, and — for video — a
+    // presigned playback URL on R2's S3 API domain (also used for the
+    // fetch()-initiated download flow, which redirects to that same host).
+    // Without these, the browser's CSP blocks the request before it ever
+    // reaches R2, independent of R2's own CORS configuration.
+    const r2ApiOrigin = process.env['R2_ACCOUNT_ID']
+      ? `https://*.${process.env['R2_ACCOUNT_ID']}.r2.cloudflarestorage.com`
+      : ''
+    const r2PublicOrigin = process.env['R2_PUBLIC_URL'] ?? ''
     response.headers.set(
       'Content-Security-Policy',
-      "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' https://*.supabase.co wss://*.supabase.co;"
+      `default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; media-src 'self' ${r2ApiOrigin} ${r2PublicOrigin}; connect-src 'self' https://*.supabase.co wss://*.supabase.co ${r2ApiOrigin} ${r2PublicOrigin};`
     )
   }
 
