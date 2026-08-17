@@ -1,5 +1,6 @@
 import type { MetadataRoute } from 'next'
 import { APP_CONSTANTS } from '@/lib/constants'
+import { getAllBlogPosts } from '@/lib/content/blog'
 
 const baseUrl = APP_CONSTANTS.URL
 
@@ -44,10 +45,19 @@ const routes: RouteConfig[] = [
 ]
 
 export default function sitemap(): MetadataRoute.Sitemap {
-  return routes.map(({ path, priority, changeFrequency }) => ({
+  const staticRoutes = routes.map(({ path, priority, changeFrequency }) => ({
     url: `${baseUrl}${path}`,
     lastModified: new Date(),
     changeFrequency,
     priority,
   }))
+
+  const blogRoutes = getAllBlogPosts().map((post) => ({
+    url: `${baseUrl}/blog/${post.slug}`,
+    lastModified: new Date(post.date),
+    changeFrequency: 'monthly' as const,
+    priority: 0.6,
+  }))
+
+  return [...staticRoutes, ...blogRoutes]
 }
