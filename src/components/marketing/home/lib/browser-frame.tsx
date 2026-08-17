@@ -4,7 +4,7 @@ import { cn } from '@/lib/utils'
 export function BrowserFrame({
   children,
   className,
-  url = 'app.lensflow.io',
+  url = 'app.lensflow.co.ke',
 }: {
   children: ReactNode
   className?: string

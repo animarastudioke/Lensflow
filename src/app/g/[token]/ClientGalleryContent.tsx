@@ -591,7 +591,7 @@ export function ClientGalleryContent({
       </div>
       {gallery.entitlements?.showPoweredByBadge && (
         <a
-          href="https://lensflow.io"
+          href="https://lensflow.co.ke"
           target="_blank"
           rel="noreferrer"
           className="absolute bottom-4 left-4 rounded-full bg-white/90 px-3 py-1 text-xs font-medium text-foreground shadow-sm hover:bg-white"

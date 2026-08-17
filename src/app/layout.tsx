@@ -58,7 +58,7 @@ export const metadata: Metadata = {
   openGraph: {
     type: 'website',
     locale: 'en_US',
-    url: 'https://lensflow.io',
+    url: 'https://lensflow.co.ke',
     siteName: 'LensFlow',
     title: 'LensFlow - Premium Gallery Platform for Photographers',
     description:

@@ -160,6 +160,6 @@ MIT License - see [LICENSE](LICENSE) for details.
 
 ## Support
 
-- Documentation: [docs.lensflow.io](https://docs.lensflow.io)
+- Documentation: [docs.lensflow.co.ke](https://docs.lensflow.co.ke)
 - Issues: [GitHub Issues](https://github.com/your-org/lensflow/issues)
-- Email: support@lensflow.io
+- Email: support@lensflow.co.ke

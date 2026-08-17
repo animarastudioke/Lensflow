@@ -96,7 +96,7 @@ export function FeatureTabs() {
                         </Link>
                       </div>
 
-                      <BrowserFrame url={tab.id === 'websites' ? 'amarawren.com' : 'app.lensflow.io'}>
+                      <BrowserFrame url={tab.id === 'websites' ? 'amarawren.com' : 'app.lensflow.co.ke'}>
                         <div className="min-h-[380px] sm:min-h-[420px]">
                           <Demo />
                         </div>
