@@ -115,7 +115,7 @@ export async function getAnalyticsOverview(studioSlug: string, range: AnalyticsR
     supabase.from('bookings').select('id, created_at').eq('studio_id', studio.id).gte('created_at', rangeStart.toISOString()),
     supabase.from('bookings').select('id', { count: 'exact', head: true }).eq('studio_id', studio.id).gte('created_at', previousRangeStart.toISOString()).lt('created_at', rangeStart.toISOString()),
     supabase.from('clients').select('id', { count: 'exact', head: true }).eq('studio_id', studio.id).eq('status', 'active'),
-    supabase.from('galleries').select('name, view_count, download_count').eq('studio_id', studio.id).order('view_count', { ascending: false }).limit(5),
+    supabase.from('galleries').select('name, view_count, download_count').eq('studio_id', studio.id).neq('status', 'archived').order('view_count', { ascending: false }).limit(5),
     supabase.from('invoices').select('total, amount_paid').eq('studio_id', studio.id).in('status', ['sent', 'partial', 'overdue']),
     supabase.from('orders').select('total').eq('studio_id', studio.id).eq('payment_status', 'paid'),
     supabase.from('clients').select('id', { count: 'exact', head: true }).eq('studio_id', studio.id).eq('status', 'lead').gte('created_at', rangeStart.toISOString()),

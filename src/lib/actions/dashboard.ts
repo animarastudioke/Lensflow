@@ -30,7 +30,8 @@ export async function getDashboardStats(studioSlug: string): Promise<DashboardSt
     supabase
       .from('galleries')
       .select('*', { count: 'exact', head: true })
-      .eq('studio_id', studio.id),
+      .eq('studio_id', studio.id)
+      .neq('status', 'archived'),
     supabase
       .from('clients')
       .select('*', { count: 'exact', head: true })
