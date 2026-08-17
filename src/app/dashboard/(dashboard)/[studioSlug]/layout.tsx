@@ -23,7 +23,7 @@ export default async function DashboardLayoutWrapper({
   const studioName = studio?.name ?? studioSlug
 
   return (
-    <DashboardLayout studioSlug={studioSlug} studioName={studioName}>
+    <DashboardLayout studioSlug={studioSlug} studioName={studioName} studioLogoUrl={studio?.logoUrl ?? null}>
       {children}
     </DashboardLayout>
   )

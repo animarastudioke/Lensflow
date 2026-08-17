@@ -141,18 +141,18 @@ export async function checkSlugAvailable(slug: string): Promise<boolean> {
   return !data
 }
 
-export async function getStudioForSettings(studioSlug: string): Promise<{ id: string; name: string; ownerId: string } | null> {
+export async function getStudioForSettings(studioSlug: string): Promise<{ id: string; name: string; ownerId: string; logoUrl: string | null } | null> {
   const supabase = await createClient()
 
   const { data: studio } = await supabase
     .from('studios')
-    .select('id, name, owner_id')
+    .select('id, name, owner_id, logo_url')
     .eq('slug', studioSlug)
     .single()
 
   if (!studio) return null
 
-  return { id: studio.id, name: studio.name, ownerId: studio.owner_id }
+  return { id: studio.id, name: studio.name, ownerId: studio.owner_id, logoUrl: studio.logo_url }
 }
 
 export interface StudioSettingsRow {

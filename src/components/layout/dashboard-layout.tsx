@@ -11,9 +11,10 @@ interface DashboardLayoutProps {
   children: React.ReactNode
   studioSlug: string
   studioName?: string
+  studioLogoUrl?: string | null
 }
 
-export function DashboardLayout({ children, studioSlug, studioName }: DashboardLayoutProps) {
+export function DashboardLayout({ children, studioSlug, studioName, studioLogoUrl }: DashboardLayoutProps) {
   const [sidebarCollapsed, setSidebarCollapsed] = React.useState(false)
 
   React.useEffect(() => {
@@ -43,7 +44,7 @@ export function DashboardLayout({ children, studioSlug, studioName }: DashboardL
           sidebarCollapsed ? 'lg:pl-20' : 'lg:pl-64'
         )}
       >
-        <Header studioSlug={studioSlug} studioName={studioName} />
+        <Header studioSlug={studioSlug} studioName={studioName} studioLogoUrl={studioLogoUrl} />
 
         <main className="p-4 sm:p-6 lg:p-8" id="main-content" tabIndex={-1}>
           {children}

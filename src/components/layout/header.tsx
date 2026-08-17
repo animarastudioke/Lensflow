@@ -23,9 +23,10 @@ const NOTIFICATION_POLL_MS = 30_000
 interface HeaderProps {
   studioSlug: string
   studioName?: string
+  studioLogoUrl?: string | null
 }
 
-export function Header({ studioSlug, studioName = 'Studio' }: HeaderProps) {
+export function Header({ studioSlug, studioName = 'Studio', studioLogoUrl }: HeaderProps) {
   const router = useRouter()
   const { setTheme, resolvedTheme } = useTheme()
   const { user, isLoading, signOut } = useAuthUser()
@@ -80,9 +81,14 @@ export function Header({ studioSlug, studioName = 'Studio' }: HeaderProps) {
             className="flex items-center gap-2 font-semibold text-foreground hover:opacity-80 transition-opacity"
             aria-label={`Go to ${studioName} dashboard`}
           >
-            <div className="h-8 w-8 rounded-lg bg-primary flex items-center justify-center">
-              <span className="text-primary-foreground font-bold text-sm">{studioName.charAt(0)}</span>
-            </div>
+            {studioLogoUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={studioLogoUrl} alt="" className="h-8 w-8 rounded-lg object-contain bg-muted shrink-0" />
+            ) : (
+              <div className="h-8 w-8 rounded-lg bg-primary flex items-center justify-center shrink-0">
+                <span className="text-primary-foreground font-bold text-sm">{studioName.charAt(0)}</span>
+              </div>
+            )}
             <span className="hidden sm:block truncate max-w-[200px]">{studioName}</span>
           </Link>
 
