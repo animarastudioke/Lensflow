@@ -1,7 +1,7 @@
 import type { CSSProperties, ReactNode } from 'react'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
-import { Camera } from 'lucide-react'
+import { LogoMark } from '@/components/marketing/home/lib/logo'
 
 // The marketing site always presents the same light, editorial look,
 // regardless of a visitor's dashboard dark-mode preference (dark mode is a
@@ -40,7 +40,7 @@ function MarketingHeader() {
     <header className="sticky top-0 z-30 border-b border-border bg-background/90 backdrop-blur">
       <div className="container-wide flex h-16 items-center justify-between">
         <Link href="/" className="flex items-center gap-2 font-display text-xl italic text-foreground">
-          <Camera className="h-5 w-5 text-primary" strokeWidth={1.5} />
+          <LogoMark className="h-5 w-5 text-primary" />
           <span>LensFlow</span>
         </Link>
         <div className="flex items-center gap-3">
@@ -63,7 +63,7 @@ function MarketingFooter() {
         <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-8 mb-12">
           <div className="lg:col-span-2">
             <Link href="/" className="flex items-center gap-2 font-display italic text-xl text-foreground mb-4">
-              <Camera className="h-5 w-5 text-primary" strokeWidth={1.5} />
+              <LogoMark className="h-5 w-5 text-primary" />
               <span>LensFlow</span>
             </Link>
             <p className="text-body text-muted-foreground max-w-xs mb-6">

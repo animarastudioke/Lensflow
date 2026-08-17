@@ -31,6 +31,7 @@ import {
   ClipboardList,
 } from 'lucide-react'
 import { useAuthUser, type UserRole } from '@/lib/auth/hooks'
+import { LogoMark } from '@/components/marketing/home/lib/logo'
 
 interface SidebarProps {
   studioSlug: string
@@ -210,7 +211,7 @@ export function Sidebar({ studioSlug, collapsed, onCollapsedChange }: SidebarPro
                 className="flex items-center gap-2 font-display text-xl italic text-foreground"
                 aria-label="LensFlow Dashboard"
               >
-                <Building2 className="h-6 w-6 text-primary" strokeWidth={1.5} />
+                <LogoMark className="h-6 w-6 text-primary" />
                 <span className="truncate">LensFlow</span>
               </Link>
             )}
@@ -220,7 +221,7 @@ export function Sidebar({ studioSlug, collapsed, onCollapsedChange }: SidebarPro
                 className="flex items-center justify-center"
                 aria-label="LensFlow Dashboard"
               >
-                <Building2 className="h-6 w-6 text-primary" strokeWidth={1.5} />
+                <LogoMark className="h-6 w-6 text-primary" />
               </Link>
             )}
             <Button
@@ -317,7 +318,7 @@ export function MobileSidebarTrigger({ studioSlug }: { studioSlug: string }) {
               href={`/dashboard/${studioSlug}`}
               className="flex items-center gap-2 font-display text-xl italic text-foreground"
             >
-              <Building2 className="h-6 w-6 text-primary" strokeWidth={1.5} />
+              <LogoMark className="h-6 w-6 text-primary" />
               <span>LensFlow</span>
             </Link>
           </div>
