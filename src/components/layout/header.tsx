@@ -29,6 +29,7 @@ export function Header({ studioSlug, studioName = 'Studio' }: HeaderProps) {
   const router = useRouter()
   const { setTheme, resolvedTheme } = useTheme()
   const { user, isLoading, signOut } = useAuthUser()
+  const [mounted, setMounted] = React.useState(false)
   const [searchQuery, setSearchQuery] = React.useState('')
   const [notificationsOpen, setNotificationsOpen] = React.useState(false)
   const [userMenuOpen, setUserMenuOpen] = React.useState(false)
@@ -46,6 +47,12 @@ export function Header({ studioSlug, studioName = 'Studio' }: HeaderProps) {
     const interval = setInterval(refreshNotifications, NOTIFICATION_POLL_MS)
     return () => clearInterval(interval)
   }, [refreshNotifications])
+
+  // next-themes can't know the real theme during SSR (it lives in
+  // localStorage/system preference) - resolvedTheme is undefined until after
+  // mount. Reading it into an attribute before that point renders a
+  // different value server vs. client and triggers a hydration mismatch.
+  React.useEffect(() => setMounted(true), [])
 
   const handleSignOut = async () => {
     await signOut()
@@ -100,7 +107,7 @@ export function Header({ studioSlug, studioName = 'Studio' }: HeaderProps) {
             variant="ghost"
             size="icon"
             onClick={() => setTheme(resolvedTheme === 'dark' ? 'light' : 'dark')}
-            aria-label={resolvedTheme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+            aria-label={mounted && resolvedTheme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
             className="h-9 w-9"
           >
             <Sun className="h-5 w-5 rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />

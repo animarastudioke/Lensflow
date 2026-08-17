@@ -43,7 +43,7 @@ export function Providers({ children }: { children: ReactNode }) {
               },
             }}
           />
-          <ReactQueryDevtools initialIsOpen={false} />
+          {process.env.NODE_ENV === 'development' && <ReactQueryDevtools initialIsOpen={false} />}
         </AuthProvider>
       </ThemeProvider>
     </QueryClientProvider>
