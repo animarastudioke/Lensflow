@@ -3,6 +3,7 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools'
 import { ThemeProvider } from 'next-themes'
+import { MotionConfig } from 'framer-motion'
 import { Toaster } from 'sonner'
 import { useState, type ReactNode } from 'react'
 import { AuthProvider } from '@/lib/auth/hooks'
@@ -30,21 +31,32 @@ export function Providers({ children }: { children: ReactNode }) {
         enableSystem
         disableTransitionOnChange
       >
-        <AuthProvider>
-          {children}
-          <Toaster
-            position="top-right"
-            toastOptions={{
-              classNames: {
-                toast: 'bg-card text-card-foreground border border-border rounded-md',
-                description: 'text-sm text-muted-foreground',
-                actionButton: 'bg-primary text-primary-foreground',
-                cancelButton: 'bg-secondary text-secondary-foreground',
-              },
-            }}
-          />
-          {process.env.NODE_ENV === 'development' && <ReactQueryDevtools initialIsOpen={false} />}
-        </AuthProvider>
+        {/*
+          "user" lets framer-motion respect prefers-reduced-motion
+          internally (skips/shortens animations post-mount) instead of
+          components branching on useReducedMotion() themselves to decide
+          `initial` props - that hook resolves synchronously on the client
+          but is unknown during SSR, so any component doing that branching
+          renders different initial styles server vs. client and hits a
+          hydration mismatch for any visitor with reduced motion enabled.
+        */}
+        <MotionConfig reducedMotion="user">
+          <AuthProvider>
+            {children}
+            <Toaster
+              position="top-right"
+              toastOptions={{
+                classNames: {
+                  toast: 'bg-card text-card-foreground border border-border rounded-md',
+                  description: 'text-sm text-muted-foreground',
+                  actionButton: 'bg-primary text-primary-foreground',
+                  cancelButton: 'bg-secondary text-secondary-foreground',
+                },
+              }}
+            />
+            {process.env.NODE_ENV === 'development' && <ReactQueryDevtools initialIsOpen={false} />}
+          </AuthProvider>
+        </MotionConfig>
       </ThemeProvider>
     </QueryClientProvider>
   )

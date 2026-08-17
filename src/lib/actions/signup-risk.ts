@@ -12,7 +12,7 @@ async function sha256Hex(value: string): Promise<string> {
 /** Best-effort request fingerprint - never stores the raw IP/user-agent, only a hash. */
 async function getRequestSignals(): Promise<{ ipHash: string | null; userAgentHash: string | null }> {
   try {
-    const hdrs = headers()
+    const hdrs = await headers()
     const ip = hdrs.get('x-forwarded-for')?.split(',')[0]?.trim() || hdrs.get('x-real-ip')
     const userAgent = hdrs.get('user-agent')
     return {

@@ -1,6 +1,6 @@
 'use client'
 
-import { useRef } from 'react'
+import { useRef, type RefObject } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
 import { motion, useReducedMotion, useScroll, useTransform } from 'framer-motion'
@@ -22,8 +22,16 @@ export function Hero() {
   const prefersReducedMotion = useReducedMotion()
 
   const { scrollYProgress } = useScroll({
-    target: sectionRef,
+    // framer-motion's types still expect a non-nullable RefObject; React 19
+    // correctly infers useRef<T>(null) as RefObject<T | null> now.
+    target: sectionRef as RefObject<HTMLElement>,
     offset: ['start start', 'end start'],
+    // sectionRef is also passed down to ProductPreview's own useScroll() call,
+    // which reads it before this component's layout effect has attached it -
+    // framer-motion's own hydration-timing warning for this exact pattern
+    // recommends this option (deferring setup to a regular effect instead of
+    // a layout effect, which runs too early relative to hydration).
+    layoutEffect: false,
   })
   const parallaxY = useTransform(scrollYProgress, [0, 1], [0, prefersReducedMotion ? 0 : 120])
 
@@ -64,7 +72,7 @@ export function Hero() {
         <div className="mx-auto max-w-3xl text-center">
           <motion.span
             custom={0}
-            initial={prefersReducedMotion ? undefined : 'hidden'}
+            initial="hidden"
             animate="visible"
             variants={fadeUp}
             className="font-mono text-[0.6875rem] font-medium uppercase tracking-[0.18em] text-white/70"
@@ -74,7 +82,7 @@ export function Hero() {
 
           <motion.h1
             custom={0.1}
-            initial={prefersReducedMotion ? undefined : 'hidden'}
+            initial="hidden"
             animate="visible"
             variants={fadeUp}
             className="mt-5 text-balance font-display text-[2.5rem] font-semibold leading-[1.08] tracking-tight text-white sm:text-6xl lg:text-[5.5rem]"
@@ -86,7 +94,7 @@ export function Hero() {
 
           <motion.p
             custom={0.2}
-            initial={prefersReducedMotion ? undefined : 'hidden'}
+            initial="hidden"
             animate="visible"
             variants={fadeUp}
             className="mx-auto mt-6 max-w-xl text-balance text-lg text-white/75 sm:text-xl"
@@ -97,7 +105,7 @@ export function Hero() {
 
           <motion.div
             custom={0.3}
-            initial={prefersReducedMotion ? undefined : 'hidden'}
+            initial="hidden"
             animate="visible"
             variants={fadeUp}
             className="mt-10 flex flex-col items-center justify-center gap-4 sm:flex-row"
@@ -119,7 +127,7 @@ export function Hero() {
 
           <motion.p
             custom={0.4}
-            initial={prefersReducedMotion ? undefined : 'hidden'}
+            initial="hidden"
             animate="visible"
             variants={fadeUp}
             className="mt-5 flex items-center justify-center gap-1.5 text-sm text-white/55"
@@ -132,7 +140,7 @@ export function Hero() {
 
       <motion.div
         custom={0.5}
-        initial={prefersReducedMotion ? undefined : { opacity: 0, scale: 1.04 }}
+        initial={{ opacity: 0, scale: 1.04 }}
         animate={{ opacity: 1, scale: 1 }}
         transition={{ duration: 0.9, delay: 0.35, ease: [0.16, 1, 0.3, 1] }}
         className="relative mt-12 px-4 sm:px-6 lg:absolute lg:inset-x-0 lg:bottom-0 lg:mt-0 lg:translate-y-1/2 lg:px-8"

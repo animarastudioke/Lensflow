@@ -1,7 +1,7 @@
 'use client'
 
 import { ArrowDown, ArrowRight } from 'lucide-react'
-import { motion, useReducedMotion } from 'framer-motion'
+import { motion } from 'framer-motion'
 import { DISCONNECTED_TOOLS } from '@/lib/constants/homepage'
 import { ScrollReveal, StaggerGroup, StaggerItem } from './lib/scroll-reveal'
 import { LogoMark } from './lib/logo'
@@ -17,8 +17,6 @@ const UNIFIED_ICONS = [
 ]
 
 export function ProblemSection() {
-  const prefersReducedMotion = useReducedMotion()
-
   return (
     <section className="page-section bg-muted/40">
       <div className="container-wide">
@@ -42,7 +40,7 @@ export function ProblemSection() {
               {DISCONNECTED_TOOLS.map((tool, index) => (
                 <StaggerItem key={tool.label}>
                   <motion.div
-                    initial={prefersReducedMotion ? undefined : { rotate: index % 2 === 0 ? -3 : 3 }}
+                    initial={{ rotate: index % 2 === 0 ? -3 : 3 }}
                     whileInView={{ rotate: 0 }}
                     viewport={{ once: true, amount: 0.4 }}
                     transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}

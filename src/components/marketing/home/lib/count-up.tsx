@@ -21,7 +21,11 @@ export function CountUp({
   const ref = useRef<HTMLSpanElement>(null)
   const isInView = useInView(ref, { once: true, amount: 0.6 })
   const prefersReducedMotion = useReducedMotion()
-  const [display, setDisplay] = useState(prefersReducedMotion ? value : 0)
+  // Always start at 0, matching what SSR renders (prefersReducedMotion is
+  // unknown server-side) - the effect below jumps straight to `value` once
+  // mounted if reduced motion is preferred, rather than the initial render
+  // itself differing between server and client.
+  const [display, setDisplay] = useState(0)
 
   useEffect(() => {
     if (!isInView) return

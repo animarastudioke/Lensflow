@@ -36,13 +36,19 @@ const UPCOMING_SESSIONS = [
   { label: 'Studio portraits', client: 'James Mwangi', date: 'Fri, 10:00 AM' },
 ]
 
-export function ProductPreview({ sectionRef }: { sectionRef?: RefObject<HTMLElement> }) {
+export function ProductPreview({ sectionRef }: { sectionRef?: RefObject<HTMLElement | null> }) {
   const localRef = useRef<HTMLDivElement>(null)
   const prefersReducedMotion = useReducedMotion()
 
   const { scrollYProgress } = useScroll({
-    target: sectionRef ?? localRef,
+    // framer-motion's types still expect a non-nullable RefObject; React 19
+    // correctly infers useRef<T>(null) as RefObject<T | null> now.
+    target: (sectionRef ?? localRef) as RefObject<HTMLElement>,
     offset: ['start start', 'end start'],
+    // sectionRef (when provided) is owned by a parent component (Hero) -
+    // framer-motion's own hydration-timing warning for cross-component refs
+    // recommends this option (see hero.tsx for the matching comment).
+    layoutEffect: false,
   })
   const floatY = useTransform(scrollYProgress, [0, 1], [0, prefersReducedMotion ? 0 : -48])
 

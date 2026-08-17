@@ -12,7 +12,7 @@ export interface AuthUser {
 }
 
 export async function getAuthUser(): Promise<AuthUser | null> {
-  const supabase = createClient()
+  const supabase = await createClient()
 
   const { data: { session } } = await supabase.auth.getSession()
 
@@ -87,7 +87,7 @@ export async function getUserStudiios(): Promise<string[]> {
   const user = await getAuthUser()
   if (!user) return []
 
-  const supabase = createClient()
+  const supabase = await createClient()
 
   const { data: memberships } = await supabase
     .from('studio_members')

@@ -3,13 +3,11 @@
 import Image from 'next/image'
 import Link from 'next/link'
 import { ArrowRight, CheckCircle2 } from 'lucide-react'
-import { motion, useReducedMotion } from 'framer-motion'
+import { motion } from 'framer-motion'
 import { GALLERY_SHOWCASE_IMAGES } from '@/lib/constants/homepage'
 import { ScrollReveal } from './lib/scroll-reveal'
 
 export function FinalCta() {
-  const prefersReducedMotion = useReducedMotion()
-
   return (
     <section className="relative overflow-hidden bg-[#0c0c0f] py-28 sm:py-36">
       <div className="absolute inset-0">
@@ -27,11 +25,7 @@ export function FinalCta() {
       <motion.div
         aria-hidden="true"
         className="absolute left-1/2 top-1/2 h-[480px] w-[480px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-primary/20 blur-[120px]"
-        animate={
-          prefersReducedMotion
-            ? undefined
-            : { x: [0, 60, -40, 0], y: [0, -30, 40, 0] }
-        }
+        animate={{ x: [0, 60, -40, 0], y: [0, -30, 40, 0] }}
         transition={{ duration: 18, repeat: Infinity, ease: 'easeInOut' }}
       />
 

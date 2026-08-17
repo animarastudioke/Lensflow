@@ -1,7 +1,7 @@
 'use client'
 
 import type { ReactNode } from 'react'
-import { motion, useReducedMotion, type Variants } from 'framer-motion'
+import { motion, type Variants } from 'framer-motion'
 
 type RevealVariant = 'fadeUp' | 'fadeIn' | 'scaleIn' | 'slideInLeft' | 'slideInRight'
 
@@ -45,12 +45,6 @@ export function ScrollReveal({
   once?: boolean
   amount?: number
 }) {
-  const prefersReducedMotion = useReducedMotion()
-
-  if (prefersReducedMotion) {
-    return <div className={className}>{children}</div>
-  }
-
   return (
     <motion.div
       className={className}
@@ -78,12 +72,6 @@ export function StaggerGroup({
   once?: boolean
   amount?: number
 }) {
-  const prefersReducedMotion = useReducedMotion()
-
-  if (prefersReducedMotion) {
-    return <div className={className}>{children}</div>
-  }
-
   return (
     <motion.div
       className={className}

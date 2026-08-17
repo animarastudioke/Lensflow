@@ -10,7 +10,7 @@ export default async function NewStudioPage() {
     redirect('/auth/login')
   }
 
-  const supabase = createClient()
+  const supabase = await createClient()
 
   const { data: membership } = await supabase
     .from('studio_members')

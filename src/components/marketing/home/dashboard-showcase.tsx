@@ -1,6 +1,6 @@
 'use client'
 
-import { motion, useReducedMotion } from 'framer-motion'
+import { motion } from 'framer-motion'
 import { CreditCard, FolderKanban, HardDrive, TrendingUp, Users } from 'lucide-react'
 import { CountUp } from './lib/count-up'
 import { ScrollReveal } from './lib/scroll-reveal'
@@ -29,7 +29,6 @@ function buildLinePath(points: number[], width: number, height: number) {
 }
 
 function RevenueChart() {
-  const prefersReducedMotion = useReducedMotion()
   const width = 320
   const height = 120
   const path = buildLinePath(REVENUE_POINTS, width, height)
@@ -43,7 +42,7 @@ function RevenueChart() {
         strokeWidth={2.5}
         strokeLinecap="round"
         strokeLinejoin="round"
-        initial={prefersReducedMotion ? undefined : { pathLength: 0 }}
+        initial={{ pathLength: 0 }}
         whileInView={{ pathLength: 1 }}
         viewport={{ once: true, amount: 0.6 }}
         transition={{ duration: 1.4, ease: [0.16, 1, 0.3, 1] }}

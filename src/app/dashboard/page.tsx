@@ -9,7 +9,7 @@ export default async function DashboardRootPage() {
     redirect('/auth/login')
   }
 
-  const supabase = createClient()
+  const supabase = await createClient()
 
   const { data: membership } = await supabase
     .from('studio_members')
