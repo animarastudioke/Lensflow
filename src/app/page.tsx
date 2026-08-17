@@ -53,7 +53,7 @@ function StructuredData() {
         '@id': `${APP_CONSTANTS.URL}/#organization`,
         name: 'LensFlow',
         url: APP_CONSTANTS.URL,
-        logo: `${APP_CONSTANTS.URL}/favicon.ico`,
+        logo: `${APP_CONSTANTS.URL}/apple-icon`,
       },
       {
         '@type': 'WebSite',
