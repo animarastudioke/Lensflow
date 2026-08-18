@@ -1,6 +1,7 @@
 import type { MetadataRoute } from 'next'
 import { APP_CONSTANTS } from '@/lib/constants'
 import { getAllBlogPosts } from '@/lib/content/blog'
+import { getAllDocs } from '@/lib/content/docs'
 
 const baseUrl = APP_CONSTANTS.URL
 
@@ -59,5 +60,12 @@ export default function sitemap(): MetadataRoute.Sitemap {
     priority: 0.6,
   }))
 
-  return [...staticRoutes, ...blogRoutes]
+  const docsRoutes = getAllDocs().map((doc) => ({
+    url: `${baseUrl}/docs/${doc.slug}`,
+    lastModified: new Date(),
+    changeFrequency: 'monthly' as const,
+    priority: 0.5,
+  }))
+
+  return [...staticRoutes, ...blogRoutes, ...docsRoutes]
 }
