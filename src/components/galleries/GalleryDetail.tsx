@@ -14,6 +14,7 @@ import {
   assignMediaToAlbum,
   setMediaFavorite,
   deleteMedia,
+  updateGalleryStatus,
 } from '@/lib/actions/galleries'
 import {
   Card,
@@ -439,6 +440,19 @@ export function GalleryDetail({ studioSlug, initialGallery }: GalleryDetailProps
     if (albumFilter === target.id) setAlbumFilter(null)
     toast.success('Album deleted')
     setAlbumDeleteConfirm(null)
+  }
+
+  const handleStatusChange = async (status: Gallery['status']) => {
+    const previousStatus = gallery.status
+    if (status === previousStatus) return
+    setGallery((prev) => ({ ...prev, status }))
+    const result = await updateGalleryStatus(gallery.id, studioSlug, status)
+    if ('error' in result) {
+      setGallery((prev) => ({ ...prev, status: previousStatus }))
+      toast.error(result.error)
+      return
+    }
+    toast.success(status === 'published' ? 'Gallery published — share link is now live' : 'Gallery status updated')
   }
 
   const handleBulkAction = async (action: 'delete' | 'favorite' | 'download' | 'album') => {
@@ -1064,7 +1078,7 @@ export function GalleryDetail({ studioSlug, initialGallery }: GalleryDetailProps
               <div className="grid gap-4 md:grid-cols-2">
                 <div className="space-y-2">
                   <Label>Status</Label>
-                  <Select defaultValue={gallery.status}>
+                  <Select value={gallery.status} onValueChange={(value) => handleStatusChange(value as Gallery['status'])}>
                     <SelectTrigger>
                       <SelectValue />
                     </SelectTrigger>
