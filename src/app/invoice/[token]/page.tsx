@@ -2,6 +2,7 @@ import { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import { getInvoiceByToken } from '@/lib/actions/invoices'
 import { BillingDocumentView } from '@/components/billing/BillingDocumentView'
+import { PublicMpesaPaymentDialog } from '@/components/invoices/PublicMpesaPaymentDialog'
 import { Download } from 'lucide-react'
 
 interface Props {
@@ -61,7 +62,7 @@ export default async function PublicInvoicePage({ params }: Props) {
             }}
           />
 
-          <div className="mt-8 pt-6 border-t border-border flex justify-end">
+          <div className="mt-8 pt-6 border-t border-border flex items-center justify-end gap-3">
             <a
               href={`/api/invoice/${token}/pdf`}
               className="inline-flex items-center gap-2 rounded-md border border-border px-4 py-2 text-sm font-medium hover:bg-accent transition-colors"
@@ -69,6 +70,13 @@ export default async function PublicInvoicePage({ params }: Props) {
               <Download className="h-4 w-4" />
               Download PDF
             </a>
+            {balanceDue > 0 && invoice.currency === 'KES' && invoice.status !== 'cancelled' && invoice.status !== 'refunded' && (
+              <PublicMpesaPaymentDialog
+                token={token}
+                balanceDue={balanceDue}
+                defaultPhone={invoice.client?.phone ?? undefined}
+              />
+            )}
           </div>
         </div>
       </div>
