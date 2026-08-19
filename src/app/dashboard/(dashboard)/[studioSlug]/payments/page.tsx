@@ -3,9 +3,10 @@ import Link from 'next/link'
 import { format } from 'date-fns'
 import { getAuthUserServer } from '@/lib/auth'
 import { getPayments } from '@/lib/actions/payments'
+import { getStudioPayoutSummary } from '@/lib/actions/payouts'
 import { getStudioCurrency } from '@/lib/actions/studios'
 import { formatCurrency } from '@/lib/currencies'
-import { DollarSign, Receipt } from 'lucide-react'
+import { DollarSign, Receipt, Wallet } from 'lucide-react'
 import {
   Table,
   TableBody,
@@ -39,14 +40,15 @@ export default async function PaymentsPage({ params }: PaymentsPageProps) {
     return null
   }
 
-  const [{ payments, totalCollected }, currency] = await Promise.all([
+  const [{ payments, totalCollected }, currency, payoutSummary] = await Promise.all([
     getPayments(studioSlug),
     getStudioCurrency(studioSlug),
+    getStudioPayoutSummary(studioSlug),
   ])
 
   return (
     <div className="space-y-6">
-      <div className="grid grid-cols-1 sm:grid-cols-2 divide-y sm:divide-y-0 sm:divide-x divide-border border border-border">
+      <div className="grid grid-cols-1 sm:grid-cols-3 divide-y sm:divide-y-0 sm:divide-x divide-border border border-border">
         <div className="px-5 py-5">
           <div className="flex items-center justify-between">
             <span className="label-caption">Total collected</span>
@@ -65,7 +67,58 @@ export default async function PaymentsPage({ params }: PaymentsPageProps) {
             {payments.length}
           </div>
         </div>
+        <div className="px-5 py-5">
+          <div className="flex items-center justify-between">
+            <span className="label-caption">Owed to you</span>
+            <Wallet className="h-4 w-4 text-muted-foreground/60" strokeWidth={1.5} />
+          </div>
+          <div className="mt-2 font-mono text-2xl font-medium text-foreground tabular-nums">
+            {payoutSummary ? formatCurrency(payoutSummary.owed, 'KES') : '—'}
+          </div>
+        </div>
       </div>
+
+      {payoutSummary && (
+        <Card>
+          <CardContent className="px-5 py-5">
+            <div className="flex items-start justify-between gap-4 flex-wrap">
+              <div>
+                <h2 className="text-heading-md font-display font-semibold text-foreground">M-Pesa payouts</h2>
+                <p className="text-body-sm text-muted-foreground mt-1 max-w-xl">
+                  Client M-Pesa payments currently settle into LensFlow&apos;s own account and are paid out to
+                  you manually. This is what you&apos;ve been sent so far against what&apos;s been collected on
+                  your behalf.
+                </p>
+              </div>
+              <div className="text-right shrink-0">
+                <div className="label-caption">Paid out to date</div>
+                <div className="font-mono text-lg font-medium text-foreground tabular-nums">
+                  {formatCurrency(payoutSummary.totalPaidOut, 'KES')}
+                </div>
+              </div>
+            </div>
+            {payoutSummary.payouts.length > 0 && (
+              <div className="mt-5 space-y-2">
+                {payoutSummary.payouts.map((payout) => (
+                  <div
+                    key={payout.id}
+                    className="flex items-center justify-between text-sm border-t border-border pt-2 first:border-t-0 first:pt-0"
+                  >
+                    <div>
+                      <span className="text-foreground">{format(new Date(payout.createdAt), 'MMM d, yyyy')}</span>
+                      {payout.note && <span className="text-muted-foreground"> — {payout.note}</span>}
+                      {payout.reference && (
+                        <span className="text-muted-foreground font-mono text-xs"> ({payout.reference})</span>
+                      )}
+                    </div>
+                    <span className="font-mono tabular-nums">{formatCurrency(payout.amount, 'KES')}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       <div>
         <h1 className="text-display-md font-display font-semibold text-foreground">Payments</h1>
