@@ -158,7 +158,7 @@ async function materializeDuePendingDowngrade(
 export async function getEffectivePlan(studioId: string): Promise<Plan> {
   const { data, error } = await supabaseAdmin
     .from('subscriptions')
-    .select('status, current_period_end, pending_plan_id, plan:plans(*)')
+    .select('status, current_period_end, pending_plan_id, plan:plans!subscriptions_plan_id_fkey(*)')
     .eq('studio_id', studioId)
     .in('status', ['active', 'trialing', 'past_due', 'incomplete'])
     .order('created_at', { ascending: false })

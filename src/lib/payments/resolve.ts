@@ -119,7 +119,7 @@ export async function applyMpesaPaymentOutcome(params: {
 
     const { data: existingSub } = await supabaseAdmin
       .from('subscriptions')
-      .select('id, current_period_end, plan:plans(price_cents)')
+      .select('id, current_period_end, plan:plans!subscriptions_plan_id_fkey(price_cents)')
       .eq('studio_id', payment.studio_id)
       .in('status', ['active', 'trialing', 'past_due'])
       .order('created_at', { ascending: false })
