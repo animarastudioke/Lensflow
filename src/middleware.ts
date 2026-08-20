@@ -146,7 +146,7 @@ export async function middleware(request: NextRequest) {
     const r2PublicOrigin = process.env['R2_PUBLIC_URL'] ?? ''
     response.headers.set(
       'Content-Security-Policy',
-      `default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; media-src 'self' ${r2ApiOrigin} ${r2PublicOrigin}; connect-src 'self' https://*.supabase.co wss://*.supabase.co ${r2ApiOrigin} ${r2PublicOrigin};`
+      `default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://www.googletagmanager.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; media-src 'self' ${r2ApiOrigin} ${r2PublicOrigin}; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://www.googletagmanager.com https://*.google-analytics.com https://*.analytics.google.com ${r2ApiOrigin} ${r2PublicOrigin};`
     )
   }
 

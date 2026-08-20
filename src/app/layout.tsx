@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from 'next'
 import { Archivo, Spectral, JetBrains_Mono } from 'next/font/google'
+import Script from 'next/script'
 import './globals.css'
 import { Providers } from './providers'
 import { APP_CONSTANTS } from '@/lib/constants'
@@ -95,6 +96,15 @@ export default function RootLayout({
         <link rel="dns-prefetch" href="https://*.supabase.co" />
       </head>
       <body className="min-h-screen bg-background font-sans antialiased">
+        <Script src="https://www.googletagmanager.com/gtag/js?id=G-CVPQQB62FL" strategy="afterInteractive" />
+        <Script id="google-analytics" strategy="afterInteractive">
+          {`
+            window.dataLayer = window.dataLayer || [];
+            function gtag(){dataLayer.push(arguments);}
+            gtag('js', new Date());
+            gtag('config', 'G-CVPQQB62FL');
+          `}
+        </Script>
         <Providers>{children}</Providers>
       </body>
     </html>
