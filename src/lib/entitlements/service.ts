@@ -310,9 +310,17 @@ export async function canAcceptUpload(
 export async function reserveUploadQuota(
   studioId: string,
   mediaId: string,
-  requestedBytes: number
+  requestedBytes: number,
+  // Batch upload callers fetch these once for the whole batch and pass them
+  // in — each is a real DB round trip, and reserveUploadQuota used to fetch
+  // both fresh per file, which meant a gallery upload of N photos made
+  // ~4N DB round trips just to reserve quota before any file even started
+  // uploading. The RPC call below still has to stay per-file: it's the one
+  // that's actually atomic/lock-serialized, which is what makes concurrent
+  // near-the-limit uploads safe.
+  precomputed?: { access: SubscriptionAccess; plan: Plan }
 ): Promise<{ allowed: true } | { allowed: false; reason: string }> {
-  const access = await getSubscriptionAccessState(studioId)
+  const access = precomputed?.access ?? (await getSubscriptionAccessState(studioId))
   if (access.state === 'grace') {
     return {
       allowed: false,
@@ -326,7 +334,7 @@ export async function reserveUploadQuota(
     }
   }
 
-  const plan = await getEffectivePlan(studioId)
+  const plan = precomputed?.plan ?? (await getEffectivePlan(studioId))
 
   const { data, error } = await supabaseAdmin
     .rpc('reserve_upload_quota', {
