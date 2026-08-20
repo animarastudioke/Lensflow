@@ -25,7 +25,7 @@ import {
 } from '@/lib/actions/galleries'
 import type { GalleryLayoutType } from '@/lib/actions/galleries'
 import { mapWithConcurrency } from '@/lib/utils/concurrency'
-import { putWithProgress } from '@/lib/utils/upload'
+import { putWithRetry } from '@/lib/utils/upload'
 import { Progress } from '@/components/ui/progress'
 
 // Cap on simultaneous PUTs to R2 — high enough to overlap network latency
@@ -193,9 +193,20 @@ export function UploadGalleryFlow({
       }
 
       const progressKey = `image-${index}`
-      const putResponse = await putWithProgress(presigned.uploadUrl, file, file.type, (loaded, total) =>
-        reportProgress(progressKey, loaded, loaded === total)
-      )
+      let putResponse: { ok: boolean; status: number }
+      try {
+        putResponse = await putWithRetry(presigned.uploadUrl, file, file.type, (loaded, total) =>
+          reportProgress(progressKey, loaded, loaded === total)
+        )
+      } catch (err) {
+        // A persistent network failure here (retries exhausted) should only
+        // drop this one file, not reject the whole mapWithConcurrency batch —
+        // an uncaught throw here would abort every other file's in-flight
+        // upload too, including ones that had already finished.
+        console.error('Direct R2 upload error:', err)
+        quotaError = quotaError ?? (err instanceof Error ? err.message : 'Network error during upload')
+        return null
+      }
 
       if (!putResponse.ok) {
         console.error('Direct R2 upload error:', putResponse.status)
@@ -283,13 +294,24 @@ export function UploadGalleryFlow({
       }
 
       const progressKey = `video-${index}`
-      const [videoPut, previewPut, thumbPut] = await Promise.all([
-        putWithProgress(presigned.videoUploadUrl, file, file.type, (loaded, total) =>
-          reportProgress(progressKey, loaded, loaded === total)
-        ),
-        putWithProgress(presigned.posterPreviewUploadUrl, poster.previewBlob, 'image/webp'),
-        putWithProgress(presigned.posterThumbUploadUrl, poster.thumbBlob, 'image/webp'),
-      ])
+      let videoPut: { ok: boolean; status: number }
+      let previewPut: { ok: boolean; status: number }
+      let thumbPut: { ok: boolean; status: number }
+      try {
+        ;[videoPut, previewPut, thumbPut] = await Promise.all([
+          putWithRetry(presigned.videoUploadUrl, file, file.type, (loaded, total) =>
+            reportProgress(progressKey, loaded, loaded === total)
+          ),
+          putWithRetry(presigned.posterPreviewUploadUrl, poster.previewBlob, 'image/webp'),
+          putWithRetry(presigned.posterThumbUploadUrl, poster.thumbBlob, 'image/webp'),
+        ])
+      } catch (err) {
+        // Same reasoning as the photo path: a persistent network failure on
+        // one video shouldn't reject the whole mapWithConcurrency batch.
+        console.error('Direct R2 video upload error:', err)
+        firstError = firstError ?? (err instanceof Error ? err.message : 'Network error during upload')
+        return null
+      }
 
       if (!videoPut.ok || !previewPut.ok || !thumbPut.ok) {
         console.error('Direct R2 video upload error:', videoPut.status, previewPut.status, thumbPut.status)
