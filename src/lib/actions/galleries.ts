@@ -5,7 +5,7 @@ import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { z } from 'zod'
 import sharp from 'sharp'
-import { canCreateGallery, getEffectivePlan, hasEntitlement, reserveUploadQuota, releaseUploadReservations } from '@/lib/entitlements'
+import { canCreateGallery, getEffectivePlan, getSubscriptionAccessState, hasEntitlement, reserveUploadQuota, releaseUploadReservations } from '@/lib/entitlements'
 import {
   buildMediaKey,
   createPresignedDownloadUrl,
@@ -1043,6 +1043,12 @@ export async function requestGalleryUploadUrls(
 
   const studioId = membership.studio_id
 
+  // Fetched once for the whole batch rather than per file — reserveUploadQuota
+  // used to refetch both on every single call, which meant a large gallery
+  // upload made hundreds of redundant DB round trips before a single byte
+  // moved, slow enough to blow past the platform's function timeout.
+  const [access, plan] = await Promise.all([getSubscriptionAccessState(studioId), getEffectivePlan(studioId)])
+
   const results = await mapWithConcurrency(files, 6, async (file) => {
     if (!file.contentType.startsWith('image/')) {
       return { filename: file.filename, error: 'Only image uploads are supported' }
@@ -1053,7 +1059,7 @@ export async function requestGalleryUploadUrls(
     // Atomically reserves quota for this upload (see migration 021) rather than
     // the old read-then-decide canAcceptUpload check, which two simultaneous
     // near-the-limit uploads could both pass.
-    const quota = await reserveUploadQuota(studioId, mediaId, file.sizeBytes)
+    const quota = await reserveUploadQuota(studioId, mediaId, file.sizeBytes, { access, plan })
     if (!quota.allowed) {
       return { filename: file.filename, error: quota.reason }
     }
@@ -1315,6 +1321,10 @@ export async function requestVideoUploadUrls(
 
   const studioId = membership.studio_id
 
+  // See requestGalleryUploadUrls above — fetched once per batch instead of
+  // once per file to avoid hundreds of redundant DB round trips.
+  const [access, plan] = await Promise.all([getSubscriptionAccessState(studioId), getEffectivePlan(studioId)])
+
   const results = await mapWithConcurrency(files, 4, async (file) => {
     if (!file.contentType.startsWith('video/')) {
       return { filename: file.filename, error: 'Only video uploads are supported' }
@@ -1325,7 +1335,7 @@ export async function requestVideoUploadUrls(
 
     const mediaId = crypto.randomUUID()
 
-    const quota = await reserveUploadQuota(studioId, mediaId, file.sizeBytes)
+    const quota = await reserveUploadQuota(studioId, mediaId, file.sizeBytes, { access, plan })
     if (!quota.allowed) {
       return { filename: file.filename, error: quota.reason }
     }
