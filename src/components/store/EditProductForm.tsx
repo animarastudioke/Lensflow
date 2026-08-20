@@ -24,7 +24,7 @@ import {
 import { ArrowLeft, Loader2, UploadCloud, FileCheck2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { updateProduct, requestProductFileUploadUrl, finalizeProductFileUpload } from '@/lib/actions/products'
-import { putWithProgress } from '@/lib/utils/upload'
+import { putWithRetry } from '@/lib/utils/upload'
 import { Progress } from '@/components/ui/progress'
 
 interface EditProductFormProps {
@@ -76,7 +76,7 @@ export function EditProductForm({ studioSlug, initialValues }: EditProductFormPr
         return
       }
 
-      const putResponse = await putWithProgress(
+      const putResponse = await putWithRetry(
         presigned.uploadUrl,
         file,
         file.type || 'application/octet-stream',
