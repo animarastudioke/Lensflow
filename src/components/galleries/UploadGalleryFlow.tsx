@@ -32,6 +32,14 @@ import { Progress } from '@/components/ui/progress'
 // across files, low enough not to saturate the browser's connection pool.
 const UPLOAD_CONCURRENCY = 5
 
+// finalizeGalleryMediaUpload downloads + sharp-encodes + re-uploads every
+// photo in whatever batch it's given, synchronously, in one server call.
+// A single request for a large gallery (dozens+ of photos) can run long
+// enough to hit the platform's function timeout and drop the connection —
+// splitting into chunks keeps each call short and means a mid-batch failure
+// only loses the one chunk, not every photo that already made it to R2.
+const FINALIZE_CHUNK_SIZE = 6
+
 const MAX_IMAGE_SIZE_BYTES = 26214400 // 25MB
 const MAX_VIDEO_SIZE_BYTES = 524288000 // 500MB — must match galleries.ts's server-side cap
 
@@ -126,6 +134,7 @@ export function UploadGalleryFlow({
   const [uploadedCount, setUploadedCount] = React.useState<number | null>(null)
   const [uploadError, setUploadError] = React.useState<string | null>(null)
   const [uploadProgress, setUploadProgress] = React.useState(0)
+  const [processingStatus, setProcessingStatus] = React.useState<{ done: number; total: number } | null>(null)
   // Bytes sent per file, keyed by a unique string per PUT — read as a whole
   // to compute an overall percentage across every concurrent upload. A ref
   // (not state) because progress events fire far too often to re-render on.
@@ -204,13 +213,36 @@ export function UploadGalleryFlow({
       return { uploaded: 0, error: quotaError || 'Failed to upload photos. Please try again.' }
     }
 
-    const result = await finalizeGalleryMediaUpload(galleryId, studioSlug, uploaded)
+    let totalFinalized = 0
+    let finalizeError: string | null = null
+    setProcessingStatus({ done: 0, total: uploaded.length })
 
-    if ('error' in result) {
-      return { uploaded: 0, error: result.error }
+    // Sequential, not parallel — finalizeGalleryMediaUpload reads then
+    // writes the gallery's media_count, so concurrent calls would race and
+    // undercount it.
+    for (let i = 0; i < uploaded.length; i += FINALIZE_CHUNK_SIZE) {
+      const chunk = uploaded.slice(i, i + FINALIZE_CHUNK_SIZE)
+      try {
+        const result = await finalizeGalleryMediaUpload(galleryId, studioSlug, chunk)
+        if ('error' in result) {
+          finalizeError = finalizeError ?? result.error
+        } else {
+          totalFinalized += result.uploaded
+        }
+      } catch (err) {
+        console.error('Finalize chunk error:', err)
+        finalizeError = finalizeError ?? (err instanceof Error ? err.message : 'Failed to save some uploaded photos')
+      }
+      setProcessingStatus({ done: Math.min(i + chunk.length, uploaded.length), total: uploaded.length })
     }
 
-    return { uploaded: result.uploaded, error: null }
+    setProcessingStatus(null)
+
+    if (totalFinalized === 0) {
+      return { uploaded: 0, error: finalizeError || 'Failed to save uploaded photos. Please try again.' }
+    }
+
+    return { uploaded: totalFinalized, error: finalizeError }
   }
 
   const uploadVideos = async (videoFiles: File[]): Promise<{ uploaded: number; error: string | null }> => {
@@ -295,6 +327,7 @@ export function UploadGalleryFlow({
     setIsUploading(true)
     setUploadError(null)
     setUploadProgress(0)
+    setProcessingStatus(null)
     bytesLoadedRef.current = new Map()
     lastProgressUpdateRef.current = 0
 
@@ -421,8 +454,12 @@ export function UploadGalleryFlow({
             {uploadError && <p className="text-sm text-destructive">{uploadError}</p>}
             {isUploading && (
               <div className="space-y-1.5">
-                <Progress value={uploadProgress} />
-                <p className="text-xs text-muted-foreground text-right">{uploadProgress}%</p>
+                <Progress value={processingStatus ? Math.round((processingStatus.done / processingStatus.total) * 100) : uploadProgress} />
+                <p className="text-xs text-muted-foreground text-right">
+                  {processingStatus
+                    ? `Processing photo ${processingStatus.done} of ${processingStatus.total}…`
+                    : `${uploadProgress}%`}
+                </p>
               </div>
             )}
             <div className="flex justify-end">
@@ -430,7 +467,9 @@ export function UploadGalleryFlow({
                 {isUploading ? (
                   <>
                     <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    Uploading {files.length} file{files.length !== 1 ? 's' : ''}...
+                    {processingStatus
+                      ? 'Processing photos...'
+                      : `Uploading ${files.length} file${files.length !== 1 ? 's' : ''}...`}
                   </>
                 ) : (
                   <>
