@@ -22,13 +22,6 @@ import { sendEmail } from '@/lib/email/resend'
 import { galleryPublishedEmail } from '@/lib/email/templates'
 import { mapWithConcurrency } from '@/lib/utils/concurrency'
 
-// finalizeGalleryMediaUpload downloads + sharp-encodes + re-uploads every
-// image in its batch synchronously — the platform default (10-15s) is too
-// short for anything but the smallest galleries. Client-side chunking (see
-// UploadGalleryFlow) keeps any single call well under this anyway; this is
-// the backstop.
-export const maxDuration = 60
-
 // Types
 export type GalleryType = 'wedding' | 'portrait' | 'commercial' | 'event' | 'other'
 export type GalleryStatus = 'draft' | 'published' | 'archived' | 'private'
