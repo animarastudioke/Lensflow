@@ -14,6 +14,7 @@ import { Testimonials } from '@/components/marketing/home/testimonials'
 import { Faq } from '@/components/marketing/home/faq'
 import { FinalCta } from '@/components/marketing/home/final-cta'
 import { HomeFooter } from '@/components/marketing/home/footer'
+import { HomeSessionRedirect } from '@/components/marketing/home/session-redirect'
 import { FAQ_ITEMS } from '@/lib/constants/homepage'
 
 const TITLE = 'LensFlow — The Business Platform for Photographers & Videographers'
@@ -99,6 +100,7 @@ export default function HomePage() {
   return (
     <>
       <StructuredData />
+      <HomeSessionRedirect />
       <a
         href="#main-content"
         className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[60] focus:rounded-md focus:bg-primary focus:px-4 focus:py-2 focus:text-sm focus:font-medium focus:text-primary-foreground"
