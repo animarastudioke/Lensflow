@@ -74,6 +74,9 @@ const config: Config = {
         sans: ['var(--font-sans)', 'system-ui', 'sans-serif'],
         mono: ['var(--font-mono)', 'monospace'],
         display: ['var(--font-display)', 'system-ui', 'sans-serif'],
+        'heading-playfair': ['var(--font-heading-playfair)', 'Georgia', 'serif'],
+        'heading-cormorant': ['var(--font-heading-cormorant)', 'Georgia', 'serif'],
+        'heading-bodoni': ['var(--font-heading-bodoni)', 'Georgia', 'serif'],
       },
       fontSize: {
         'display-xl': ['clamp(2.5rem, 5vw, 4rem)', { lineHeight: '1.1', letterSpacing: '-0.02em' }],

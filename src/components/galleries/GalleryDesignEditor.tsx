@@ -7,13 +7,22 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { ArrowLeft, Image as ImageIcon, Type, Palette, LayoutGrid, ExternalLink, Check } from 'lucide-react'
 import { toast } from 'sonner'
-import { updateGalleryCoverTemplate } from '@/lib/actions/galleries'
+import { updateGalleryCoverTemplate, updateGalleryCoverImage, updateGalleryHeadingFont } from '@/lib/actions/galleries'
 import {
   GalleryCoverPreview,
   COVER_TEMPLATE_OPTIONS,
+  HEADING_FONT_OPTIONS,
+  headingFontClass,
   type CoverTemplate,
+  type HeadingFont,
   type GalleryCoverPreviewData,
 } from '@/components/galleries/GalleryCoverPreview'
+
+interface GalleryMediaOption {
+  id: string
+  url: string
+  thumbnailUrl: string
+}
 
 interface GalleryDesignEditorProps {
   studioSlug: string
@@ -22,6 +31,9 @@ interface GalleryDesignEditorProps {
   galleryStatus: string
   shareToken: string
   initialTemplate: CoverTemplate
+  initialHeadingFont: HeadingFont
+  initialCoverImageUrl?: string
+  media: GalleryMediaOption[]
   previewData: GalleryCoverPreviewData
 }
 
@@ -107,10 +119,11 @@ function TemplateThumbnail({ template }: { template: CoverTemplate }) {
 }
 
 const SOON_TABS = [
-  { key: 'typography', label: 'Typography', icon: Type },
   { key: 'color', label: 'Color', icon: Palette },
   { key: 'grid', label: 'Grid', icon: LayoutGrid },
 ]
+
+type EditorTab = 'cover' | 'typography'
 
 export function GalleryDesignEditor({
   studioSlug,
@@ -119,9 +132,15 @@ export function GalleryDesignEditor({
   galleryStatus,
   shareToken,
   initialTemplate,
+  initialHeadingFont,
+  initialCoverImageUrl,
+  media,
   previewData,
 }: GalleryDesignEditorProps) {
+  const [tab, setTab] = React.useState<EditorTab>('cover')
   const [template, setTemplate] = React.useState<CoverTemplate>(initialTemplate)
+  const [headingFont, setHeadingFont] = React.useState<HeadingFont>(initialHeadingFont)
+  const [coverImageUrl, setCoverImageUrl] = React.useState<string | undefined>(initialCoverImageUrl)
   const [isSaving, setIsSaving] = React.useState(false)
 
   const galleryHref = `/dashboard/${studioSlug}/galleries/${galleryId}`
@@ -141,6 +160,42 @@ export function GalleryDesignEditor({
     }
   }
 
+  const handleSelectCoverImage = async (next: GalleryMediaOption) => {
+    if (next.url === coverImageUrl) return
+    const previous = coverImageUrl
+    setCoverImageUrl(next.url)
+    setIsSaving(true)
+
+    const result = await updateGalleryCoverImage(galleryId, studioSlug, next.url)
+
+    setIsSaving(false)
+    if ('error' in result) {
+      setCoverImageUrl(previous)
+      toast.error(result.error)
+    }
+  }
+
+  const handleSelectHeadingFont = async (next: HeadingFont) => {
+    if (next === headingFont) return
+    const previous = headingFont
+    setHeadingFont(next)
+    setIsSaving(true)
+
+    const result = await updateGalleryHeadingFont(galleryId, studioSlug, next)
+
+    setIsSaving(false)
+    if ('error' in result) {
+      setHeadingFont(previous)
+      toast.error(result.error)
+    }
+  }
+
+  const livePreviewData: GalleryCoverPreviewData = {
+    ...previewData,
+    coverImageUrl: coverImageUrl ?? previewData.coverImageUrl,
+    headingFont,
+  }
+
   return (
     <div className="flex h-[calc(100vh-4rem)] -m-4 sm:-m-6 lg:-m-8">
       {/* Sidebar */}
@@ -156,53 +211,136 @@ export function GalleryDesignEditor({
         </div>
         <div className="p-2">
           <button
-            className="w-full flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium bg-muted text-foreground"
+            type="button"
+            onClick={() => setTab('cover')}
+            className={cn(
+              'w-full flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium',
+              tab === 'cover' ? 'bg-muted text-foreground' : 'text-muted-foreground hover:text-foreground'
+            )}
           >
             <ImageIcon className="h-4 w-4" />
             Cover
           </button>
-          {SOON_TABS.map((tab) => (
+          <button
+            type="button"
+            onClick={() => setTab('typography')}
+            className={cn(
+              'w-full flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium',
+              tab === 'typography' ? 'bg-muted text-foreground' : 'text-muted-foreground hover:text-foreground'
+            )}
+          >
+            <Type className="h-4 w-4" />
+            Typography
+          </button>
+          {SOON_TABS.map((soonTab) => (
             <button
-              key={tab.key}
+              key={soonTab.key}
               disabled
               className="w-full flex items-center justify-between gap-2 px-3 py-2 rounded-md text-sm text-muted-foreground/50 cursor-not-allowed"
             >
               <span className="flex items-center gap-2">
-                <tab.icon className="h-4 w-4" />
-                {tab.label}
+                <soonTab.icon className="h-4 w-4" />
+                {soonTab.label}
               </span>
               <span className="text-[10px] uppercase tracking-wide border border-border rounded px-1.5 py-0.5">Soon</span>
             </button>
           ))}
         </div>
 
-        <div className="px-4 py-3">
-          <p className="label-caption text-muted-foreground">Cover design</p>
-        </div>
-        <div className="grid grid-cols-2 gap-3 px-4 pb-6">
-          {COVER_TEMPLATE_OPTIONS.map((option) => {
-            const selected = template === option.value
-            return (
-              <button
-                key={option.value}
-                type="button"
-                onClick={() => handleSelect(option.value)}
-                className={cn(
-                  'text-left rounded-lg border overflow-hidden transition-colors',
-                  selected ? 'border-primary ring-1 ring-primary' : 'border-border hover:border-primary/50'
-                )}
-              >
-                <div className="aspect-[4/3] bg-muted/50">
-                  <TemplateThumbnail template={option.value} />
+        {tab === 'cover' && (
+          <>
+            {media.length > 0 && (
+              <>
+                <div className="px-4 py-3">
+                  <p className="label-caption text-muted-foreground">Cover photo</p>
                 </div>
-                <div className="px-2 py-1.5 flex items-center justify-between gap-1">
-                  <span className="text-xs font-medium truncate">{option.label}</span>
-                  {selected && <Check className="h-3.5 w-3.5 text-primary shrink-0" />}
+                <div className="grid grid-cols-4 gap-2 px-4 pb-4">
+                  {media.map((item) => {
+                    const selected = item.url === coverImageUrl
+                    return (
+                      <button
+                        key={item.id}
+                        type="button"
+                        onClick={() => handleSelectCoverImage(item)}
+                        className={cn(
+                          'relative aspect-square rounded-md overflow-hidden border transition-colors',
+                          selected ? 'border-primary ring-1 ring-primary' : 'border-border hover:border-primary/50'
+                        )}
+                      >
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={item.thumbnailUrl} alt="" className="h-full w-full object-cover" />
+                        {selected && (
+                          <span className="absolute top-1 right-1 h-4 w-4 rounded-full bg-primary text-primary-foreground flex items-center justify-center">
+                            <Check className="h-2.5 w-2.5" />
+                          </span>
+                        )}
+                      </button>
+                    )
+                  })}
                 </div>
-              </button>
-            )
-          })}
-        </div>
+              </>
+            )}
+
+            <div className="px-4 py-3">
+              <p className="label-caption text-muted-foreground">Cover design</p>
+            </div>
+            <div className="grid grid-cols-2 gap-3 px-4 pb-6">
+              {COVER_TEMPLATE_OPTIONS.map((option) => {
+                const selected = template === option.value
+                return (
+                  <button
+                    key={option.value}
+                    type="button"
+                    onClick={() => handleSelect(option.value)}
+                    className={cn(
+                      'text-left rounded-lg border overflow-hidden transition-colors',
+                      selected ? 'border-primary ring-1 ring-primary' : 'border-border hover:border-primary/50'
+                    )}
+                  >
+                    <div className="aspect-[4/3] bg-muted/50">
+                      <TemplateThumbnail template={option.value} />
+                    </div>
+                    <div className="px-2 py-1.5 flex items-center justify-between gap-1">
+                      <span className="text-xs font-medium truncate">{option.label}</span>
+                      {selected && <Check className="h-3.5 w-3.5 text-primary shrink-0" />}
+                    </div>
+                  </button>
+                )
+              })}
+            </div>
+          </>
+        )}
+
+        {tab === 'typography' && (
+          <>
+            <div className="px-4 py-3">
+              <p className="label-caption text-muted-foreground">Heading font</p>
+            </div>
+            <div className="flex flex-col gap-2 px-4 pb-6">
+              {HEADING_FONT_OPTIONS.map((option) => {
+                const selected = headingFont === option.value
+                return (
+                  <button
+                    key={option.value}
+                    type="button"
+                    onClick={() => handleSelectHeadingFont(option.value)}
+                    className={cn(
+                      'text-left rounded-lg border px-3 py-2.5 transition-colors',
+                      selected ? 'border-primary ring-1 ring-primary' : 'border-border hover:border-primary/50'
+                    )}
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <span className={cn(headingFontClass(option.value), 'text-lg leading-none')}>Aa</span>
+                      {selected && <Check className="h-3.5 w-3.5 text-primary shrink-0" />}
+                    </div>
+                    <p className="text-xs font-medium mt-1.5">{option.label}</p>
+                    <p className="text-xs text-muted-foreground">{option.description}</p>
+                  </button>
+                )
+              })}
+            </div>
+          </>
+        )}
       </div>
 
       {/* Preview panel */}
@@ -230,7 +368,7 @@ export function GalleryDesignEditor({
 
         <div className="flex-1 flex items-center justify-center p-6 md:p-10 overflow-auto">
           <div className="w-full max-w-3xl aspect-[16/10] rounded-lg overflow-hidden shadow-lg border border-border bg-background">
-            <GalleryCoverPreview template={template} data={previewData} />
+            <GalleryCoverPreview template={template} data={livePreviewData} />
           </div>
         </div>
       </div>
