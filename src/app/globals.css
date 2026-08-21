@@ -147,34 +147,6 @@
     @apply focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background;
   }
 
-  .btn-primary {
-    @apply inline-flex items-center justify-center gap-2 rounded-md bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground transition-colors duration-150 hover:bg-primary/88 focus-ring disabled:opacity-50 disabled:pointer-events-none;
-  }
-
-  .btn-secondary {
-    @apply inline-flex items-center justify-center gap-2 rounded-md border border-border bg-secondary px-4 py-2.5 text-sm font-medium text-secondary-foreground transition-colors duration-150 hover:border-foreground/30 focus-ring disabled:opacity-50 disabled:pointer-events-none;
-  }
-
-  .btn-ghost {
-    @apply inline-flex items-center justify-center gap-2 rounded-md px-4 py-2.5 text-sm font-medium transition-colors duration-150 hover:bg-accent hover:text-accent-foreground focus-ring disabled:opacity-50 disabled:pointer-events-none;
-  }
-
-  .btn-destructive {
-    @apply inline-flex items-center justify-center gap-2 rounded-md bg-destructive px-4 py-2.5 text-sm font-medium text-destructive-foreground transition-colors duration-150 hover:bg-destructive/88 focus-ring disabled:opacity-50 disabled:pointer-events-none;
-  }
-
-  .btn-outline {
-    @apply inline-flex items-center justify-center gap-2 rounded-md border border-input bg-background px-4 py-2.5 text-sm font-medium transition-colors duration-150 hover:border-foreground/30 hover:bg-accent hover:text-accent-foreground focus-ring disabled:opacity-50 disabled:pointer-events-none;
-  }
-
-  .input-field {
-    @apply flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50;
-  }
-
-  .label-text {
-    @apply text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70;
-  }
-
   /* Elevation declared once: border shifts on hover, no shadow lift */
   .card-hover {
     @apply transition-colors duration-150 hover:border-foreground/25;
