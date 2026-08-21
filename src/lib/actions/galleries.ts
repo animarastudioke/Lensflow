@@ -27,6 +27,7 @@ export type GalleryType = 'wedding' | 'portrait' | 'commercial' | 'event' | 'oth
 export type GalleryStatus = 'draft' | 'published' | 'archived' | 'private'
 export type GalleryLayoutType = 'grid' | 'masonry' | 'justified'
 export type GalleryCoverTemplate = 'novel' | 'vintage' | 'frame' | 'stripe' | 'divider' | 'journal' | 'stamp' | 'outline'
+export type GalleryHeadingFont = 'default' | 'playfair' | 'cormorant' | 'archivo' | 'bodoni'
 
 export interface Gallery {
   id: string
@@ -54,6 +55,7 @@ export interface Gallery {
   download_count: number
   layout_type: GalleryLayoutType
   cover_template: GalleryCoverTemplate
+  heading_font: GalleryHeadingFont
   created_at: string
   updated_at: string
 }
@@ -1569,6 +1571,79 @@ export async function updateGalleryCoverTemplate(
   if (error) {
     console.error('Update gallery cover template error:', error)
     return { error: 'Failed to save cover template' }
+  }
+
+  revalidatePath(`/dashboard/${studioSlug}/galleries/${galleryId}`)
+  revalidatePath(`/dashboard/${studioSlug}/galleries/${galleryId}/design`)
+  return { success: true }
+}
+
+/**
+ * Lets a studio pick which uploaded photo is the gallery's cover, instead of
+ * always defaulting to the first photo uploaded (finalizeGalleryMediaUpload's
+ * fallback). coverImageUrl must be one of this gallery's own media preview
+ * URLs — checked against the media table, not trusted from the client.
+ */
+export async function updateGalleryCoverImage(
+  galleryId: string,
+  studioSlug: string,
+  coverImageUrl: string
+): Promise<{ success: true } | { error: string }> {
+  let supabase, studioId: string
+  try {
+    ;({ supabase, studioId } = await requireGalleryEditMembership())
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : 'Unauthorized' }
+  }
+
+  const { data: media } = await supabase
+    .from('media')
+    .select('id')
+    .eq('gallery_id', galleryId)
+    .eq('url', coverImageUrl)
+    .maybeSingle()
+
+  if (!media) {
+    return { error: 'That photo is not part of this gallery' }
+  }
+
+  const { error } = await supabase
+    .from('galleries')
+    .update({ cover_image: coverImageUrl, updated_at: new Date().toISOString() })
+    .eq('id', galleryId)
+    .eq('studio_id', studioId)
+
+  if (error) {
+    console.error('Update gallery cover image error:', error)
+    return { error: 'Failed to save cover photo' }
+  }
+
+  revalidatePath(`/dashboard/${studioSlug}/galleries/${galleryId}`)
+  revalidatePath(`/dashboard/${studioSlug}/galleries/${galleryId}/design`)
+  return { success: true }
+}
+
+export async function updateGalleryHeadingFont(
+  galleryId: string,
+  studioSlug: string,
+  headingFont: GalleryHeadingFont
+): Promise<{ success: true } | { error: string }> {
+  let supabase, studioId: string
+  try {
+    ;({ supabase, studioId } = await requireGalleryEditMembership())
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : 'Unauthorized' }
+  }
+
+  const { error } = await supabase
+    .from('galleries')
+    .update({ heading_font: headingFont, updated_at: new Date().toISOString() })
+    .eq('id', galleryId)
+    .eq('studio_id', studioId)
+
+  if (error) {
+    console.error('Update gallery heading font error:', error)
+    return { error: 'Failed to save typography' }
   }
 
   revalidatePath(`/dashboard/${studioSlug}/galleries/${galleryId}`)

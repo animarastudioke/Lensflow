@@ -2,6 +2,30 @@ import { cn } from '@/lib/utils'
 
 export type CoverTemplate = 'novel' | 'vintage' | 'frame' | 'stripe' | 'divider' | 'journal' | 'stamp' | 'outline'
 
+export type HeadingFont = 'default' | 'playfair' | 'cormorant' | 'archivo' | 'bodoni'
+
+// 'default' keeps the pre-existing font-display (Spectral) class so galleries
+// that never touch the typography tab render identically to before it shipped.
+const HEADING_FONT_CLASS: Record<HeadingFont, string> = {
+  default: 'font-display',
+  playfair: 'font-heading-playfair',
+  cormorant: 'font-heading-cormorant',
+  archivo: 'font-sans',
+  bodoni: 'font-heading-bodoni',
+}
+
+export function headingFontClass(font: HeadingFont | undefined): string {
+  return HEADING_FONT_CLASS[font ?? 'default']
+}
+
+export const HEADING_FONT_OPTIONS: { value: HeadingFont; label: string; description: string }[] = [
+  { value: 'default', label: 'Spectral', description: 'Warm editorial serif (default)' },
+  { value: 'playfair', label: 'Playfair Display', description: 'Classic high-contrast serif' },
+  { value: 'cormorant', label: 'Cormorant Garamond', description: 'Light, elegant serif' },
+  { value: 'archivo', label: 'Archivo', description: 'Clean modern sans' },
+  { value: 'bodoni', label: 'Bodoni Moda', description: 'Bold fashion-editorial serif' },
+]
+
 export interface GalleryCoverPreviewData {
   name: string
   description?: string
@@ -12,6 +36,7 @@ export interface GalleryCoverPreviewData {
   logoUrl?: string
   brandName: string
   brandColor: string
+  headingFont?: HeadingFont
 }
 
 interface GalleryCoverPreviewProps {
@@ -69,7 +94,7 @@ export function GalleryCoverPreview({ template, data, className }: GalleryCoverP
           {dateLine && (
             <p className="text-[11px] uppercase tracking-[0.2em] text-muted-foreground mt-6">{dateLine}</p>
           )}
-          <h1 className="font-display font-semibold text-2xl md:text-4xl text-foreground mt-2 leading-tight">
+          <h1 className={cn(headingFontClass(data.headingFont), 'font-semibold text-2xl md:text-4xl text-foreground mt-2 leading-tight')}>
             {data.name}
           </h1>
           {data.description && (
@@ -93,7 +118,7 @@ export function GalleryCoverPreview({ template, data, className }: GalleryCoverP
         </div>
         <div className="absolute bottom-0 left-0 right-0 p-6 md:p-8 text-center">
           <div className="h-px w-16 bg-white/70 mx-auto mb-3" />
-          <h1 className="font-display text-lg md:text-2xl tracking-[0.25em] uppercase text-white">
+          <h1 className={cn(headingFontClass(data.headingFont), 'text-lg md:text-2xl tracking-[0.25em] uppercase text-white')}>
             {data.name}
           </h1>
           {dateLine && <p className="text-[11px] text-white/70 mt-2 tracking-widest">{dateLine}</p>}
@@ -111,7 +136,7 @@ export function GalleryCoverPreview({ template, data, className }: GalleryCoverP
         </div>
         <div className="flex items-center justify-between pt-4">
           <div>
-            <h1 className="font-display font-semibold text-lg md:text-2xl text-foreground">{data.name}</h1>
+            <h1 className={cn(headingFontClass(data.headingFont), 'font-semibold text-lg md:text-2xl text-foreground')}>{data.name}</h1>
             {dateLine && <p className="text-xs text-muted-foreground mt-1">{dateLine}</p>}
           </div>
           <Logo data={data} />
@@ -128,7 +153,7 @@ export function GalleryCoverPreview({ template, data, className }: GalleryCoverP
           className="absolute left-0 right-0 bottom-[18%] py-3 md:py-4 px-6 md:px-8 flex items-center justify-between"
           style={{ backgroundColor: data.brandColor }}
         >
-          <h1 className="font-display font-semibold text-base md:text-2xl text-white truncate">{data.name}</h1>
+          <h1 className={cn(headingFontClass(data.headingFont), 'font-semibold text-base md:text-2xl text-white truncate')}>{data.name}</h1>
           {dateLine && <p className="text-[11px] md:text-xs text-white/80 shrink-0 ml-3">{dateLine}</p>}
         </div>
       </div>
@@ -142,7 +167,7 @@ export function GalleryCoverPreview({ template, data, className }: GalleryCoverP
         <CoverImage src={data.secondaryImageUrl || data.coverImageUrl} className="h-full w-1/2" />
         <div className="absolute inset-0 flex items-center justify-center">
           <div className="bg-background/95 backdrop-blur px-5 py-3 md:px-8 md:py-4 rounded-sm text-center shadow-sm">
-            <h1 className="font-display font-semibold text-base md:text-2xl text-foreground">{data.name}</h1>
+            <h1 className={cn(headingFontClass(data.headingFont), 'font-semibold text-base md:text-2xl text-foreground')}>{data.name}</h1>
             {dateLine && <p className="text-[11px] text-muted-foreground mt-1">{dateLine}</p>}
           </div>
         </div>
@@ -162,7 +187,7 @@ export function GalleryCoverPreview({ template, data, className }: GalleryCoverP
             {dateLine && (
               <p className="text-[11px] uppercase tracking-[0.2em] text-muted-foreground mb-2">{dateLine}</p>
             )}
-            <h1 className="font-display font-bold text-xl md:text-3xl text-foreground leading-tight">
+            <h1 className={cn(headingFontClass(data.headingFont), 'font-bold text-xl md:text-3xl text-foreground leading-tight')}>
               {data.name}
             </h1>
             <div className="mt-4 flex justify-end">
@@ -182,7 +207,7 @@ export function GalleryCoverPreview({ template, data, className }: GalleryCoverP
         </div>
         <div className="min-w-0">
           <Logo data={data} />
-          <h1 className="font-display font-semibold text-lg md:text-3xl text-foreground mt-3 leading-tight">
+          <h1 className={cn(headingFontClass(data.headingFont), 'font-semibold text-lg md:text-3xl text-foreground mt-3 leading-tight')}>
             {data.name}
           </h1>
           {dateLine && <p className="text-xs text-muted-foreground mt-2">{dateLine}</p>}
@@ -198,7 +223,7 @@ export function GalleryCoverPreview({ template, data, className }: GalleryCoverP
       <div className="absolute inset-0 bg-black/25" />
       <div className="absolute inset-0 flex items-center justify-center p-8 md:p-12">
         <div className="border border-white/80 text-center px-6 py-8 md:px-10 md:py-12 max-w-md">
-          <h1 className="font-display font-semibold text-lg md:text-2xl text-white tracking-wide">
+          <h1 className={cn(headingFontClass(data.headingFont), 'font-semibold text-lg md:text-2xl text-white tracking-wide')}>
             {data.name}
           </h1>
           {dateLine && <p className="text-[11px] text-white/80 mt-3 tracking-widest uppercase">{dateLine}</p>}
