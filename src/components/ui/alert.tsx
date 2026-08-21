@@ -10,15 +10,13 @@ const Alert = React.forwardRef<
       ref={ref}
       role="alert"
       className={cn(
-        'relative w-full rounded-lg border p-4 [&>svg+div]:translate-y-[-3px] [&>svg]:absolute [&>svg]:left-4 [&>svg]:top-4 [&>svg]:text-foreground',
+        'relative w-full rounded-md border p-4 [&>svg+div]:translate-y-[-3px] [&>svg]:absolute [&>svg]:left-4 [&>svg]:top-4 [&>svg]:text-foreground',
         {
           'bg-background text-foreground': variant === 'default',
-          'border-green-500/50 text-green-500 dark:border-green-500/50 dark:text-green-400 bg-green-500/10':
-            variant === 'success',
-          'border-red-500/50 text-red-500 dark:border-red-500/50 dark:text-red-400 bg-red-500/10':
+          'border-success/50 bg-success/10 text-success [&>svg]:text-success': variant === 'success',
+          'border-destructive/50 bg-destructive/10 text-destructive [&>svg]:text-destructive':
             variant === 'destructive',
-          'border-yellow-500/50 text-yellow-500 dark:border-yellow-500/50 dark:text-yellow-400 bg-yellow-500/10':
-            variant === 'warning',
+          'border-warning/50 bg-warning/10 text-warning [&>svg]:text-warning': variant === 'warning',
         },
         className
       )}
