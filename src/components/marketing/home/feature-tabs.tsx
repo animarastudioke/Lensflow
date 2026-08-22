@@ -71,6 +71,7 @@ export function FeatureTabs() {
                   </span>
                   <span>
                     <span className="block text-sm font-medium text-foreground">{tab.label}</span>
+                    <span className="mt-0.5 block text-xs text-muted-foreground">{tab.heading}</span>
                   </span>
                 </TabsPrimitive.Trigger>
               ))}

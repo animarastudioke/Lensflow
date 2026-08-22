@@ -40,29 +40,28 @@ export function Hero() {
       ref={sectionRef}
       className="relative flex flex-col justify-center overflow-hidden bg-[#0c0c0f] pb-12 pt-28 sm:min-h-[90vh] sm:pb-16 sm:pt-32 lg:min-h-[100vh] lg:pb-72"
     >
-      <motion.div
-        className="absolute inset-0 hidden lg:block"
-        style={{ y: parallaxY }}
-      >
+      {/*
+        A single Image (one upstream fetch, one preload hint) rather than
+        two breakpoint-toggled <Image priority> elements - Next.js's own
+        `sizes`-driven responsive srcset already serves an appropriately
+        sized variant per device from one source, so a second element
+        wasn't buying real art-direction, only doubling what got eagerly
+        preloaded regardless of which was actually visible. `lg:scale-110`
+        keeps the desktop-only subtle zoom; the parallax drift is now
+        shared across breakpoints too, at a small enough magnitude (see
+        parallaxY above) to stay unobtrusive on mobile and still respect
+        prefers-reduced-motion via the same `prefersReducedMotion` check.
+      */}
+      <motion.div className="absolute inset-0" style={{ y: parallaxY }}>
         <Image
           src={`https://images.unsplash.com/${HERO_IMAGE.src}?w=2400&q=80&auto=format&fit=crop`}
           alt={HERO_IMAGE.alt}
           fill
           priority
           sizes="100vw"
-          className="scale-110 object-cover"
+          className="object-cover lg:scale-110"
         />
       </motion.div>
-      <div className="absolute inset-0 lg:hidden">
-        <Image
-          src={`https://images.unsplash.com/${HERO_IMAGE.src}?w=1600&q=75&auto=format&fit=crop`}
-          alt={HERO_IMAGE.alt}
-          fill
-          priority
-          sizes="100vw"
-          className="object-cover"
-        />
-      </div>
       <div
         className="absolute inset-0 bg-gradient-to-b from-black/55 via-black/35 to-[#0c0c0f]"
         aria-hidden="true"
@@ -136,15 +135,25 @@ export function Hero() {
         </div>
       </div>
 
-      <motion.div
-        custom={0.5}
-        initial={{ opacity: 0, scale: 1.04 }}
-        animate={{ opacity: 1, scale: 1 }}
-        transition={{ duration: 0.9, delay: 0.35, ease: [0.16, 1, 0.3, 1] }}
-        className="relative mt-12 px-4 sm:px-6 lg:absolute lg:inset-x-0 lg:bottom-0 lg:mt-0 lg:translate-y-1/2 lg:px-8"
-      >
-        <ProductPreview sectionRef={sectionRef} />
-      </motion.div>
+      {/*
+        Positioning (incl. the lg:translate-y-1/2 straddle into the next
+        section) lives on this plain div, not on the motion.div below -
+        framer-motion writes its own inline `transform` for the entrance
+        animation, which would silently override a Tailwind `transform`
+        utility class on the same element (inline styles beat class-based
+        CSS), so the two transform sources need separate elements to both
+        take effect.
+      */}
+      <div className="relative mt-12 px-4 sm:px-6 lg:absolute lg:inset-x-0 lg:bottom-0 lg:mt-0 lg:translate-y-1/2 lg:px-8">
+        <motion.div
+          custom={0.5}
+          initial={{ opacity: 0, scale: 1.04 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ duration: 0.9, delay: 0.35, ease: [0.16, 1, 0.3, 1] }}
+        >
+          <ProductPreview sectionRef={sectionRef} />
+        </motion.div>
+      </div>
     </section>
   )
 }
