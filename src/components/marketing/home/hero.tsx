@@ -69,7 +69,7 @@ export function Hero() {
       />
 
       <div className="container-wide relative">
-        <div className="mx-auto max-w-3xl text-center">
+        <div className="mx-auto max-w-3xl text-center lg:max-w-5xl">
           <motion.span
             custom={0}
             initial="hidden"
@@ -85,11 +85,9 @@ export function Hero() {
             initial="hidden"
             animate="visible"
             variants={fadeUp}
-            className="mt-5 text-balance font-display text-[2.5rem] font-semibold leading-[1.08] tracking-tight text-white sm:text-6xl lg:text-[5.5rem]"
+            className="mt-5 text-balance font-display text-[2.5rem] font-semibold leading-[1.08] tracking-tight text-white sm:text-6xl lg:text-[4.75rem]"
           >
-            Run your entire creative
-            <br />
-            business from one place.
+            Run your entire creative business from one place.
           </motion.h1>
 
           <motion.p
