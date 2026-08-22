@@ -28,7 +28,7 @@ export function ClientJourney() {
         {/* Desktop: interactive horizontal timeline */}
         <div className="mt-16 hidden lg:block">
           <div className="relative">
-            <div className="absolute left-0 right-0 top-5 h-px bg-border" aria-hidden="true" />
+            <div className="absolute left-0 right-0 top-5 h-px bg-foreground/15" aria-hidden="true" />
             <div className="relative grid grid-cols-8">
               {JOURNEY_STAGES.map((stage, index) => (
                 <button

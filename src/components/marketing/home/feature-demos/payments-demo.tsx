@@ -1,8 +1,6 @@
 'use client'
 
-import { useState } from 'react'
 import { Check } from 'lucide-react'
-import { cn } from '@/lib/utils'
 import { PAYMENT_METHODS } from '@/lib/constants/homepage'
 
 const LINE_ITEMS = [
@@ -12,7 +10,10 @@ const LINE_ITEMS = [
 ]
 
 export function PaymentsDemo() {
-  const [method, setMethod] = useState(PAYMENT_METHODS[0]!.label)
+  // Only one live payment method today - shown as the confirmed method
+  // rather than a selectable list, so the UI doesn't imply a choice that
+  // doesn't exist yet.
+  const method = PAYMENT_METHODS[0]!
   const total = LINE_ITEMS.reduce((sum, item) => sum + item.amount, 0)
   const deposit = Math.round(total * 0.3)
   const balance = total - deposit
@@ -53,34 +54,22 @@ export function PaymentsDemo() {
         </div>
       </div>
 
-      <p className="mb-2 text-[11px] font-medium uppercase tracking-wide text-white/40">Pay balance with</p>
-      <div className="flex flex-wrap gap-2">
-        {PAYMENT_METHODS.map((option) => (
-          <button
-            key={option.label}
-            type="button"
-            onClick={() => setMethod(option.label)}
-            className={cn(
-              'flex flex-col items-center gap-0.5 rounded-md border px-3 py-2.5 text-center transition-colors',
-              method === option.label
-                ? 'border-[#d6415a] bg-[#d6415a]/10'
-                : 'border-white/10 bg-white/[0.03] hover:border-white/25'
-            )}
-          >
-            <span className="flex items-center gap-1 text-xs font-medium text-white">
-              {method === option.label ? <Check className="h-3 w-3 text-[#d6415a]" /> : null}
-              {option.label}
-            </span>
-            <span className="text-[10px] text-white/40">{option.description}</span>
-          </button>
-        ))}
+      <p className="mb-2 text-[11px] font-medium uppercase tracking-wide text-white/40">Payment method</p>
+      <div className="flex items-center gap-3 rounded-md border border-white/10 bg-white/[0.03] px-3 py-2.5">
+        <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[#d6415a]/15 text-[#d6415a]">
+          <Check className="h-3.5 w-3.5" />
+        </span>
+        <div>
+          <p className="text-xs font-medium text-white">{method.label}</p>
+          <p className="text-[10px] text-white/40">{method.description}</p>
+        </div>
       </div>
 
       <button
         type="button"
         className="mt-4 w-full rounded-md bg-[#d6415a] py-2.5 text-xs font-medium text-white transition-colors hover:bg-[#c23751]"
       >
-        Pay ${balance.toLocaleString()} with {method}
+        Pay ${balance.toLocaleString()} with {method.label}
       </button>
     </div>
   )

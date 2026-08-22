@@ -2,15 +2,10 @@ import type { LucideIcon } from 'lucide-react'
 import {
   Image as ImageIcon,
   Calendar,
-  Users,
   CreditCard,
-  Store,
-  Globe,
   Mail,
   FileText,
   Receipt,
-  MessageSquare,
-  ClipboardCheck,
   Send,
   Camera,
   Heart,
@@ -233,17 +228,6 @@ export const LOCAL_MARKET_CAPABILITIES: { icon: LucideIcon; label: string; descr
   { icon: Coins, label: 'Local currency', description: 'Invoice and get paid in Kenyan shillings' },
   { icon: Globe2, label: 'Affordable plans', description: 'One subscription, priced for growing studios' },
 ]
-
-export const PRODUCT_ICONS = {
-  ImageIcon,
-  Calendar,
-  Users,
-  CreditCard,
-  Store,
-  Globe,
-  MessageSquare,
-  ClipboardCheck,
-}
 
 export interface Testimonial {
   quote: string
