@@ -46,7 +46,7 @@ export function StoreDemo() {
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         {STORE_PRODUCTS.map((product) => (
-          <div key={product.id} className="overflow-hidden rounded-lg border border-white/10 bg-white/[0.03]">
+          <div key={product.id} className="overflow-hidden rounded-md border border-white/10 bg-white/[0.03]">
             <div className="relative aspect-square">
               <Image
                 src={`https://images.unsplash.com/${product.image}?w=400&q=70&auto=format&fit=crop`}

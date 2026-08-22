@@ -61,7 +61,7 @@ export function FeatureTabs() {
                   key={tab.id}
                   value={tab.id}
                   className={cn(
-                    'group flex items-start gap-3 rounded-lg border border-transparent px-4 py-3.5 text-left transition-colors',
+                    'group flex items-start gap-3 rounded-md border border-transparent px-4 py-3.5 text-left transition-colors',
                     'data-[state=active]:border-border data-[state=active]:bg-card',
                     'hover:bg-accent/50'
                   )}

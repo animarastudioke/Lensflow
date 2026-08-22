@@ -88,22 +88,16 @@ export const metadata: Metadata = {
     title: 'LensFlow - Premium Gallery Platform for Photographers',
     description:
       'Deliver photos, manage clients, book sessions, sell prints, and grow your photography business.',
-    images: [
-      {
-        url: '/og-default.png',
-        width: 1200,
-        height: 630,
-        alt: 'LensFlow',
-      },
-    ],
+    // Image comes from opengraph-image.tsx (Next.js file-convention —
+    // auto-generated, resolved at request time) rather than a static file.
   },
   twitter: {
     card: 'summary_large_image',
     title: 'LensFlow - Premium Gallery Platform for Photographers',
     description:
       'Deliver photos, manage clients, book sessions, sell prints, and grow your photography business.',
-    images: ['/og-default.png'],
-    creator: '@lensflow',
+    // No `creator` handle — not a verified LensFlow account, see
+    // src/lib/constants/navigation.ts's SOCIAL_LINKS for the same rule.
   },
 }
 

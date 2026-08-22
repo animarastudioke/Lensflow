@@ -81,28 +81,33 @@ export function GalleriesDemo() {
 
       <div className="grid grid-cols-3 gap-1.5 sm:gap-2">
         {DEMO_IMAGES.map((image, index) => (
-          <button
+          <div
             key={image.src}
-            type="button"
-            onClick={() => setOpenIndex(index)}
             className={cn(
               'group relative aspect-square overflow-hidden rounded-md bg-white/5',
               index === 0 && 'col-span-2 row-span-2'
             )}
           >
-            <Image
-              src={`https://images.unsplash.com/${image.src}?w=600&q=70&auto=format&fit=crop`}
-              alt={image.alt}
-              fill
-              sizes="(max-width: 640px) 33vw, 300px"
-              className="object-cover transition-transform duration-500 ease-out group-hover:scale-105"
-            />
-            <span
+            <button
+              type="button"
+              onClick={() => setOpenIndex(index)}
+              aria-label={`View photo ${index + 1} of ${DEMO_IMAGES.length}`}
+              className="absolute inset-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 focus-visible:ring-inset"
+            >
+              <Image
+                src={`https://images.unsplash.com/${image.src}?w=600&q=70&auto=format&fit=crop`}
+                alt={image.alt}
+                fill
+                sizes="(max-width: 640px) 33vw, 300px"
+                className="object-cover transition-transform duration-500 ease-out group-hover:scale-105"
+              />
+            </button>
+            <button
+              type="button"
               onClick={(event) => toggleFavorite(index, event)}
-              role="button"
-              tabIndex={-1}
-              aria-label="Toggle favorite"
-              className="absolute right-1.5 top-1.5 flex h-6 w-6 items-center justify-center rounded-full bg-black/40 backdrop-blur transition-transform active:scale-90"
+              aria-label={favorites.has(index) ? 'Remove from favorites' : 'Add to favorites'}
+              aria-pressed={favorites.has(index)}
+              className="absolute right-1.5 top-1.5 flex h-6 w-6 items-center justify-center rounded-full bg-black/40 backdrop-blur transition-transform focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 active:scale-90"
             >
               <Heart
                 className={cn(
@@ -110,8 +115,8 @@ export function GalleriesDemo() {
                   favorites.has(index) ? 'fill-[#d6415a] text-[#d6415a]' : 'text-white'
                 )}
               />
-            </span>
-          </button>
+            </button>
+          </div>
         ))}
       </div>
 
@@ -136,7 +141,8 @@ export function GalleriesDemo() {
                   type="button"
                   onClick={(event) => toggleFavorite(openIndex, event)}
                   className="rounded-md p-2 text-white/70 hover:bg-white/10 hover:text-white"
-                  aria-label="Toggle favorite"
+                  aria-label={favorites.has(openIndex) ? 'Remove from favorites' : 'Add to favorites'}
+                  aria-pressed={favorites.has(openIndex)}
                 >
                   <Heart
                     className={cn(

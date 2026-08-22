@@ -17,8 +17,11 @@ export function ClientJourney() {
           <div className="mx-auto max-w-2xl text-center">
             <span className="label-caption text-primary">The client journey</span>
             <h2 className="mt-3 text-balance font-display text-3xl font-semibold tracking-tight text-foreground sm:text-5xl">
-              From first message to final delivery. One connected journey.
+              From first inquiry to final delivery.
             </h2>
+            <p className="mt-4 text-lg text-muted-foreground">
+              One connected workflow for every client relationship.
+            </p>
           </div>
         </ScrollReveal>
 
@@ -65,9 +68,9 @@ export function ClientJourney() {
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -8 }}
               transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
-              className="mx-auto mt-10 flex max-w-xl items-start gap-4 rounded-xl border border-border bg-card p-6"
+              className="mx-auto mt-10 flex max-w-xl items-start gap-4 rounded-md border border-border bg-card p-6"
             >
-              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
                 <active.icon className="h-5 w-5" strokeWidth={1.5} />
               </div>
               <div>
