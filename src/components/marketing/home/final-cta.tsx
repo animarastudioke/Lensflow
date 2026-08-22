@@ -36,7 +36,7 @@ export function FinalCta() {
               Spend less time managing your business. More time creating.
             </h2>
             <p className="mx-auto mt-5 max-w-lg text-lg text-white/60">
-              Everything you need to run your photography business — beautifully connected.
+              Everything you need to run your photography or videography business — beautifully connected.
             </p>
 
             <div className="mt-10 flex flex-col items-center justify-center gap-4 sm:flex-row">

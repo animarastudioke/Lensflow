@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from 'next'
-import { Archivo, Spectral, JetBrains_Mono } from 'next/font/google'
+import { Archivo, Spectral, JetBrains_Mono, Playfair_Display, Cormorant_Garamond, Bodoni_Moda } from 'next/font/google'
 import Script from 'next/script'
 import './globals.css'
 import { Providers } from './providers'
@@ -22,6 +22,30 @@ const spectral = Spectral({
 const jetbrainsMono = JetBrains_Mono({
   subsets: ['latin'],
   variable: '--font-mono',
+  display: 'swap',
+})
+
+// Gallery cover heading font choices (GalleryCoverPreview) — a fixed set,
+// since next/font/google fonts must be loaded statically at build time and
+// can't be picked dynamically per gallery at request time.
+const playfairDisplay = Playfair_Display({
+  subsets: ['latin'],
+  weight: ['500', '600', '700'],
+  variable: '--font-heading-playfair',
+  display: 'swap',
+})
+
+const cormorantGaramond = Cormorant_Garamond({
+  subsets: ['latin'],
+  weight: ['500', '600', '700'],
+  variable: '--font-heading-cormorant',
+  display: 'swap',
+})
+
+const bodoniModa = Bodoni_Moda({
+  subsets: ['latin'],
+  weight: ['500', '600', '700'],
+  variable: '--font-heading-bodoni',
   display: 'swap',
 })
 
@@ -64,22 +88,16 @@ export const metadata: Metadata = {
     title: 'LensFlow - Premium Gallery Platform for Photographers',
     description:
       'Deliver photos, manage clients, book sessions, sell prints, and grow your photography business.',
-    images: [
-      {
-        url: '/og-default.png',
-        width: 1200,
-        height: 630,
-        alt: 'LensFlow',
-      },
-    ],
+    // Image comes from opengraph-image.tsx (Next.js file-convention —
+    // auto-generated, resolved at request time) rather than a static file.
   },
   twitter: {
     card: 'summary_large_image',
     title: 'LensFlow - Premium Gallery Platform for Photographers',
     description:
       'Deliver photos, manage clients, book sessions, sell prints, and grow your photography business.',
-    images: ['/og-default.png'],
-    creator: '@lensflow',
+    // No `creator` handle — not a verified LensFlow account, see
+    // src/lib/constants/navigation.ts's SOCIAL_LINKS for the same rule.
   },
 }
 
@@ -89,7 +107,7 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   return (
-    <html lang="en" data-scroll-behavior="smooth" className={`${archivo.variable} ${spectral.variable} ${jetbrainsMono.variable}`} suppressHydrationWarning>
+    <html lang="en" data-scroll-behavior="smooth" className={`${archivo.variable} ${spectral.variable} ${jetbrainsMono.variable} ${playfairDisplay.variable} ${cormorantGaramond.variable} ${bodoniModa.variable}`} suppressHydrationWarning>
       <head>
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />

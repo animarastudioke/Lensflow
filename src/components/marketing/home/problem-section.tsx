@@ -2,19 +2,9 @@
 
 import { ArrowDown, ArrowRight } from 'lucide-react'
 import { motion } from 'framer-motion'
-import { DISCONNECTED_TOOLS } from '@/lib/constants/homepage'
+import { FRAGMENTED_WORKFLOW } from '@/lib/constants/homepage'
 import { ScrollReveal, StaggerGroup, StaggerItem } from './lib/scroll-reveal'
 import { LogoMark } from './lib/logo'
-import { PRODUCT_ICONS } from '@/lib/constants/homepage'
-
-const UNIFIED_ICONS = [
-  PRODUCT_ICONS.ImageIcon,
-  PRODUCT_ICONS.Calendar,
-  PRODUCT_ICONS.Users,
-  PRODUCT_ICONS.CreditCard,
-  PRODUCT_ICONS.Store,
-  PRODUCT_ICONS.Globe,
-]
 
 export function ProblemSection() {
   return (
@@ -27,8 +17,8 @@ export function ProblemSection() {
               Your work is creative. Your workflow shouldn&apos;t be complicated.
             </h2>
             <p className="mt-4 text-lg text-muted-foreground">
-              Your galleries are in one place. Bookings somewhere else. Invoices in another.
-              Payments somewhere else. LensFlow brings the entire workflow together.
+              Your galleries are in one place. Bookings somewhere else. Contracts in another.
+              Invoices somewhere else. LensFlow connects the workflow from inquiry to delivery.
             </p>
           </div>
         </ScrollReveal>
@@ -37,17 +27,18 @@ export function ProblemSection() {
           <div>
             <p className="label-caption mb-5 text-center lg:text-left">Before LensFlow</p>
             <StaggerGroup className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-2" staggerDelay={0.07}>
-              {DISCONNECTED_TOOLS.map((tool, index) => (
-                <StaggerItem key={tool.label}>
+              {FRAGMENTED_WORKFLOW.map((step, index) => (
+                <StaggerItem key={step.stage}>
                   <motion.div
                     initial={{ rotate: index % 2 === 0 ? -3 : 3 }}
                     whileInView={{ rotate: 0 }}
                     viewport={{ once: true, amount: 0.4 }}
                     transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
-                    className="flex flex-col items-center gap-2 rounded-lg border border-border bg-card px-3 py-5 text-center shadow-sm"
+                    className="flex flex-col items-center gap-2 rounded-md border border-border bg-card px-3 py-5 text-center shadow-sm"
                   >
-                    <tool.icon className="h-5 w-5 text-muted-foreground" strokeWidth={1.5} />
-                    <span className="text-xs font-medium text-muted-foreground">{tool.label}</span>
+                    <step.icon className="h-5 w-5 text-muted-foreground" strokeWidth={1.5} />
+                    <span className="text-xs font-medium text-foreground">{step.stage}</span>
+                    <span className="text-[11px] text-muted-foreground">{step.tool}</span>
                   </motion.div>
                 </StaggerItem>
               ))}
@@ -62,21 +53,16 @@ export function ProblemSection() {
           <div>
             <p className="label-caption mb-5 text-center lg:text-left">With LensFlow</p>
             <ScrollReveal variant="scaleIn" amount={0.4}>
-              <div className="rounded-xl border border-primary/25 bg-card p-6 shadow-lg shadow-primary/5 sm:p-8">
+              <div className="rounded-md border border-primary/25 bg-card p-6 shadow-lg shadow-primary/5 sm:p-8">
                 <div className="mb-5 flex items-center gap-2">
                   <LogoMark className="h-5 w-5 text-primary" />
                   <span className="font-display text-lg text-foreground">LensFlow workspace</span>
                 </div>
-                <div className="flex flex-wrap gap-3">
-                  {UNIFIED_ICONS.map((Icon, index) => (
-                    <div
-                      key={index}
-                      className="flex h-14 w-14 shrink-0 items-center justify-center rounded-lg bg-primary/10"
-                    >
-                      <Icon className="h-5 w-5 text-primary" strokeWidth={1.5} />
-                    </div>
-                  ))}
-                </div>
+                <p className="text-2xl font-display font-semibold tracking-tight text-foreground">
+                  One client. One project.
+                  <br />
+                  One connected workflow.
+                </p>
                 <p className="mt-5 text-sm text-muted-foreground">
                   Every tool, one login, one client record — connected from inquiry to delivery.
                 </p>

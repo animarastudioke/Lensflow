@@ -33,6 +33,15 @@ export function getR2Client(): S3Client {
       accessKeyId: getEnv('R2_ACCESS_KEY_ID'),
       secretAccessKey: getEnv('R2_SECRET_ACCESS_KEY'),
     },
+    // AWS SDK v3 defaults to auto-computing a request checksum for every
+    // PutObjectCommand. For a *presigned* URL the SDK signs that checksum
+    // before it has the real file body (there isn't one yet), so it bakes
+    // in the checksum of an empty payload. R2 then rejects the real upload
+    // with 403 once the actual bytes don't match — and doesn't send CORS
+    // headers on that error, so the browser misreports it as a CORS/network
+    // failure. 'WHEN_REQUIRED' restores the pre-3.729 behavior (only add a
+    // checksum when the API call actually requires one).
+    requestChecksumCalculation: 'WHEN_REQUIRED',
   })
   return cachedClient
 }

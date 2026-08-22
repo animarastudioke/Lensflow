@@ -58,7 +58,7 @@ export function TableToolbar({
             <select
               value={filter.value ?? ''}
               onChange={(e) => filter.onChange?.(e.target.value)}
-              className="h-9 px-3 pr-8 text-sm border border-input rounded-lg bg-background appearance-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+              className="h-9 px-3 pr-8 text-sm border border-input rounded-md bg-background appearance-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
               aria-label={filter.label}
             >
               <option value="">All {filter.label}</option>

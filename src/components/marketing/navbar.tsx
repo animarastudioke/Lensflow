@@ -6,8 +6,8 @@ import * as NavigationMenuPrimitive from '@radix-ui/react-navigation-menu'
 import { AnimatePresence, motion } from 'framer-motion'
 import { ChevronDown, Menu, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { Logo } from './lib/logo'
-import { NAV_PRODUCT_LINKS, NAV_RESOURCES_LINKS, NAV_SOLUTIONS_LINKS, type NavLink } from '@/lib/constants/homepage'
+import { Logo } from './home/lib/logo'
+import { NAV_PRODUCT_LINKS, NAV_RESOURCES_LINKS, NAV_SOLUTIONS_LINKS, type NavLink } from '@/lib/constants/navigation'
 
 function DropdownPanel({ links }: { links: NavLink[] }) {
   return (
@@ -32,12 +32,12 @@ function DropdownPanel({ links }: { links: NavLink[] }) {
 }
 
 const contentClass =
-  'overflow-hidden rounded-lg border border-white/10 bg-[#15151a]/95 text-white shadow-2xl shadow-black/50 backdrop-blur-xl data-[motion=from-start]:animate-in data-[motion=from-end]:animate-in data-[motion=from-start]:fade-in-0 data-[motion=from-end]:fade-in-0 data-[state=closed]:animate-out data-[state=closed]:fade-out-0'
+  'overflow-hidden rounded-md border border-white/10 bg-[#15151a]/95 text-white shadow-2xl shadow-black/50 backdrop-blur-xl data-[motion=from-start]:animate-in data-[motion=from-end]:animate-in data-[motion=from-start]:fade-in-0 data-[motion=from-end]:fade-in-0 data-[state=closed]:animate-out data-[state=closed]:fade-out-0'
 
-function DesktopNav({ scrolled }: { scrolled: boolean }) {
+function DesktopNav({ solid }: { solid: boolean }) {
   const triggerClass = cn(
     'group inline-flex items-center gap-1 rounded-md px-3 py-2 text-sm font-medium outline-none transition-colors',
-    scrolled
+    solid
       ? 'text-foreground/80 hover:text-foreground focus-visible:text-foreground data-[state=open]:text-foreground'
       : 'text-white/90 hover:text-white focus-visible:text-white data-[state=open]:text-white'
   )
@@ -228,12 +228,19 @@ function MobileMenu({ open, onClose }: { open: boolean; onClose: () => void }) {
   )
 }
 
-export function Navbar() {
+/**
+ * The one marketing-site navigation, used on the homepage (over a dark
+ * hero, `transparent`) and every other public marketing page (plain light
+ * bar, not `transparent`). Previously two separate implementations —
+ * consolidated so there's a single IA and visual system to maintain.
+ */
+export function Navbar({ transparent = false }: { transparent?: boolean }) {
   const [scrolled, setScrolled] = useState(false)
   const [mobileOpen, setMobileOpen] = useState(false)
   const ticking = useRef(false)
 
   useEffect(() => {
+    if (!transparent) return
     const onScroll = () => {
       if (ticking.current) return
       ticking.current = true
@@ -245,14 +252,18 @@ export function Navbar() {
     onScroll()
     window.addEventListener('scroll', onScroll, { passive: true })
     return () => window.removeEventListener('scroll', onScroll)
-  }, [])
+  }, [transparent])
+
+  // "solid" = the light, opaque bar style. Always on for non-transparent
+  // (plain marketing page) use; scroll-triggered when sitting over a dark hero.
+  const solid = !transparent || scrolled
 
   return (
     <>
       <header
         className={cn(
           'fixed inset-x-0 top-0 z-40 transition-[background-color,border-color,backdrop-filter,height] duration-300 ease-out',
-          scrolled
+          solid
             ? 'border-b border-border bg-background/80 backdrop-blur-xl'
             : 'border-b border-transparent bg-transparent'
         )}
@@ -260,19 +271,19 @@ export function Navbar() {
         <div
           className={cn(
             'mx-auto flex max-w-7xl items-center justify-between px-4 transition-[height] duration-300 ease-out sm:px-6 lg:px-8',
-            scrolled ? 'h-16' : 'h-20'
+            transparent && !solid ? 'h-20' : 'h-16'
           )}
         >
-          <Logo dark={!scrolled} />
+          <Logo dark={!solid} />
 
-          <DesktopNav scrolled={scrolled} />
+          <DesktopNav solid={solid} />
 
           <div className="hidden items-center gap-2 lg:flex">
             <Link
               href="/auth/login"
               className={cn(
                 'rounded-md px-3.5 py-2 text-sm font-medium transition-colors',
-                scrolled ? 'text-foreground hover:bg-accent' : 'text-white/90 hover:text-white'
+                solid ? 'text-foreground hover:bg-accent' : 'text-white/90 hover:text-white'
               )}
             >
               Log in
@@ -281,7 +292,7 @@ export function Navbar() {
               href="/auth/signup"
               className={cn(
                 'rounded-md px-4 py-2 text-sm font-medium transition-colors',
-                scrolled
+                solid
                   ? 'bg-primary text-primary-foreground hover:bg-primary/88'
                   : 'bg-white text-black hover:bg-white/90'
               )}
@@ -294,7 +305,7 @@ export function Navbar() {
             type="button"
             className={cn(
               'rounded-md p-2 transition-colors lg:hidden',
-              scrolled ? 'text-foreground hover:bg-accent' : 'text-white hover:bg-white/10'
+              solid ? 'text-foreground hover:bg-accent' : 'text-white hover:bg-white/10'
             )}
             onClick={() => setMobileOpen(true)}
             aria-label="Open menu"

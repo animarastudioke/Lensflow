@@ -5,7 +5,7 @@ import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { z } from 'zod'
 import sharp from 'sharp'
-import { canCreateGallery, getEffectivePlan, hasEntitlement, reserveUploadQuota, releaseUploadReservations } from '@/lib/entitlements'
+import { canCreateGallery, getEffectivePlan, getSubscriptionAccessState, hasEntitlement, reserveUploadQuota, releaseUploadReservations } from '@/lib/entitlements'
 import {
   buildMediaKey,
   createPresignedDownloadUrl,
@@ -27,6 +27,7 @@ export type GalleryType = 'wedding' | 'portrait' | 'commercial' | 'event' | 'oth
 export type GalleryStatus = 'draft' | 'published' | 'archived' | 'private'
 export type GalleryLayoutType = 'grid' | 'masonry' | 'justified'
 export type GalleryCoverTemplate = 'novel' | 'vintage' | 'frame' | 'stripe' | 'divider' | 'journal' | 'stamp' | 'outline'
+export type GalleryHeadingFont = 'default' | 'playfair' | 'cormorant' | 'archivo' | 'bodoni'
 
 export interface Gallery {
   id: string
@@ -54,6 +55,7 @@ export interface Gallery {
   download_count: number
   layout_type: GalleryLayoutType
   cover_template: GalleryCoverTemplate
+  heading_font: GalleryHeadingFont
   created_at: string
   updated_at: string
 }
@@ -1043,6 +1045,12 @@ export async function requestGalleryUploadUrls(
 
   const studioId = membership.studio_id
 
+  // Fetched once for the whole batch rather than per file — reserveUploadQuota
+  // used to refetch both on every single call, which meant a large gallery
+  // upload made hundreds of redundant DB round trips before a single byte
+  // moved, slow enough to blow past the platform's function timeout.
+  const [access, plan] = await Promise.all([getSubscriptionAccessState(studioId), getEffectivePlan(studioId)])
+
   const results = await mapWithConcurrency(files, 6, async (file) => {
     if (!file.contentType.startsWith('image/')) {
       return { filename: file.filename, error: 'Only image uploads are supported' }
@@ -1053,7 +1061,7 @@ export async function requestGalleryUploadUrls(
     // Atomically reserves quota for this upload (see migration 021) rather than
     // the old read-then-decide canAcceptUpload check, which two simultaneous
     // near-the-limit uploads could both pass.
-    const quota = await reserveUploadQuota(studioId, mediaId, file.sizeBytes)
+    const quota = await reserveUploadQuota(studioId, mediaId, file.sizeBytes, { access, plan })
     if (!quota.allowed) {
       return { filename: file.filename, error: quota.reason }
     }
@@ -1315,6 +1323,10 @@ export async function requestVideoUploadUrls(
 
   const studioId = membership.studio_id
 
+  // See requestGalleryUploadUrls above — fetched once per batch instead of
+  // once per file to avoid hundreds of redundant DB round trips.
+  const [access, plan] = await Promise.all([getSubscriptionAccessState(studioId), getEffectivePlan(studioId)])
+
   const results = await mapWithConcurrency(files, 4, async (file) => {
     if (!file.contentType.startsWith('video/')) {
       return { filename: file.filename, error: 'Only video uploads are supported' }
@@ -1325,7 +1337,7 @@ export async function requestVideoUploadUrls(
 
     const mediaId = crypto.randomUUID()
 
-    const quota = await reserveUploadQuota(studioId, mediaId, file.sizeBytes)
+    const quota = await reserveUploadQuota(studioId, mediaId, file.sizeBytes, { access, plan })
     if (!quota.allowed) {
       return { filename: file.filename, error: quota.reason }
     }
@@ -1559,6 +1571,79 @@ export async function updateGalleryCoverTemplate(
   if (error) {
     console.error('Update gallery cover template error:', error)
     return { error: 'Failed to save cover template' }
+  }
+
+  revalidatePath(`/dashboard/${studioSlug}/galleries/${galleryId}`)
+  revalidatePath(`/dashboard/${studioSlug}/galleries/${galleryId}/design`)
+  return { success: true }
+}
+
+/**
+ * Lets a studio pick which uploaded photo is the gallery's cover, instead of
+ * always defaulting to the first photo uploaded (finalizeGalleryMediaUpload's
+ * fallback). coverImageUrl must be one of this gallery's own media preview
+ * URLs — checked against the media table, not trusted from the client.
+ */
+export async function updateGalleryCoverImage(
+  galleryId: string,
+  studioSlug: string,
+  coverImageUrl: string
+): Promise<{ success: true } | { error: string }> {
+  let supabase, studioId: string
+  try {
+    ;({ supabase, studioId } = await requireGalleryEditMembership())
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : 'Unauthorized' }
+  }
+
+  const { data: media } = await supabase
+    .from('media')
+    .select('id')
+    .eq('gallery_id', galleryId)
+    .eq('url', coverImageUrl)
+    .maybeSingle()
+
+  if (!media) {
+    return { error: 'That photo is not part of this gallery' }
+  }
+
+  const { error } = await supabase
+    .from('galleries')
+    .update({ cover_image: coverImageUrl, updated_at: new Date().toISOString() })
+    .eq('id', galleryId)
+    .eq('studio_id', studioId)
+
+  if (error) {
+    console.error('Update gallery cover image error:', error)
+    return { error: 'Failed to save cover photo' }
+  }
+
+  revalidatePath(`/dashboard/${studioSlug}/galleries/${galleryId}`)
+  revalidatePath(`/dashboard/${studioSlug}/galleries/${galleryId}/design`)
+  return { success: true }
+}
+
+export async function updateGalleryHeadingFont(
+  galleryId: string,
+  studioSlug: string,
+  headingFont: GalleryHeadingFont
+): Promise<{ success: true } | { error: string }> {
+  let supabase, studioId: string
+  try {
+    ;({ supabase, studioId } = await requireGalleryEditMembership())
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : 'Unauthorized' }
+  }
+
+  const { error } = await supabase
+    .from('galleries')
+    .update({ heading_font: headingFont, updated_at: new Date().toISOString() })
+    .eq('id', galleryId)
+    .eq('studio_id', studioId)
+
+  if (error) {
+    console.error('Update gallery heading font error:', error)
+    return { error: 'Failed to save typography' }
   }
 
   revalidatePath(`/dashboard/${studioSlug}/galleries/${galleryId}`)

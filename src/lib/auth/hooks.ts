@@ -110,7 +110,3 @@ export function useAuthUser() {
   }
   return context
 }
-
-export function getAuthUserServer() {
-  return null
-}

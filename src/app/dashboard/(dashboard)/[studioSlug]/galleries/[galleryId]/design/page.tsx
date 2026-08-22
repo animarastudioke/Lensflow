@@ -58,6 +58,11 @@ export default async function GalleryDesignPage({ params }: GalleryDesignPagePro
       galleryStatus={gallery.status}
       shareToken={gallery.share_token}
       initialTemplate={gallery.cover_template}
+      initialHeadingFont={gallery.heading_font}
+      initialCoverImageUrl={gallery.cover_image}
+      media={gallery.media
+        .filter((item) => item.type === 'image' && item.url)
+        .map((item) => ({ id: item.id, url: item.url, thumbnailUrl: item.thumbnail_url ?? item.url }))}
       previewData={{
         name: gallery.name,
         description: gallery.description,
@@ -70,6 +75,7 @@ export default async function GalleryDesignPage({ params }: GalleryDesignPagePro
         logoUrl: branding.logo,
         brandName: branding.name,
         brandColor: branding.color,
+        headingFont: gallery.heading_font,
       }}
     />
   )

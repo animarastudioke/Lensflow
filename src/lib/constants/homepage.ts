@@ -7,61 +7,38 @@ import {
   Store,
   Globe,
   Mail,
-  Cloud,
   FileText,
+  Receipt,
   MessageSquare,
   ClipboardCheck,
   Send,
   Camera,
   Heart,
+  Wrench,
+  Users2,
+  Sparkles,
+  Smartphone,
+  Wallet,
+  Coins,
+  Globe2,
 } from 'lucide-react'
 
-export interface NavLink {
-  label: string
-  href: string
-  description?: string
-}
+export const VALUE_STRIP_ITEMS = ['Galleries', 'Booking', 'CRM', 'Contracts', 'Payments', 'Store', 'Website']
 
-export const NAV_PRODUCT_LINKS: NavLink[] = [
-  { label: 'Client Galleries', href: '/features/galleries', description: 'Deliver photos and videos beautifully' },
-  { label: 'Proofing', href: '/features/galleries#proofing', description: 'Favorites, comments, and approvals' },
-  { label: 'Booking', href: '/features/booking', description: 'Availability, packages, and contracts' },
-  { label: 'CRM', href: '/features/crm', description: 'Clients, leads, and project timelines' },
-  { label: 'Invoicing', href: '/features/analytics#payments', description: 'Quotes, invoices, and payments' },
-  { label: 'Online Store', href: '/features/store', description: 'Prints, albums, and digital downloads' },
-  { label: 'Website Builder', href: '/features/website', description: 'A portfolio site with your own domain' },
-]
-
-export const NAV_SOLUTIONS_LINKS: NavLink[] = [
-  { label: 'Wedding Photographers', href: '/solutions/wedding-photographers' },
-  { label: 'Portrait Photographers', href: '/solutions/portrait-photographers' },
-  { label: 'Videographers', href: '/solutions/videographers' },
-  { label: 'Studios', href: '/solutions/studios' },
-  { label: 'Creative Teams', href: '/solutions/creative-teams' },
-]
-
-export const NAV_RESOURCES_LINKS: NavLink[] = [
-  { label: 'Help Center', href: '/help' },
-  { label: 'Blog', href: '/blog' },
-  { label: 'Guides', href: '/docs' },
-  { label: 'Pricing', href: '/pricing' },
-  { label: 'Contact', href: '/contact' },
-]
-
-export const TRUST_INDICATORS = ['Photography', 'Videography', 'Studios', 'Creative Teams']
-
-export interface DisconnectedTool {
-  label: string
+export interface WorkflowStage {
+  stage: string
+  tool: string
   icon: LucideIcon
 }
 
-export const DISCONNECTED_TOOLS: DisconnectedTool[] = [
-  { label: 'Gallery host', icon: ImageIcon },
-  { label: 'Calendar app', icon: Calendar },
-  { label: 'Email inbox', icon: Mail },
-  { label: 'Invoicing tool', icon: FileText },
-  { label: 'Payment processor', icon: CreditCard },
-  { label: 'Cloud storage', icon: Cloud },
+/** The "before LensFlow" fragmented-tools list in ProblemSection, paired stage → what it lives in today. */
+export const FRAGMENTED_WORKFLOW: WorkflowStage[] = [
+  { stage: 'Inquiry', tool: 'Instagram / email / messages', icon: Mail },
+  { stage: 'Booking', tool: 'Calendar', icon: Calendar },
+  { stage: 'Contracts', tool: 'Separate tool', icon: FileText },
+  { stage: 'Invoices', tool: 'Separate system', icon: Receipt },
+  { stage: 'Payments', tool: 'Separate processor', icon: CreditCard },
+  { stage: 'Delivery', tool: 'Gallery platform', icon: ImageIcon },
 ]
 
 export interface FeatureTab {
@@ -103,7 +80,7 @@ export const FEATURE_TABS: FeatureTab[] = [
     number: '04',
     label: 'Payments',
     heading: 'Get paid without the back-and-forth.',
-    copy: 'Send invoices, collect deposits, and track balances with the payment methods your clients already use.',
+    copy: 'Send invoices, collect deposits, and track balances with the payment method your Kenyan clients already use.',
     cta: { label: 'See payments', href: '/features/analytics' },
   },
   {
@@ -245,18 +222,17 @@ export const AFRICA_SECTION_IMAGE = {
   alt: 'Portrait of a photographer smiling, wearing traditional print fabric',
 }
 
-export const PRICING_COMPARISON = {
-  before: [
-    'Gallery hosting subscription',
-    'Calendar / booking tool',
-    'CRM or spreadsheet',
-    'E-signature tool for contracts',
-    'Invoicing software',
-    'Online store platform',
-    'Website builder',
-  ],
-  after: ['One LensFlow subscription — everything included'],
-}
+/**
+ * Locally-accurate capabilities only — a prior version of this list included
+ * "Cards and bank transfers" and "WhatsApp updates," neither of which is
+ * implemented (only M-Pesa is). Every item here must be true today.
+ */
+export const LOCAL_MARKET_CAPABILITIES: { icon: LucideIcon; label: string; description: string }[] = [
+  { icon: Smartphone, label: 'M-Pesa', description: "Native support for Kenya's leading mobile money network" },
+  { icon: Wallet, label: 'Mobile money', description: 'Collect payments the way your clients already pay' },
+  { icon: Coins, label: 'Local currency', description: 'Invoice and get paid in Kenyan shillings' },
+  { icon: Globe2, label: 'Affordable plans', description: 'One subscription, priced for growing studios' },
+]
 
 export const PRODUCT_ICONS = {
   ImageIcon,
@@ -268,3 +244,43 @@ export const PRODUCT_ICONS = {
   MessageSquare,
   ClipboardCheck,
 }
+
+export interface Testimonial {
+  quote: string
+  name: string
+  role: string
+  studio?: string
+  avatarUrl?: string
+}
+
+/**
+ * Deliberately empty — no real customer testimonials exist yet. The
+ * Early Access section renders EARLY_ACCESS_POINTS instead whenever this is
+ * empty, and switches to real testimonial cards automatically once entries
+ * are added here. Never fill this with fabricated quotes/names.
+ */
+export const TESTIMONIALS: Testimonial[] = []
+
+export interface CredibilityPoint {
+  icon: LucideIcon
+  title: string
+  body: string
+}
+
+export const EARLY_ACCESS_POINTS: CredibilityPoint[] = [
+  {
+    icon: Wrench,
+    title: 'Built with working photographers',
+    body: 'Every part of LensFlow — from proofing to payments — was shaped by conversations with photographers running real studios.',
+  },
+  {
+    icon: Users2,
+    title: 'Early access is open',
+    body: 'We’re onboarding studios directly and shaping the roadmap around what they need most.',
+  },
+  {
+    icon: Sparkles,
+    title: 'Join the first LensFlow creators',
+    body: 'Be part of the founding group of photographers and videographers helping define the platform.',
+  },
+]

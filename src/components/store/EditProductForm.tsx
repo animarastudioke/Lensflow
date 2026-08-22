@@ -24,6 +24,8 @@ import {
 import { ArrowLeft, Loader2, UploadCloud, FileCheck2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { updateProduct, requestProductFileUploadUrl, finalizeProductFileUpload } from '@/lib/actions/products'
+import { putWithRetry } from '@/lib/utils/upload'
+import { Progress } from '@/components/ui/progress'
 
 interface EditProductFormProps {
   studioSlug: string
@@ -53,6 +55,7 @@ export function EditProductForm({ studioSlug, initialValues }: EditProductFormPr
   const [featured, setFeatured] = React.useState(initialValues.featured)
   const [digitalFileName, setDigitalFileName] = React.useState(initialValues.digitalFileName)
   const [isUploadingFile, setIsUploadingFile] = React.useState(false)
+  const [uploadProgress, setUploadProgress] = React.useState(0)
 
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -65,6 +68,7 @@ export function EditProductForm({ studioSlug, initialValues }: EditProductFormPr
     }
 
     setIsUploadingFile(true)
+    setUploadProgress(0)
     try {
       const presigned = await requestProductFileUploadUrl(studioSlug, initialValues.id, file.name, file.type || 'application/octet-stream')
       if ('error' in presigned) {
@@ -72,11 +76,12 @@ export function EditProductForm({ studioSlug, initialValues }: EditProductFormPr
         return
       }
 
-      const putResponse = await fetch(presigned.uploadUrl, {
-        method: 'PUT',
-        body: file,
-        headers: { 'Content-Type': file.type || 'application/octet-stream' },
-      })
+      const putResponse = await putWithRetry(
+        presigned.uploadUrl,
+        file,
+        file.type || 'application/octet-stream',
+        (loaded, total) => setUploadProgress(Math.round((loaded / total) * 100))
+      )
       if (!putResponse.ok) {
         toast.error('Upload failed. Try again.')
         return
@@ -236,6 +241,12 @@ export function EditProductForm({ studioSlug, initialValues }: EditProductFormPr
                     </>
                   )}
                 </Button>
+                {isUploadingFile && (
+                  <div className="mt-2 space-y-1 max-w-xs">
+                    <Progress value={uploadProgress} />
+                    <p className="text-xs text-muted-foreground text-right">{uploadProgress}%</p>
+                  </div>
+                )}
                 <p className="text-xs text-muted-foreground mt-2">Up to 500MB. Uploaded directly, never made public — only paying customers get a download link.</p>
               </div>
             </CardContent>

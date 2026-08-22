@@ -208,7 +208,7 @@ function DataTablePagination({
         <select
           value={pageSize}
           onChange={(e) => onPageSizeChange(Number(e.target.value))}
-          className="h-8 px-2 text-sm border border-input rounded-lg bg-background"
+          className="h-8 px-2 text-sm border border-input rounded-md bg-background"
         >
           {[10, 20, 50, 100].map((size) => (
             <option key={size} value={size}>
@@ -303,7 +303,7 @@ export function DataTable<T>({
   }
 
   return (
-    <div className={cn('rounded-lg border border-border overflow-hidden', className)}>
+    <div className={cn('rounded-md border border-border overflow-hidden', className)}>
       {loading && (
         <div className="absolute inset-0 bg-background/80 flex items-center justify-center z-10">
           <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />

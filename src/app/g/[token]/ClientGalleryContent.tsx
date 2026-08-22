@@ -12,7 +12,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Loader2, Eye, Download, Heart, Share2, ChevronLeft, ChevronRight, X, Grid, Info, Lock, Calendar, PlayCircle } from 'lucide-react'
 import { format } from 'date-fns'
 import { toast } from 'sonner'
-import { GalleryCoverPreview, type CoverTemplate } from '@/components/galleries/GalleryCoverPreview'
+import { GalleryCoverPreview, type CoverTemplate, type HeadingFont } from '@/components/galleries/GalleryCoverPreview'
 
 interface MediaItem {
   id: string
@@ -68,6 +68,7 @@ interface GalleryData {
   share_token: string
   layout_type: 'grid' | 'masonry' | 'justified'
   cover_template: CoverTemplate
+  heading_font?: HeadingFont
   studio?: {
     name: string
     slug: string
@@ -598,6 +599,7 @@ export function ClientGalleryContent({
           logoUrl: branding.logo,
           brandName: branding.name || 'LensFlow',
           brandColor: branding.color || '#3b82f6',
+          headingFont: gallery.heading_font,
         }}
       />
       <div className="absolute top-4 right-4 flex items-center gap-2">
