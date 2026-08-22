@@ -156,6 +156,8 @@ export function ClientGalleryContent({
   const [lightboxIndex, setLightboxIndex] = React.useState(0)
   const [showLightbox, setShowLightbox] = React.useState(false)
   const [favorites, setFavorites] = React.useState<string[]>([])
+  const [downloadingIds, setDownloadingIds] = React.useState<Set<string>>(new Set())
+  const [isDownloadingAll, setIsDownloadingAll] = React.useState(false)
   const lightboxHistoryPushed = React.useRef(false)
 
   // Pressing the browser/device back button while the lightbox is open should
@@ -215,8 +217,16 @@ export function ClientGalleryContent({
   }
 
   const downloadSingleImage = async (item: MediaItem) => {
-    // Increment download count on server
-    await fetch(`/api/g/${token}/download`, { method: 'POST' }).catch(console.error)
+    // Tracking the download count is a side-effect, not a gate — fire it and
+    // move on rather than awaiting it. A slow or stuck edge/analytics call
+    // must never be able to block the client from getting their actual
+    // photo. Give it a short timeout of its own so it can't hang open
+    // indefinitely either.
+    const trackingController = new AbortController()
+    const trackingTimeout = setTimeout(() => trackingController.abort(), 5000)
+    fetch(`/api/g/${token}/download`, { method: 'POST', signal: trackingController.signal })
+      .catch(() => {})
+      .finally(() => clearTimeout(trackingTimeout))
 
     // Gated, server-authoritative route — the studio's plan is checked again
     // here even though the download button is already conditionally shown.
@@ -238,16 +248,25 @@ export function ClientGalleryContent({
   }
 
   const downloadImage = async (item: MediaItem) => {
+    if (downloadingIds.has(item.id)) return
+    setDownloadingIds((prev) => new Set(prev).add(item.id))
     try {
       await downloadSingleImage(item)
       toast.success('Download started')
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to download')
+    } finally {
+      setDownloadingIds((prev) => {
+        const next = new Set(prev)
+        next.delete(item.id)
+        return next
+      })
     }
   }
 
   const downloadAllImages = async () => {
-    if (media.length === 0) return
+    if (media.length === 0 || isDownloadingAll) return
+    setIsDownloadingAll(true)
     try {
       const response = await fetch(`/api/g/${token}/bulk-download`, { method: 'POST' })
       if (!response.ok) {
@@ -266,6 +285,8 @@ export function ClientGalleryContent({
       toast.success(`Downloading ${media.length} photo${media.length === 1 ? '' : 's'}`)
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Some downloads failed')
+    } finally {
+      setIsDownloadingAll(false)
     }
   }
 
@@ -584,8 +605,8 @@ export function ClientGalleryContent({
           <Share2 className="h-4 w-4" />
         </Button>
         {gallery.allow_download && (
-          <Button variant="secondary" size="icon" className="bg-white/90 hover:bg-white shadow-sm" onClick={downloadAllImages} aria-label="Download all">
-            <Download className="h-4 w-4" />
+          <Button variant="secondary" size="icon" className="bg-white/90 hover:bg-white shadow-sm" onClick={downloadAllImages} disabled={isDownloadingAll} aria-label="Download all">
+            {isDownloadingAll ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
           </Button>
         )}
       </div>
@@ -697,8 +718,17 @@ export function ClientGalleryContent({
 
           <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-2 text-white text-sm">
             <span>{lightboxIndex + 1} / {media.length}</span>
-            <Button variant="ghost" size="sm" className="text-white hover:bg-white/20" onClick={(e) => { e.stopPropagation(); downloadImage(media[lightboxIndex]!) }}>
-              <Download className="h-4 w-4 mr-1" /> Download
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-white hover:bg-white/20"
+              disabled={downloadingIds.has(media[lightboxIndex]!.id)}
+              onClick={(e) => { e.stopPropagation(); downloadImage(media[lightboxIndex]!) }}
+            >
+              {downloadingIds.has(media[lightboxIndex]!.id)
+                ? <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                : <Download className="h-4 w-4 mr-1" />}
+              Download
             </Button>
             <Button variant="ghost" size="sm" className="text-white hover:bg-white/20" onClick={(e) => { e.stopPropagation(); toggleFavorite(media[lightboxIndex]!.id) }}>
               <Heart className={cn('h-4 w-4 mr-1', favorites.includes(media[lightboxIndex]!.id) ? 'fill-red-500 text-red-500' : '')} />

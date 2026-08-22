@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { Readable } from 'node:stream'
 import { supabaseAdmin } from '@/lib/supabase/admin'
 import { hasEntitlement } from '@/lib/entitlements'
-import { createPresignedDownloadUrl, getR2PublicUrl } from '@/lib/storage/r2'
+import { getObjectWithMeta } from '@/lib/storage/r2'
 
 // Gated single-asset original download. Entitlement is resolved from the
 // *studio's* plan, not the (anonymous, public-gallery) requester's identity
@@ -9,6 +10,14 @@ import { createPresignedDownloadUrl, getR2PublicUrl } from '@/lib/storage/r2'
 // server-side-authoritative check: hiding the download button in the UI is
 // not enough, a Free-tier studio's gallery must 403 here even if someone
 // hits this URL directly.
+//
+// Streams the object through this server rather than redirecting to a
+// presigned R2 URL: the client fetches this to build a blob (so it can show
+// a real success/error toast for the entitlement check above), and R2's
+// bucket has no CORS policy for that — a redirect left the browser unable to
+// read the response at all, silently breaking every client-facing download.
+// The dashboard's own download link/store download link don't have this
+// problem since they're plain <a href> navigations, never read via fetch().
 export async function GET(
   _request: NextRequest,
   { params }: { params: Promise<{ assetId: string }> }
@@ -47,14 +56,25 @@ export async function GET(
     )
   }
 
-  if (!media.original_key) {
-    // Entitled, but this photo predates the studio's upgrade (or original
-    // retention failed at upload time) — fall back to the always-available
-    // web preview rather than a dead end.
-    const previewKey = `studios/${gallery.studio_id}/galleries/${gallery.id}/assets/${media.id}/preview.webp`
-    return NextResponse.redirect(getR2PublicUrl(previewKey))
+  // Entitled, but this photo predates the studio's upgrade (or original
+  // retention failed at upload time) — fall back to the always-available
+  // web preview rather than a dead end.
+  const key = media.original_key
+    ?? `studios/${gallery.studio_id}/galleries/${gallery.id}/assets/${media.id}/preview.webp`
+
+  const object = await getObjectWithMeta(key)
+  if (!object) {
+    return NextResponse.json({ error: 'File not found in storage' }, { status: 404 })
   }
 
-  const downloadUrl = await createPresignedDownloadUrl(media.original_key, media.filename)
-  return NextResponse.redirect(downloadUrl)
+  const webStream = Readable.toWeb(object.stream as unknown as Readable) as ReadableStream
+  const safeName = media.filename.replace(/"/g, '')
+
+  return new NextResponse(webStream, {
+    headers: {
+      'Content-Type': object.contentType,
+      ...(object.contentLength ? { 'Content-Length': String(object.contentLength) } : {}),
+      'Content-Disposition': `attachment; filename="${safeName}"`,
+    },
+  })
 }

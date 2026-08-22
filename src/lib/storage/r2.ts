@@ -157,6 +157,25 @@ export async function getObjectStream(key: string) {
   return result.Body
 }
 
+/**
+ * Stream plus the metadata needed to serve a single-object download response
+ * directly (Content-Type/Content-Length), for routes that proxy the object
+ * through this app rather than redirecting the browser to R2 — see
+ * createPresignedDownloadUrl's doc comment for why a redirect isn't safe here.
+ */
+export async function getObjectWithMeta(key: string) {
+  const client = getR2Client()
+  const result = await client.send(
+    new GetObjectCommand({ Bucket: getR2BucketName(), Key: key })
+  )
+  if (!result.Body) return null
+  return {
+    stream: result.Body,
+    contentType: result.ContentType ?? 'application/octet-stream',
+    contentLength: result.ContentLength,
+  }
+}
+
 export async function deleteObject(key: string): Promise<void> {
   const client = getR2Client()
   await client.send(new DeleteObjectCommand({ Bucket: getR2BucketName(), Key: key }))
