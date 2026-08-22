@@ -82,7 +82,12 @@ export function ProductPreview({ sectionRef }: { sectionRef?: RefObject<HTMLElem
           <div className="min-w-0 p-4 sm:p-6" aria-hidden="true">
             <div className="mb-5 flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-white">Good morning, Amina</p>
+                <div className="flex items-center gap-2">
+                  <p className="text-sm font-medium text-white">Good morning, Amina</p>
+                  <span className="rounded-full bg-white/10 px-2 py-0.5 text-[9px] font-medium uppercase tracking-wide text-white/50">
+                    Demo data
+                  </span>
+                </div>
                 <p className="text-xs text-white/45">Here&apos;s what&apos;s happening in your studio</p>
               </div>
               <div className="hidden h-8 w-8 shrink-0 rounded-full bg-gradient-to-br from-[#d6415a] to-[#7a2338] sm:block" />
@@ -95,7 +100,7 @@ export function ProductPreview({ sectionRef }: { sectionRef?: RefObject<HTMLElem
             </div>
 
             <div className="mt-4 grid gap-3 sm:mt-5 sm:grid-cols-2 sm:gap-4">
-              <div className="rounded-lg border border-white/10 bg-white/[0.03] p-3 sm:p-4">
+              <div className="rounded-md border border-white/10 bg-white/[0.03] p-3 sm:p-4">
                 <p className="mb-2.5 text-[11px] font-medium uppercase tracking-wide text-white/45">
                   Recent galleries
                 </p>
@@ -111,7 +116,7 @@ export function ProductPreview({ sectionRef }: { sectionRef?: RefObject<HTMLElem
                 </ul>
               </div>
 
-              <div className="rounded-lg border border-white/10 bg-white/[0.03] p-3 sm:p-4">
+              <div className="rounded-md border border-white/10 bg-white/[0.03] p-3 sm:p-4">
                 <p className="mb-2.5 text-[11px] font-medium uppercase tracking-wide text-white/45">
                   Upcoming sessions
                 </p>
@@ -143,7 +148,7 @@ export function ProductPreview({ sectionRef }: { sectionRef?: RefObject<HTMLElem
 
 function StatCard({ label, value, sublabel }: { label: string; value: string; sublabel: string }) {
   return (
-    <div className="rounded-lg border border-white/10 bg-white/[0.03] p-2.5 sm:p-3.5">
+    <div className="rounded-md border border-white/10 bg-white/[0.03] p-2.5 sm:p-3.5">
       <p className="text-[10px] font-medium uppercase tracking-wide text-white/40 sm:text-[11px]">{label}</p>
       <p className="mt-1 text-base font-semibold tabular-nums text-white sm:text-xl">{value}</p>
       <p className="text-[10px] text-white/40 sm:text-xs">{sublabel}</p>

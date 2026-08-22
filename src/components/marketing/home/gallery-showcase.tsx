@@ -49,7 +49,7 @@ export function GalleryShowcase() {
           {FILMSTRIP_IMAGES.map((image, index) => (
             <div
               key={image.src}
-              className="relative aspect-[4/5] w-[220px] shrink-0 overflow-hidden rounded-lg lg:w-[280px]"
+              className="relative aspect-[4/5] w-[220px] shrink-0 overflow-hidden rounded-md lg:w-[280px]"
               style={{ marginTop: index % 2 === 0 ? 0 : 32 }}
             >
               <Image
@@ -63,9 +63,10 @@ export function GalleryShowcase() {
           ))}
         </div>
 
+        {/* Mobile: a full grid of all 8 images rather than hiding half the set. */}
         <div className="container-wide grid grid-cols-2 gap-3 sm:hidden">
-          {FILMSTRIP_IMAGES.slice(0, 4).map((image) => (
-            <div key={image.src} className="relative aspect-[3/4] overflow-hidden rounded-lg">
+          {FILMSTRIP_IMAGES.map((image) => (
+            <div key={image.src} className="relative aspect-[3/4] overflow-hidden rounded-md">
               <Image
                 src={`https://images.unsplash.com/${image.src}?w=500&q=70&auto=format&fit=crop`}
                 alt={image.alt}
@@ -76,6 +77,10 @@ export function GalleryShowcase() {
             </div>
           ))}
         </div>
+
+        <p className="container-wide mt-4 text-right font-mono text-[10px] uppercase tracking-wide text-white/35">
+          Example imagery
+        </p>
       </ScrollReveal>
     </section>
   )

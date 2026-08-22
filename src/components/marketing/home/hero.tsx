@@ -77,7 +77,7 @@ export function Hero() {
             variants={fadeUp}
             className="font-mono text-[0.6875rem] font-medium uppercase tracking-[0.18em] text-white/70"
           >
-            Built for photographers &amp; videographers
+            The business platform for photographers &amp; videographers
           </motion.span>
 
           <motion.h1
@@ -87,9 +87,9 @@ export function Hero() {
             variants={fadeUp}
             className="mt-5 text-balance font-display text-[2.5rem] font-semibold leading-[1.08] tracking-tight text-white sm:text-6xl lg:text-[5.5rem]"
           >
-            Everything your creative business
+            Run your entire creative
             <br />
-            needs. In one place.
+            business from one place.
           </motion.h1>
 
           <motion.p
@@ -99,8 +99,8 @@ export function Hero() {
             variants={fadeUp}
             className="mx-auto mt-6 max-w-xl text-balance text-lg text-white/75 sm:text-xl"
           >
-            Deliver stunning galleries, book clients, send contracts, get paid, and run your
-            business — without juggling a dozen different tools.
+            Galleries, bookings, contracts, CRM, invoices and M-Pesa payments — connected in one
+            workspace built for photographers and videographers.
           </motion.p>
 
           <motion.div
@@ -133,7 +133,7 @@ export function Hero() {
             className="mt-5 flex items-center justify-center gap-1.5 text-sm text-white/55"
           >
             <CheckCircle2 className="h-4 w-4" />
-            No credit card required
+            No credit card required · Free plan available
           </motion.p>
         </div>
       </div>
