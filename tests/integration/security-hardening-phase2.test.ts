@@ -236,7 +236,7 @@ describe('Phase 2 P0: contracts — role enforcement', () => {
     expect(after?.status).toBe('draft')
   })
   it('photographer CAN create a contract', async () => {
-    const { error } = await photographer.client.from('contracts').insert({ studio_id: studioId, title: RUN_TAG, status: 'draft', content: 'test' })
+    const { error } = await photographer.client.from('contracts').insert({ studio_id: studioId, title: RUN_TAG, status: 'draft' })
     expect(error).toBeNull()
   })
   it('studio_owner CAN delete a contract', async () => {
