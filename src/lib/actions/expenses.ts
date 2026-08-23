@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 import { getStudioCurrency } from '@/lib/actions/studios'
+import { requireStudioPermission } from '@/lib/auth/server'
 
 export type ExpenseCategory =
   | 'equipment'
@@ -28,22 +29,6 @@ export interface ExpenseRow {
   expenseDate: string
   receiptUrl: string | null
   createdAt: string
-}
-
-async function requireMembership(): Promise<{ error: string } | { userId: string; studioId: string }> {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { error: 'Unauthorized' }
-
-  const { data: membership } = await supabase
-    .from('studio_members')
-    .select('studio_id')
-    .eq('user_id', user.id)
-    .eq('status', 'active')
-    .single()
-
-  if (!membership) return { error: 'No active studio membership' }
-  return { userId: user.id, studioId: membership.studio_id }
 }
 
 export async function getExpenses(studioSlug: string): Promise<ExpenseRow[]> {
@@ -90,7 +75,7 @@ export async function createExpense(
   studioSlug: string,
   formData: FormData
 ): Promise<{ error: string } | { success: true }> {
-  const membership = await requireMembership()
+  const membership = await requireStudioPermission('expenses:create')
   if ('error' in membership) return membership
 
   const parsed = expenseCreateSchema.safeParse({
@@ -128,7 +113,7 @@ export async function createExpense(
 }
 
 export async function deleteExpense(expenseId: string, studioSlug: string): Promise<{ error: string } | { success: true }> {
-  const membership = await requireMembership()
+  const membership = await requireStudioPermission('expenses:delete')
   if ('error' in membership) return membership
 
   const supabase = await createClient()

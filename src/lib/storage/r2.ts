@@ -20,6 +20,49 @@ function getEnv(name: string): string {
   return value
 }
 
+/**
+ * Every real object key in this app is server-built as
+ * `studios/{studioId}/...` (buildMediaKey, and the ad hoc branding/product
+ * keys in studios.ts/products.ts) — never accepted verbatim from a client.
+ * This is a defense-in-depth backstop against a future call site passing an
+ * empty, path-traversal, or otherwise malformed key/prefix through to R2,
+ * not a replacement for that server-generated-key discipline.
+ */
+function assertSafeKey(key: string): void {
+  if (!key || !key.trim()) {
+    throw new Error('R2 object key must not be empty')
+  }
+  if (key.startsWith('/') || key.includes('..')) {
+    throw new Error(`R2 object key is not well-formed: ${key}`)
+  }
+  if (!/^studios\/[^/]+\/.+/.test(key)) {
+    throw new Error(`R2 object key is outside the studios/{studioId}/ namespace: ${key}`)
+  }
+}
+
+/**
+ * Stricter than assertSafeKey: deleteObjectsByPrefix fans out to a
+ * potentially unbounded number of DeleteObjectsCommand calls, so an
+ * under-scoped prefix here (e.g. the bare `studios/` namespace root) is far
+ * more dangerous than an under-scoped single-object key — it must be
+ * anchored to at least one specific studio.
+ */
+function assertSafePrefix(prefix: string): void {
+  if (!prefix || !prefix.trim()) {
+    throw new Error('R2 delete prefix must not be empty')
+  }
+  if (prefix.startsWith('/') || prefix.includes('..')) {
+    throw new Error(`R2 delete prefix is not well-formed: ${prefix}`)
+  }
+  // Requires a trailing slash right after the studio id segment (content
+  // beyond that, e.g. a specific gallery, is optional) — this both rejects
+  // the un-scoped `studios/` namespace root and prevents a prefix like
+  // `studios/abc` from also matching an unrelated studio `studios/abc-evil`.
+  if (!/^studios\/[^/]+\//.test(prefix)) {
+    throw new Error(`R2 delete prefix must be scoped under studios/{studioId}/, got: ${prefix}`)
+  }
+}
+
 let cachedClient: S3Client | null = null
 
 export function getR2Client(): S3Client {
@@ -90,6 +133,7 @@ export async function createPresignedUploadUrl(
   contentType: string,
   expiresInSeconds = 300
 ): Promise<string> {
+  assertSafeKey(key)
   const client = getR2Client()
   const command = new PutObjectCommand({
     Bucket: getR2BucketName(),
@@ -104,6 +148,7 @@ export async function createPresignedDownloadUrl(
   filename?: string,
   expiresInSeconds = 60
 ): Promise<string> {
+  assertSafeKey(key)
   const client = getR2Client()
   const command = new GetObjectCommand({
     Bucket: getR2BucketName(),
@@ -120,6 +165,7 @@ export async function uploadObject(
   body: Buffer | Uint8Array,
   contentType: string
 ): Promise<void> {
+  assertSafeKey(key)
   const client = getR2Client()
   await client.send(
     new PutObjectCommand({
@@ -138,6 +184,7 @@ export async function uploadObject(
  * while still never trusting a client-reported file size for quota/billing.
  */
 export async function headObject(key: string): Promise<{ exists: boolean; sizeBytes: number }> {
+  assertSafeKey(key)
   const client = getR2Client()
   try {
     const result = await client.send(new HeadObjectCommand({ Bucket: getR2BucketName(), Key: key }))
@@ -148,6 +195,7 @@ export async function headObject(key: string): Promise<{ exists: boolean; sizeBy
 }
 
 export async function downloadObject(key: string): Promise<Buffer> {
+  assertSafeKey(key)
   const client = getR2Client()
   const result = await client.send(
     new GetObjectCommand({ Bucket: getR2BucketName(), Key: key })
@@ -159,6 +207,7 @@ export async function downloadObject(key: string): Promise<Buffer> {
 
 /** Returns a readable stream suitable for piping into a zip archive. */
 export async function getObjectStream(key: string) {
+  assertSafeKey(key)
   const client = getR2Client()
   const result = await client.send(
     new GetObjectCommand({ Bucket: getR2BucketName(), Key: key })
@@ -173,6 +222,7 @@ export async function getObjectStream(key: string) {
  * createPresignedDownloadUrl's doc comment for why a redirect isn't safe here.
  */
 export async function getObjectWithMeta(key: string) {
+  assertSafeKey(key)
   const client = getR2Client()
   const result = await client.send(
     new GetObjectCommand({ Bucket: getR2BucketName(), Key: key })
@@ -186,12 +236,14 @@ export async function getObjectWithMeta(key: string) {
 }
 
 export async function deleteObject(key: string): Promise<void> {
+  assertSafeKey(key)
   const client = getR2Client()
   await client.send(new DeleteObjectCommand({ Bucket: getR2BucketName(), Key: key }))
 }
 
 export async function deleteObjects(keys: string[]): Promise<void> {
   if (keys.length === 0) return
+  keys.forEach(assertSafeKey)
   const client = getR2Client()
   // R2/S3 DeleteObjects accepts up to 1000 keys per request.
   for (let i = 0; i < keys.length; i += 1000) {
@@ -207,6 +259,7 @@ export async function deleteObjects(keys: string[]): Promise<void> {
 
 /** Deletes every object under a key prefix (e.g. an entire studio or gallery folder). */
 export async function deleteObjectsByPrefix(prefix: string): Promise<void> {
+  assertSafePrefix(prefix)
   const client = getR2Client()
   let continuationToken: string | undefined
   do {

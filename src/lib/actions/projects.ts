@@ -2,6 +2,7 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
+import { requireStudioPermission } from '@/lib/auth/server'
 
 export type ProjectStatus = 'planning' | 'scheduled' | 'in_progress' | 'editing' | 'review' | 'delivered' | 'archived'
 
@@ -107,25 +108,9 @@ export async function getProjectFinancials(studioSlug: string): Promise<Record<s
   return result
 }
 
-async function requireMembership(): Promise<{ error: string } | { studioId: string }> {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { error: 'Unauthorized' }
-
-  const { data: membership } = await supabase
-    .from('studio_members')
-    .select('studio_id')
-    .eq('user_id', user.id)
-    .eq('status', 'active')
-    .single()
-
-  if (!membership) return { error: 'No active studio membership' }
-
-  return { studioId: membership.studio_id }
-}
 
 export async function deleteProject(projectId: string, studioSlug: string): Promise<{ error: string } | undefined> {
-  const membership = await requireMembership()
+  const membership = await requireStudioPermission('projects:delete')
   if ('error' in membership) return membership
 
   const supabase = await createClient()
@@ -145,7 +130,7 @@ export async function deleteProject(projectId: string, studioSlug: string): Prom
 }
 
 export async function archiveProjects(projectIds: string[], studioSlug: string): Promise<{ error: string } | undefined> {
-  const membership = await requireMembership()
+  const membership = await requireStudioPermission('projects:delete')
   if ('error' in membership) return membership
 
   const supabase = await createClient()

@@ -82,21 +82,61 @@ export async function getNotifications(
   return { notifications, unreadCount: notifications.filter((n) => !n.readAt).length }
 }
 
+/**
+ * Explicit auth + tenant-scoping here rather than leaning solely on RLS
+ * (which already independently enforces is_studio_member(studio_id) on this
+ * table's UPDATE policy) — defense in depth, and it means a caller can only
+ * ever mark read a notification belonging to a studio they're an active
+ * member of, resolved from the notification row itself rather than trusted
+ * from the studioSlug param.
+ */
 export async function markNotificationRead(notificationId: string, studioSlug: string): Promise<void> {
   const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return
+
+  const { data: notification } = await supabase
+    .from('notifications')
+    .select('studio_id')
+    .eq('id', notificationId)
+    .single()
+  if (!notification) return
+
+  const { data: membership } = await supabase
+    .from('studio_members')
+    .select('id')
+    .eq('studio_id', notification.studio_id)
+    .eq('user_id', user.id)
+    .eq('status', 'active')
+    .single()
+  if (!membership) return
+
   await supabase
     .from('notifications')
     .update({ read_at: new Date().toISOString() })
     .eq('id', notificationId)
+    .eq('studio_id', notification.studio_id)
     .is('read_at', null)
   revalidatePath(`/dashboard/${studioSlug}`)
 }
 
 export async function markAllNotificationsRead(studioSlug: string): Promise<void> {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return
+
   const studioId = await getStudioId(studioSlug)
   if (!studioId) return
 
-  const supabase = await createClient()
+  const { data: membership } = await supabase
+    .from('studio_members')
+    .select('id')
+    .eq('studio_id', studioId)
+    .eq('user_id', user.id)
+    .eq('status', 'active')
+    .single()
+  if (!membership) return
+
   await supabase
     .from('notifications')
     .update({ read_at: new Date().toISOString() })

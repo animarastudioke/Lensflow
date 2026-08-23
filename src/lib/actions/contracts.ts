@@ -5,6 +5,7 @@ import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { z } from 'zod'
 import { requireEntitlement } from '@/lib/entitlements'
+import { requireStudioPermission } from '@/lib/auth/server'
 
 export type ContractStatus = 'draft' | 'sent' | 'viewed' | 'signed' | 'completed' | 'expired' | 'declined' | 'cancelled'
 export type SignerStatus = 'pending' | 'signed' | 'declined'
@@ -83,23 +84,6 @@ export async function getContract(contractId: string, studioSlug: string): Promi
   return contract as unknown as ContractRow | null
 }
 
-async function requireMembership(): Promise<{ error: string } | { studioId: string }> {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { error: 'Unauthorized' }
-
-  const { data: membership } = await supabase
-    .from('studio_members')
-    .select('studio_id')
-    .eq('user_id', user.id)
-    .eq('status', 'active')
-    .single()
-
-  if (!membership) return { error: 'No active studio membership' }
-
-  return { studioId: membership.studio_id }
-}
-
 const createContractSchema = z.object({
   title: z.string().min(1, 'Title is required').max(200),
   type: z.string().min(1).default('other'),
@@ -110,7 +94,7 @@ const createContractSchema = z.object({
 })
 
 export async function createContract(formData: FormData) {
-  const membership = await requireMembership()
+  const membership = await requireStudioPermission('contracts:create')
   if ('error' in membership) throw new Error(membership.error)
 
   await requireEntitlement(membership.studioId, 'crm')
@@ -177,7 +161,7 @@ const updateContractSchema = z.object({
 })
 
 export async function updateContract(formData: FormData) {
-  const membership = await requireMembership()
+  const membership = await requireStudioPermission('contracts:update')
   if ('error' in membership) throw new Error(membership.error)
 
   const id = formData.get('id') as string
@@ -227,7 +211,7 @@ export async function updateContractStatus(
   studioSlug: string,
   status: ContractStatus
 ): Promise<{ error: string } | undefined> {
-  const membership = await requireMembership()
+  const membership = await requireStudioPermission('contracts:update')
   if ('error' in membership) return membership
 
   const supabase = await createClient()
@@ -252,7 +236,7 @@ export async function updateContractStatus(
 }
 
 export async function deleteContract(contractId: string, studioSlug: string): Promise<{ error: string } | undefined> {
-  const membership = await requireMembership()
+  const membership = await requireStudioPermission('contracts:delete')
   if ('error' in membership) return membership
 
   const supabase = await createClient()

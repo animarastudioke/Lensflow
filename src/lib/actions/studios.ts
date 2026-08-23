@@ -8,6 +8,7 @@ import { deleteObjectsByPrefix, deleteObject, uploadObject, getR2PublicUrl, keyF
 import { getFreePlan, getEffectivePlan } from '@/lib/entitlements'
 import { supabaseAdmin } from '@/lib/supabase/admin'
 import { recordFreeWorkspaceSignupRisk } from '@/lib/actions/signup-risk'
+import { requireStudioPermission } from '@/lib/auth/server'
 
 const createStudioSchema = z.object({
   name: z.string().min(2, 'Studio name must be at least 2 characters').max(100),
@@ -210,23 +211,10 @@ const studioSettingsSchema = z.object({
 })
 
 export async function updateStudioSettings(studioSlug: string, formData: FormData): Promise<{ error: string } | undefined> {
+  const membership = await requireStudioPermission('settings:update')
+  if ('error' in membership) return membership
+
   const supabase = await createClient()
-
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) {
-    return { error: 'Unauthorized' }
-  }
-
-  const { data: membership } = await supabase
-    .from('studio_members')
-    .select('studio_id')
-    .eq('user_id', user.id)
-    .eq('status', 'active')
-    .single()
-
-  if (!membership) {
-    return { error: 'No active studio membership' }
-  }
 
   const parsed = studioSettingsSchema.safeParse({
     name: formData.get('name'),
@@ -264,7 +252,7 @@ export async function updateStudioSettings(studioSlug: string, formData: FormDat
       payment_terms: validated.payment_terms,
       updated_at: new Date().toISOString(),
     })
-    .eq('id', membership.studio_id)
+    .eq('id', membership.studioId)
 
   if (error) {
     console.error('Update studio settings error:', error)
@@ -279,23 +267,10 @@ const brandColorSchema = z.object({
 })
 
 export async function updateStudioBranding(studioSlug: string, formData: FormData): Promise<{ error: string } | undefined> {
+  const membership = await requireStudioPermission('settings:update')
+  if ('error' in membership) return membership
+
   const supabase = await createClient()
-
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) {
-    return { error: 'Unauthorized' }
-  }
-
-  const { data: membership } = await supabase
-    .from('studio_members')
-    .select('studio_id')
-    .eq('user_id', user.id)
-    .eq('status', 'active')
-    .single()
-
-  if (!membership) {
-    return { error: 'No active studio membership' }
-  }
 
   const parsed = brandColorSchema.safeParse({ brand_color: formData.get('brand_color') })
   if (!parsed.success) {
@@ -305,7 +280,7 @@ export async function updateStudioBranding(studioSlug: string, formData: FormDat
   const { error } = await supabase
     .from('studios')
     .update({ brand_color: parsed.data.brand_color, updated_at: new Date().toISOString() })
-    .eq('id', membership.studio_id)
+    .eq('id', membership.studioId)
 
   if (error) {
     console.error('Update studio branding error:', error)
@@ -330,21 +305,8 @@ export async function uploadStudioLogo(
 ): Promise<{ error: string } | { success: true; logoUrl: string }> {
   const supabase = await createClient()
 
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) {
-    return { error: 'Unauthorized' }
-  }
-
-  const { data: membership } = await supabase
-    .from('studio_members')
-    .select('studio_id')
-    .eq('user_id', user.id)
-    .eq('status', 'active')
-    .single()
-
-  if (!membership) {
-    return { error: 'No active studio membership' }
-  }
+  const membership = await requireStudioPermission('settings:update')
+  if ('error' in membership) return membership
 
   const file = formData.get('logo')
   if (!(file instanceof File) || file.size === 0) {
@@ -362,13 +324,13 @@ export async function uploadStudioLogo(
   const { data: existingStudio } = await supabase
     .from('studios')
     .select('logo_url')
-    .eq('id', membership.studio_id)
+    .eq('id', membership.studioId)
     .single()
 
   // The key includes a random suffix rather than a fixed "logo" filename so
   // a re-upload doesn't collide with a stale cached copy of the old one at
   // the same URL — the old object is deleted below once the new one is live.
-  const key = `studios/${membership.studio_id}/branding/logo-${crypto.randomUUID()}.${extension}`
+  const key = `studios/${membership.studioId}/branding/logo-${crypto.randomUUID()}.${extension}`
   const buffer = Buffer.from(await file.arrayBuffer())
 
   try {
@@ -383,7 +345,7 @@ export async function uploadStudioLogo(
   const { error } = await supabase
     .from('studios')
     .update({ logo_url: logoUrl, updated_at: new Date().toISOString() })
-    .eq('id', membership.studio_id)
+    .eq('id', membership.studioId)
 
   if (error) {
     console.error('Save logo_url error:', error)

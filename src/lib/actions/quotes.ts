@@ -115,6 +115,40 @@ export async function getQuoteByToken(token: string): Promise<PublicQuote | null
   return { ...(data as unknown as QuoteRow), studio, currency: studio.currency }
 }
 
+function generateShareToken(): string {
+  return Array.from(crypto.getRandomValues(new Uint8Array(16)))
+    .map((b) => b.toString(16).padStart(2, '0'))
+    .join('')
+}
+
+/** Invalidates the quote's current share link and issues a new one — see regenerateInvoiceShareToken for the pattern this mirrors. */
+export async function regenerateQuoteShareToken(
+  quoteId: string,
+  studioSlug: string
+): Promise<{ error: string } | { success: true; shareToken: string }> {
+  const membership = await requireStudioPermission('quotes:update')
+  if ('error' in membership) return membership
+
+  const supabase = await createClient()
+  const newToken = generateShareToken()
+
+  const { data, error } = await supabase
+    .from('quotes')
+    .update({ share_token: newToken, updated_at: new Date().toISOString() })
+    .eq('id', quoteId)
+    .eq('studio_id', membership.studioId)
+    .select('id')
+    .single()
+
+  if (error || !data) {
+    console.error('Regenerate quote share token error:', error)
+    return { error: 'Failed to regenerate share link' }
+  }
+
+  revalidatePath(`/dashboard/${studioSlug}/quotes/${quoteId}`)
+  return { success: true, shareToken: newToken }
+}
+
 async function requireMembership(): Promise<{ error: string } | { studioId: string }> {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()

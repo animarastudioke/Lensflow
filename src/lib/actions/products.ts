@@ -92,27 +92,13 @@ const productCreateSchema = z.object({
 })
 
 export async function createProduct(formData: FormData) {
+  const membership = await requireStudioPermission('store:manage_products')
+  if ('error' in membership) throw new Error(membership.error)
+
   const supabase = await createClient()
-
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) {
-    throw new Error('Unauthorized')
-  }
-
   const studioSlug = formData.get('studio_slug') as string
 
-  const { data: membership } = await supabase
-    .from('studio_members')
-    .select('studio_id')
-    .eq('user_id', user.id)
-    .eq('status', 'active')
-    .single()
-
-  if (!membership) {
-    throw new Error('No active studio membership')
-  }
-
-  await requireEntitlement(membership.studio_id, 'store')
+  await requireEntitlement(membership.studioId, 'store')
 
   const priceRaw = formData.get('price')
   const salePriceRaw = formData.get('sale_price')
@@ -137,7 +123,7 @@ export async function createProduct(formData: FormData) {
   const { error } = await supabase
     .from('products')
     .insert({
-      studio_id: membership.studio_id,
+      studio_id: membership.studioId,
       name: validated.name,
       description: validated.description,
       type: validated.type,
