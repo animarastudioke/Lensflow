@@ -5,6 +5,7 @@ import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { z } from 'zod'
 import { requireEntitlement } from '@/lib/entitlements'
+import { requireStudioPermission } from '@/lib/auth/server'
 import { createPresignedUploadUrl, deleteObject, headObject } from '@/lib/storage/r2'
 
 export type ProductType = 'digital' | 'print' | 'album' | 'package' | 'service'
@@ -172,32 +173,19 @@ const productUpdateSchema = z.object({
 })
 
 export async function updateProduct(formData: FormData) {
-  const supabase = await createClient()
+  const membership = await requireStudioPermission('store:manage_products')
+  if ('error' in membership) throw new Error(membership.error)
 
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) {
-    throw new Error('Unauthorized')
-  }
+  const supabase = await createClient()
 
   const id = formData.get('id') as string
   const studioSlug = formData.get('studio_slug') as string
-
-  const { data: membership } = await supabase
-    .from('studio_members')
-    .select('studio_id')
-    .eq('user_id', user.id)
-    .eq('status', 'active')
-    .single()
-
-  if (!membership) {
-    throw new Error('No active studio membership')
-  }
 
   const { data: existing } = await supabase
     .from('products')
     .select('id')
     .eq('id', id)
-    .eq('studio_id', membership.studio_id)
+    .eq('studio_id', membership.studioId)
     .single()
 
   if (!existing) {
@@ -240,7 +228,7 @@ export async function updateProduct(formData: FormData) {
       updated_at: new Date().toISOString(),
     })
     .eq('id', id)
-    .eq('studio_id', membership.studio_id)
+    .eq('studio_id', membership.studioId)
 
   if (error) {
     console.error('Update product error:', error)
@@ -253,36 +241,23 @@ export async function updateProduct(formData: FormData) {
 }
 
 export async function deleteProduct(productId: string, studioSlug: string): Promise<{ error: string } | undefined> {
+  const membership = await requireStudioPermission('store:manage_products')
+  if ('error' in membership) return membership
+
   const supabase = await createClient()
-
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) {
-    return { error: 'Unauthorized' }
-  }
-
-  const { data: membership } = await supabase
-    .from('studio_members')
-    .select('studio_id')
-    .eq('user_id', user.id)
-    .eq('status', 'active')
-    .single()
-
-  if (!membership) {
-    return { error: 'No active studio membership' }
-  }
 
   const { data: existing } = await supabase
     .from('products')
     .select('digital_file_key')
     .eq('id', productId)
-    .eq('studio_id', membership.studio_id)
+    .eq('studio_id', membership.studioId)
     .single()
 
   const { error } = await supabase
     .from('products')
     .delete()
     .eq('id', productId)
-    .eq('studio_id', membership.studio_id)
+    .eq('studio_id', membership.studioId)
 
   if (error) {
     console.error('Delete product error:', error)
@@ -408,28 +383,15 @@ export async function finalizeProductFileUpload(
 }
 
 export async function archiveProducts(productIds: string[], studioSlug: string): Promise<{ error: string } | undefined> {
+  const membership = await requireStudioPermission('store:manage_products')
+  if ('error' in membership) return membership
+
   const supabase = await createClient()
-
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) {
-    return { error: 'Unauthorized' }
-  }
-
-  const { data: membership } = await supabase
-    .from('studio_members')
-    .select('studio_id')
-    .eq('user_id', user.id)
-    .eq('status', 'active')
-    .single()
-
-  if (!membership) {
-    return { error: 'No active studio membership' }
-  }
 
   const { error } = await supabase
     .from('products')
     .update({ status: 'archived' })
-    .eq('studio_id', membership.studio_id)
+    .eq('studio_id', membership.studioId)
     .in('id', productIds)
 
   if (error) {

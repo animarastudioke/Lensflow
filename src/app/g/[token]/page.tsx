@@ -1,6 +1,6 @@
 import { Metadata } from 'next'
 import { notFound } from 'next/navigation'
-import { getGalleryByToken, incrementGalleryView } from '@/lib/actions/galleries'
+import { getGalleryGateInfo, getGalleryByToken, incrementGalleryView, verifyGalleryPassword } from '@/lib/actions/galleries'
 import { ClientGalleryContent } from './ClientGalleryContent'
 
 interface Props {
@@ -10,7 +10,7 @@ interface Props {
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { token } = await params
-  const gallery = await getGalleryByToken(token)
+  const gallery = await getGalleryGateInfo(token)
 
   if (!gallery) {
     return { title: 'Gallery Not Found' }
@@ -39,13 +39,19 @@ export default async function ClientGalleryPage({ params, searchParams }: Props)
   // Increment view count (fire and forget)
   incrementGalleryView(token).catch(console.error)
 
-  const gallery = await getGalleryByToken(token)
+  // Gate-only fetch first: name/branding/expiry/password_protected, never
+  // media, client PII, share_token, or any password hash. Only once the
+  // caller is known to be authorized (not password-protected, or the
+  // password below verifies) do we fetch the full gallery — otherwise that
+  // data would be serialized into this page's RSC payload and reach the
+  // browser regardless of what the password-gate UI chooses to render.
+  const gate = await getGalleryGateInfo(token)
 
-  if (!gallery) {
+  if (!gate) {
     notFound()
   }
 
-  if (gallery.expired) {
+  if (gate.expired) {
     return (
       <ClientGalleryContent
         gallery={null}
@@ -56,33 +62,50 @@ export default async function ClientGalleryPage({ params, searchParams }: Props)
     )
   }
 
-  // Check password protection
-  if (gallery.password_protected) {
+  if (gate.password_protected) {
     const providedPassword = password || ''
-    if (!providedPassword) {
-      return (
-        <ClientGalleryContent
-          gallery={gallery}
-          token={token}
-          embed={embed === 'true'}
-          requirePassword
-        />
-      )
-    }
+    const isValid = providedPassword ? await verifyGalleryPassword(token, providedPassword) : false
 
-    // Verify password
-    const isValid = await import('@/lib/actions/galleries').then(m => m.verifyGalleryPassword(token, providedPassword))
     if (!isValid) {
       return (
         <ClientGalleryContent
-          gallery={gallery}
+          gallery={{
+            id: gate.id,
+            studio_id: gate.studio_id,
+            name: gate.name,
+            cover_image: gate.cover_image ?? undefined,
+            // Placeholder values for fields the password-gate screen never
+            // reads (it only checks the gallery object is present) — the
+            // real values live behind the password check, in the full
+            // getGalleryByToken() fetch below.
+            type: 'other',
+            media_count: 0,
+            allow_download: false,
+            allow_comments: false,
+            allow_favorites: false,
+            watermark_enabled: false,
+            password_protected: true,
+            share_token: token,
+            layout_type: 'grid',
+            cover_template: gate.cover_template,
+            heading_font: gate.heading_font ?? undefined,
+            studio: gate.studio
+              ? { name: gate.studio.name, slug: gate.studio.slug, logo_url: gate.studio.logo_url ?? undefined, brand_color: gate.studio.brand_color ?? undefined }
+              : undefined,
+          }}
           token={token}
           embed={embed === 'true'}
           requirePassword
-          passwordError="Incorrect password. Please try again."
+          passwordError={providedPassword ? 'Incorrect password. Please try again.' : undefined}
         />
       )
     }
+  }
+
+  const gallery = await getGalleryByToken(token)
+
+  if (!gallery || gallery.expired) {
+    notFound()
   }
 
   return (

@@ -3,6 +3,7 @@ import { Readable } from 'node:stream'
 import { supabaseAdmin } from '@/lib/supabase/admin'
 import { hasEntitlement } from '@/lib/entitlements'
 import { getObjectWithMeta } from '@/lib/storage/r2'
+import { verifyGalleryPassword } from '@/lib/actions/galleries'
 
 // Gated single-asset original download. Entitlement is resolved from the
 // *studio's* plan, not the (anonymous, public-gallery) requester's identity
@@ -19,7 +20,7 @@ import { getObjectWithMeta } from '@/lib/storage/r2'
 // The dashboard's own download link/store download link don't have this
 // problem since they're plain <a href> navigations, never read via fetch().
 export async function GET(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ assetId: string }> }
 ) {
   const { assetId } = await params
@@ -36,7 +37,7 @@ export async function GET(
 
   const { data: gallery, error: galleryError } = await supabaseAdmin
     .from('galleries')
-    .select('id, studio_id, status, allow_download')
+    .select('id, studio_id, status, allow_download, share_token')
     .eq('id', media.gallery_id)
     .single()
 
@@ -46,6 +47,16 @@ export async function GET(
 
   if (gallery.status !== 'published' || !gallery.allow_download) {
     return NextResponse.json({ error: 'Downloads are not available for this gallery' }, { status: 403 })
+  }
+
+  // Re-verify the actual password server-side — never trust a client-side
+  // "already unlocked this gallery" claim. verifyGalleryPassword() itself
+  // returns true when the gallery isn't password-protected, so this is a
+  // no-op for the (more common) unprotected-gallery case.
+  const providedPassword = request.nextUrl.searchParams.get('password') ?? ''
+  const passwordOk = await verifyGalleryPassword(gallery.share_token, providedPassword)
+  if (!passwordOk) {
+    return NextResponse.json({ error: 'This gallery is password protected' }, { status: 403 })
   }
 
   const entitled = await hasEntitlement(gallery.studio_id, 'original_download')
