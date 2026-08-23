@@ -120,6 +120,46 @@ export async function getInvoiceByToken(token: string): Promise<PublicInvoice | 
   return { ...(data as unknown as InvoiceRow), studio, currency: studio.currency }
 }
 
+function generateShareToken(): string {
+  return Array.from(crypto.getRandomValues(new Uint8Array(16)))
+    .map((b) => b.toString(16).padStart(2, '0'))
+    .join('')
+}
+
+/**
+ * Invalidates the invoice's current share link and issues a new one — same
+ * "old token stops resolving, new token works immediately" contract as
+ * galleries' regenerateShareToken, for when a link has leaked or a client
+ * needs a fresh one. getInvoiceByToken and the PDF route both look up by
+ * this column, so a single update covers both without further changes.
+ */
+export async function regenerateInvoiceShareToken(
+  invoiceId: string,
+  studioSlug: string
+): Promise<{ error: string } | { success: true; shareToken: string }> {
+  const membership = await requireStudioPermission('invoices:update')
+  if ('error' in membership) return membership
+
+  const supabase = await createClient()
+  const newToken = generateShareToken()
+
+  const { data, error } = await supabase
+    .from('invoices')
+    .update({ share_token: newToken, updated_at: new Date().toISOString() })
+    .eq('id', invoiceId)
+    .eq('studio_id', membership.studioId)
+    .select('id')
+    .single()
+
+  if (error || !data) {
+    console.error('Regenerate invoice share token error:', error)
+    return { error: 'Failed to regenerate share link' }
+  }
+
+  revalidatePath(`/dashboard/${studioSlug}/invoices/${invoiceId}`)
+  return { success: true, shareToken: newToken }
+}
+
 async function requireMembership(): Promise<{ error: string } | { studioId: string }> {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()

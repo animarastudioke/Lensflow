@@ -1,6 +1,7 @@
 'use server'
 
 import { createClient } from '@/lib/supabase/server'
+import { requireStudioPermission } from '@/lib/auth/server'
 
 export interface PaymentRow {
   invoiceId: string
@@ -18,20 +19,16 @@ export interface PaymentRow {
 // processor integration yet - the only real record of money received is
 // invoices.amount_paid. This derives a payments list from that rather than
 // inventing a ledger that doesn't exist.
-export async function getPayments(studioSlug: string): Promise<{ payments: PaymentRow[]; totalCollected: number }> {
-  const supabase = await createClient()
-  const { data: studio } = await supabase
-    .from('studios')
-    .select('id')
-    .eq('slug', studioSlug)
-    .single()
+export async function getPayments(_studioSlug: string): Promise<{ payments: PaymentRow[]; totalCollected: number }> {
+  const membership = await requireStudioPermission('payments:read')
+  if ('error' in membership) return { payments: [], totalCollected: 0 }
 
-  if (!studio) return { payments: [], totalCollected: 0 }
+  const supabase = await createClient()
 
   const { data: invoices, error } = await supabase
     .from('invoices')
     .select('id, invoice_number, status, issue_date, paid_at, total, amount_paid, client:clients(name, email)')
-    .eq('studio_id', studio.id)
+    .eq('studio_id', membership.studioId)
     .gt('amount_paid', 0)
     .order('paid_at', { ascending: false, nullsFirst: false })
 

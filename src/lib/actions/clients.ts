@@ -5,6 +5,7 @@ import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { z } from 'zod'
 import { requireEntitlement } from '@/lib/entitlements'
+import { requireStudioPermission } from '@/lib/auth/server'
 
 export type ClientStatus = 'lead' | 'active' | 'inactive' | 'archived'
 
@@ -89,23 +90,6 @@ export async function getClient(clientId: string, studioSlug: string): Promise<C
   return client
 }
 
-async function requireMembership(): Promise<{ error: string } | { studioId: string }> {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { error: 'Unauthorized' }
-
-  const { data: membership } = await supabase
-    .from('studio_members')
-    .select('studio_id')
-    .eq('user_id', user.id)
-    .eq('status', 'active')
-    .single()
-
-  if (!membership) return { error: 'No active studio membership' }
-
-  return { studioId: membership.studio_id }
-}
-
 const clientSchema = z.object({
   first_name: z.string().min(1, 'First name is required').max(100),
   last_name: z.string().max(100).optional(),
@@ -121,7 +105,7 @@ const clientSchema = z.object({
 })
 
 export async function createClientRecord(formData: FormData) {
-  const membership = await requireMembership()
+  const membership = await requireStudioPermission('clients:create')
   if ('error' in membership) throw new Error(membership.error)
 
   await requireEntitlement(membership.studioId, 'crm')
@@ -172,7 +156,7 @@ export async function createClientRecord(formData: FormData) {
 }
 
 export async function updateClient(formData: FormData) {
-  const membership = await requireMembership()
+  const membership = await requireStudioPermission('clients:update')
   if ('error' in membership) throw new Error(membership.error)
 
   const id = formData.get('id') as string
@@ -224,7 +208,7 @@ export async function updateClient(formData: FormData) {
 }
 
 export async function deleteClient(clientId: string, studioSlug: string): Promise<{ error: string } | undefined> {
-  const membership = await requireMembership()
+  const membership = await requireStudioPermission('clients:delete')
   if ('error' in membership) return membership
 
   const supabase = await createClient()
@@ -244,7 +228,7 @@ export async function deleteClient(clientId: string, studioSlug: string): Promis
 }
 
 export async function bulkDeleteClients(clientIds: string[], studioSlug: string): Promise<{ error: string } | undefined> {
-  const membership = await requireMembership()
+  const membership = await requireStudioPermission('clients:delete')
   if ('error' in membership) return membership
 
   const supabase = await createClient()
@@ -268,7 +252,7 @@ export async function setClientsStatus(
   status: ClientStatus,
   studioSlug: string
 ): Promise<{ error: string } | undefined> {
-  const membership = await requireMembership()
+  const membership = await requireStudioPermission('clients:update')
   if ('error' in membership) return membership
 
   const supabase = await createClient()

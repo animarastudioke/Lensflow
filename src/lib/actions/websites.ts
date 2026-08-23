@@ -5,6 +5,7 @@ import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { z } from 'zod'
 import { hasEntitlement, requireEntitlement } from '@/lib/entitlements'
+import { requireStudioPermission } from '@/lib/auth/server'
 
 export type WebsiteStatus = 'published' | 'draft' | 'archived'
 
@@ -49,23 +50,6 @@ const TEMPLATES = [
 
 export async function getWebsiteTemplates() {
   return TEMPLATES
-}
-
-async function requireMembership(): Promise<{ error: string } | { userId: string; studioId: string }> {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { error: 'Unauthorized' }
-
-  const { data: membership } = await supabase
-    .from('studio_members')
-    .select('studio_id')
-    .eq('user_id', user.id)
-    .eq('status', 'active')
-    .single()
-
-  if (!membership) return { error: 'No active studio membership' }
-
-  return { userId: user.id, studioId: membership.studio_id }
 }
 
 export async function getWebsites(studioSlug: string): Promise<{ websites: WebsiteRow[]; total: number }> {
@@ -123,7 +107,7 @@ const createWebsiteSchema = z.object({
 })
 
 export async function createWebsite(formData: FormData) {
-  const membership = await requireMembership()
+  const membership = await requireStudioPermission('website:create')
   if ('error' in membership) throw new Error(membership.error)
 
   await requireEntitlement(membership.studioId, 'website_builder')
@@ -179,7 +163,7 @@ export async function createWebsite(formData: FormData) {
 }
 
 export async function deleteWebsite(websiteId: string, studioSlug: string): Promise<{ error: string } | undefined> {
-  const membership = await requireMembership()
+  const membership = await requireStudioPermission('website:delete')
   if ('error' in membership) return membership
 
   const supabase = await createClient()
@@ -198,7 +182,7 @@ export async function deleteWebsite(websiteId: string, studioSlug: string): Prom
 }
 
 export async function bulkDeleteWebsites(websiteIds: string[], studioSlug: string): Promise<{ error: string } | undefined> {
-  const membership = await requireMembership()
+  const membership = await requireStudioPermission('website:delete')
   if ('error' in membership) return membership
 
   const supabase = await createClient()
@@ -221,7 +205,7 @@ export async function setWebsiteStatus(
   status: WebsiteStatus,
   studioSlug: string
 ): Promise<{ error: string } | undefined> {
-  const membership = await requireMembership()
+  const membership = await requireStudioPermission('website:publish')
   if ('error' in membership) return membership
 
   if (status === 'published' && !(await hasEntitlement(membership.studioId, 'website_builder'))) {
@@ -252,7 +236,7 @@ export async function bulkSetWebsiteStatus(
   status: WebsiteStatus,
   studioSlug: string
 ): Promise<{ error: string } | undefined> {
-  const membership = await requireMembership()
+  const membership = await requireStudioPermission('website:publish')
   if ('error' in membership) return membership
 
   if (status === 'published' && !(await hasEntitlement(membership.studioId, 'website_builder'))) {
@@ -279,7 +263,7 @@ export async function bulkSetWebsiteStatus(
 }
 
 export async function duplicateWebsite(websiteId: string, studioSlug: string): Promise<{ error: string } | undefined> {
-  const membership = await requireMembership()
+  const membership = await requireStudioPermission('website:create')
   if ('error' in membership) return membership
 
   const supabase = await createClient()
@@ -349,7 +333,7 @@ const updateWebsiteSchema = z.object({
 })
 
 export async function updateWebsiteSettings(formData: FormData) {
-  const membership = await requireMembership()
+  const membership = await requireStudioPermission('website:update')
   if ('error' in membership) throw new Error(membership.error)
 
   const websiteId = formData.get('id') as string
@@ -399,7 +383,7 @@ const addPageSchema = z.object({
 })
 
 export async function addWebsitePage(formData: FormData) {
-  const membership = await requireMembership()
+  const membership = await requireStudioPermission('website:manage_pages')
   if ('error' in membership) throw new Error(membership.error)
 
   const websiteId = formData.get('website_id') as string
@@ -446,7 +430,7 @@ export async function setPagePublished(
   websiteId: string,
   studioSlug: string
 ): Promise<{ error: string } | undefined> {
-  const membership = await requireMembership()
+  const membership = await requireStudioPermission('website:manage_pages')
   if ('error' in membership) return membership
 
   const supabase = await createClient()
@@ -478,7 +462,7 @@ export async function deleteWebsitePage(
   websiteId: string,
   studioSlug: string
 ): Promise<{ error: string } | undefined> {
-  const membership = await requireMembership()
+  const membership = await requireStudioPermission('website:manage_pages')
   if ('error' in membership) return membership
 
   const supabase = await createClient()

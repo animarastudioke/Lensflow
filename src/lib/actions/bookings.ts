@@ -5,6 +5,7 @@ import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { z } from 'zod'
 import { requireEntitlement } from '@/lib/entitlements'
+import { requireStudioPermission } from '@/lib/auth/server'
 import { sendEmail } from '@/lib/email/resend'
 import { bookingConfirmationEmail } from '@/lib/email/templates'
 
@@ -110,27 +111,14 @@ const bookingCreateSchema = z.object({
 })
 
 export async function createBooking(formData: FormData) {
-  const supabase = await createClient()
+  const membership = await requireStudioPermission('bookings:create')
+  if ('error' in membership) throw new Error(membership.error)
 
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) {
-    throw new Error('Unauthorized')
-  }
+  const supabase = await createClient()
 
   const studioSlug = formData.get('studio_slug') as string
 
-  const { data: membership } = await supabase
-    .from('studio_members')
-    .select('studio_id, role')
-    .eq('user_id', user.id)
-    .eq('status', 'active')
-    .single()
-
-  if (!membership) {
-    throw new Error('No active studio membership')
-  }
-
-  await requireEntitlement(membership.studio_id, 'booking')
+  await requireEntitlement(membership.studioId, 'booking')
 
   const totalPriceRaw = formData.get('total_price')
   const depositAmountRaw = formData.get('deposit_amount')
@@ -156,7 +144,7 @@ export async function createBooking(formData: FormData) {
   const { error } = await supabase
     .from('bookings')
     .insert({
-      studio_id: membership.studio_id,
+      studio_id: membership.studioId,
       client_id: validated.client_id,
       session_name: validated.session_name,
       package_name: validated.package_name,
@@ -179,7 +167,7 @@ export async function createBooking(formData: FormData) {
   }
 
   const { createNotification } = await import('@/lib/actions/notifications')
-  await createNotification(membership.studio_id, {
+  await createNotification(membership.studioId, {
     type: 'booking_created',
     title: 'New booking',
     body: validated.session_name,
@@ -189,7 +177,7 @@ export async function createBooking(formData: FormData) {
   if (validated.client_id) {
     const [{ data: client }, { data: studio }] = await Promise.all([
       supabase.from('clients').select('name, email').eq('id', validated.client_id).single(),
-      supabase.from('studios').select('name, logo_url, brand_color').eq('id', membership.studio_id).single(),
+      supabase.from('studios').select('name, logo_url, brand_color').eq('id', membership.studioId).single(),
     ])
     if (client?.email && studio) {
       const { subject, html } = bookingConfirmationEmail({

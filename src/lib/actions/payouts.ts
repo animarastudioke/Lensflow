@@ -2,6 +2,7 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { supabaseAdmin } from '@/lib/supabase/admin'
+import { requireStudioPermission } from '@/lib/auth/server'
 import { revalidatePath } from 'next/cache'
 
 export interface PayoutRow {
@@ -26,22 +27,23 @@ export interface StudioPayoutSummary {
 // invoice or a store order, never a subscription payment (plan_id), which
 // runs the other direction (studio paying the platform). See resolve.ts's
 // invoice_id/order_id/plan_id branches, the same distinction this mirrors.
-export async function getStudioPayoutSummary(studioSlug: string): Promise<StudioPayoutSummary | null> {
+export async function getStudioPayoutSummary(_studioSlug: string): Promise<StudioPayoutSummary | null> {
+  const membership = await requireStudioPermission('payments:read')
+  if ('error' in membership) return null
+
   const supabase = await createClient()
-  const { data: studio } = await supabase.from('studios').select('id, currency').eq('slug', studioSlug).single()
-  if (!studio) return null
 
   const [{ data: collectedRows }, { data: payoutRows }] = await Promise.all([
     supabase
       .from('payments')
       .select('amount, currency')
-      .eq('studio_id', studio.id)
+      .eq('studio_id', membership.studioId)
       .eq('status', 'completed')
       .or('invoice_id.not.is.null,order_id.not.is.null'),
     supabase
       .from('payouts')
       .select('id, amount, currency, method, reference, note, created_at')
-      .eq('studio_id', studio.id)
+      .eq('studio_id', membership.studioId)
       .order('created_at', { ascending: false }),
   ])
 

@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import { supabaseAdmin } from '@/lib/supabase/admin'
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
+import { requireStudioPermission } from '@/lib/auth/server'
 
 export type QuestionnaireFieldType =
   | 'text'
@@ -53,22 +54,6 @@ function generateShareToken(): string {
   return Array.from(crypto.getRandomValues(new Uint8Array(16)))
     .map((b) => b.toString(16).padStart(2, '0'))
     .join('')
-}
-
-async function requireMembership(): Promise<{ error: string } | { userId: string; studioId: string }> {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { error: 'Unauthorized' }
-
-  const { data: membership } = await supabase
-    .from('studio_members')
-    .select('studio_id')
-    .eq('user_id', user.id)
-    .eq('status', 'active')
-    .single()
-
-  if (!membership) return { error: 'No active studio membership' }
-  return { userId: user.id, studioId: membership.studio_id }
 }
 
 export async function getTemplates(studioSlug: string): Promise<QuestionnaireTemplateRow[]> {
@@ -131,7 +116,7 @@ export async function createTemplate(
   studioSlug: string,
   formData: FormData
 ): Promise<{ error: string } | { success: true; templateId: string }> {
-  const membership = await requireMembership()
+  const membership = await requireStudioPermission('questionnaires:create')
   if ('error' in membership) return membership
 
   const parsed = templateCreateSchema.safeParse({
@@ -166,7 +151,7 @@ export async function updateTemplateFields(
   studioSlug: string,
   fields: QuestionnaireField[]
 ): Promise<{ error: string } | { success: true }> {
-  const membership = await requireMembership()
+  const membership = await requireStudioPermission('questionnaires:update')
   if ('error' in membership) return membership
 
   const supabase = await createClient()
@@ -182,7 +167,7 @@ export async function updateTemplateFields(
 }
 
 export async function deleteTemplate(templateId: string, studioSlug: string): Promise<{ error: string } | { success: true }> {
-  const membership = await requireMembership()
+  const membership = await requireStudioPermission('questionnaires:delete')
   if ('error' in membership) return membership
 
   const supabase = await createClient()
@@ -202,7 +187,7 @@ export async function sendQuestionnaire(
   studioSlug: string,
   clientId: string | null
 ): Promise<{ error: string } | { success: true; shareToken: string }> {
-  const membership = await requireMembership()
+  const membership = await requireStudioPermission('questionnaires:send')
   if ('error' in membership) return membership
 
   const supabase = await createClient()
