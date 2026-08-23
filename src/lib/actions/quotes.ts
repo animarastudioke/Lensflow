@@ -100,7 +100,16 @@ export interface PublicQuote extends QuoteRow {
   currency: string
 }
 
-/** Public, unauthenticated lookup by share_token — see getInvoiceByToken for the pattern this mirrors. */
+/**
+ * Public, unauthenticated lookup by share_token — see getInvoiceByToken for
+ * the pattern this mirrors. Unlike invoices, quotes carry an expires_at
+ * (set by the studio when sending the quote): once that date has passed,
+ * the token stops resolving here entirely — fails closed for both this
+ * page and the PDF route, which both call this and only this function,
+ * rather than duplicating an expiry check in each caller. A null
+ * expires_at means the quote was never given an expiry and keeps working
+ * indefinitely, same as before this check existed.
+ */
 export async function getQuoteByToken(token: string): Promise<PublicQuote | null> {
   const { data, error } = await supabaseAdmin
     .from('quotes')
@@ -109,6 +118,7 @@ export async function getQuoteByToken(token: string): Promise<PublicQuote | null
     .single()
 
   if (error || !data) return null
+  if (data.expires_at && new Date(data.expires_at) < new Date()) return null
 
   const studio = data.studio as unknown as { name: string; logo_url: string | null; brand_color: string | null; email: string | null; phone: string | null; address: string | null; currency: string }
 

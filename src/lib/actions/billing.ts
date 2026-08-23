@@ -1,6 +1,7 @@
 'use server'
 
 import { createClient } from '@/lib/supabase/server'
+import { requireStudioPermission } from '@/lib/auth/server'
 import { getEffectivePlan, getStorageUsage, getSubscriptionAccessState } from '@/lib/entitlements'
 import type { Plan, StorageUsage, SubscriptionAccessState } from '@/lib/entitlements'
 
@@ -61,15 +62,16 @@ export interface SubscriptionPaymentRow {
   receiptNumber: string | null
 }
 
-export async function getSubscriptionPaymentHistory(studioSlug: string): Promise<SubscriptionPaymentRow[]> {
+export async function getSubscriptionPaymentHistory(_studioSlug: string): Promise<SubscriptionPaymentRow[]> {
+  const membership = await requireStudioPermission('payments:read')
+  if ('error' in membership) return []
+
   const supabase = await createClient()
-  const { data: studio } = await supabase.from('studios').select('id').eq('slug', studioSlug).single()
-  if (!studio) return []
 
   const { data, error } = await supabase
     .from('payments')
     .select('id, amount, currency, status, created_at, provider_receipt_number, plan:plans(name)')
-    .eq('studio_id', studio.id)
+    .eq('studio_id', membership.studioId)
     .not('plan_id', 'is', null)
     .order('created_at', { ascending: false })
     .limit(20)
