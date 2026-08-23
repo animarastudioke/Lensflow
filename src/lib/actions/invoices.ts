@@ -6,6 +6,7 @@ import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { z } from 'zod'
 import { requireEntitlement } from '@/lib/entitlements'
+import { requireStudioPermission } from '@/lib/auth/server'
 import { sendEmail } from '@/lib/email/resend'
 import { invoiceSentEmail } from '@/lib/email/templates'
 
@@ -177,7 +178,11 @@ export async function updateInvoiceStatus(
   status: InvoiceStatus,
   studioSlug: string
 ): Promise<{ error: string } | undefined> {
-  const membership = await requireMembership()
+  // Marking an invoice paid is a payments action (invoices:manage_payments),
+  // distinct from other status changes (invoices:update) — a photographer
+  // can move an invoice to 'sent'/'viewed' but can't record it as paid
+  // outside a verified M-Pesa payment; only an owner/admin can.
+  const membership = await requireStudioPermission(status === 'paid' ? 'invoices:manage_payments' : 'invoices:update')
   if ('error' in membership) return membership
 
   const supabase = await createClient()
@@ -219,7 +224,7 @@ export async function bulkUpdateInvoiceStatus(
   status: InvoiceStatus,
   studioSlug: string
 ): Promise<{ error: string } | undefined> {
-  const membership = await requireMembership()
+  const membership = await requireStudioPermission(status === 'paid' ? 'invoices:manage_payments' : 'invoices:update')
   if ('error' in membership) return membership
 
   const supabase = await createClient()
@@ -253,7 +258,7 @@ export async function bulkUpdateInvoiceStatus(
 }
 
 export async function deleteInvoice(invoiceId: string, studioSlug: string): Promise<{ error: string } | undefined> {
-  const membership = await requireMembership()
+  const membership = await requireStudioPermission('invoices:delete')
   if ('error' in membership) return membership
 
   const supabase = await createClient()
@@ -272,7 +277,7 @@ export async function deleteInvoice(invoiceId: string, studioSlug: string): Prom
 }
 
 export async function bulkDeleteInvoices(invoiceIds: string[], studioSlug: string): Promise<{ error: string } | undefined> {
-  const membership = await requireMembership()
+  const membership = await requireStudioPermission('invoices:delete')
   if ('error' in membership) return membership
 
   const supabase = await createClient()

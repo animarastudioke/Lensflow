@@ -1,5 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
-import { UserRole } from './permissions'
+import { UserRole, Permission, hasPermission } from './permissions'
 
 export interface AuthUser {
   id: string
@@ -81,6 +81,40 @@ export async function requirePermission(
 export async function getStudioId(): Promise<string | null> {
   const user = await getAuthUser()
   return user?.studioId ?? null
+}
+
+/**
+ * Studio-scoped permission check for financial/store Server Actions
+ * (invoices, quotes, orders, products). Uses the caller's *studio_members*
+ * role for the studio they're actually acting in — not profiles.role, which
+ * is a single global field and can't express "manager in studio A,
+ * read-only in studio B" — checked against the same ROLE_PERMISSIONS matrix
+ * used everywhere else (src/lib/auth/permissions.ts). Merely having an
+ * active membership is not sufficient: a team_member/editor/client role has
+ * an active membership but few or no financial permissions.
+ */
+export async function requireStudioPermission(
+  permission: Permission
+): Promise<{ error: string } | { userId: string; studioId: string; role: UserRole }> {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'Unauthorized' }
+
+  const { data: membership } = await supabase
+    .from('studio_members')
+    .select('studio_id, role')
+    .eq('user_id', user.id)
+    .eq('status', 'active')
+    .single()
+
+  if (!membership) return { error: 'No active studio membership' }
+
+  const role = membership.role as UserRole
+  if (!hasPermission(role, permission)) {
+    return { error: 'You do not have permission to perform this action' }
+  }
+
+  return { userId: user.id, studioId: membership.studio_id, role }
 }
 
 export async function getUserStudiios(): Promise<string[]> {

@@ -6,6 +6,7 @@ import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { z } from 'zod'
 import { requireEntitlement } from '@/lib/entitlements'
+import { requireStudioPermission } from '@/lib/auth/server'
 import { sendEmail } from '@/lib/email/resend'
 import { quoteSentEmail } from '@/lib/email/templates'
 
@@ -167,7 +168,7 @@ export async function updateQuoteStatus(
   status: QuoteStatus,
   studioSlug: string
 ): Promise<{ error: string } | undefined> {
-  const membership = await requireMembership()
+  const membership = await requireStudioPermission('quotes:update')
   if ('error' in membership) return membership
 
   const supabase = await createClient()
@@ -190,7 +191,7 @@ export async function updateQuoteStatus(
 }
 
 export async function deleteQuote(quoteId: string, studioSlug: string): Promise<{ error: string } | undefined> {
-  const membership = await requireMembership()
+  const membership = await requireStudioPermission('quotes:delete')
   if ('error' in membership) return membership
 
   const supabase = await createClient()

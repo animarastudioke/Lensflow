@@ -4,20 +4,21 @@ import archiver from 'archiver'
 import { supabaseAdmin } from '@/lib/supabase/admin'
 import { hasEntitlement } from '@/lib/entitlements'
 import { getObjectStream } from '@/lib/storage/r2'
+import { verifyGalleryPassword } from '@/lib/actions/galleries'
 
 // Streams a zip of every photo in a shared gallery, gated by the studio's
 // plan (bulk_download entitlement). There is deliberately no server-side
 // zip buffering — archive entries are piped straight from R2 into the
 // response stream so a large wedding gallery doesn't have to fit in memory.
 export async function POST(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ token: string }> }
 ) {
   const { token } = await params
 
   const { data: gallery, error: galleryError } = await supabaseAdmin
     .from('galleries')
-    .select('id, name, studio_id, status, allow_download')
+    .select('id, name, studio_id, status, allow_download, share_token')
     .eq('share_token', token)
     .single()
 
@@ -27,6 +28,14 @@ export async function POST(
 
   if (gallery.status !== 'published' || !gallery.allow_download) {
     return NextResponse.json({ error: 'Downloads are not available for this gallery' }, { status: 403 })
+  }
+
+  // Re-verify the actual password server-side — never trust a client-side
+  // "already unlocked this gallery" claim.
+  const providedPassword = request.nextUrl.searchParams.get('password') ?? ''
+  const passwordOk = await verifyGalleryPassword(gallery.share_token, providedPassword)
+  if (!passwordOk) {
+    return NextResponse.json({ error: 'This gallery is password protected' }, { status: 403 })
   }
 
   const entitled = await hasEntitlement(gallery.studio_id, 'bulk_download')

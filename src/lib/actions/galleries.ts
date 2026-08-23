@@ -1,6 +1,7 @@
 'use server'
 
 import { createClient } from '@/lib/supabase/server'
+import { supabaseAdmin } from '@/lib/supabase/admin'
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { z } from 'zod'
@@ -630,10 +631,83 @@ export async function getGallery(galleryId: string, studioSlug: string): Promise
   return { ...(gallery as unknown as GalleryDetailRow), media }
 }
 
-export async function getGalleryByToken(shareToken: string) {
-  const supabase = await createClient()
+function computeGalleryExpired(expiryDays: number | null, createdAt: string | null): boolean {
+  if (!expiryDays || !createdAt) return false
+  const created = new Date(createdAt)
+  const expiry = new Date(created.getTime() + expiryDays * 24 * 60 * 60 * 1000)
+  return new Date() > expiry
+}
 
-  const { data: gallery } = await supabase
+export interface GalleryGateInfo {
+  id: string
+  studio_id: string
+  name: string
+  description: string | null
+  seo_title: string | null
+  seo_description: string | null
+  cover_image: string | null
+  cover_template: GalleryCoverTemplate
+  heading_font: GalleryHeadingFont | null
+  password_protected: boolean
+  expired: boolean
+  studio: { name: string; slug: string; logo_url: string | null; brand_color: string | null } | null
+}
+
+/**
+ * Safe-to-render-before-authorization subset of a public gallery: enough to
+ * draw the password gate / expired-gallery screen (name, branding, cover
+ * image) without the media list, client PII, share_token, or any password
+ * hash. Deliberately never includes `media`, `client`, or `share_settings` —
+ * those only come from getGalleryByToken, and only once the caller is known
+ * to be authorized (not password-protected, or password already verified).
+ * Uses the service-role client because anonymous visitors have no RLS SELECT
+ * access on `galleries` at all (see migration 031) — this function itself,
+ * not RLS, is what enforces "token holder only, minimal fields only".
+ */
+export async function getGalleryGateInfo(shareToken: string): Promise<GalleryGateInfo | null> {
+  const { data: gallery } = await supabaseAdmin
+    .from('galleries')
+    .select(`
+      id, studio_id, name, description, seo_title, seo_description, cover_image,
+      cover_template, heading_font, password_protected, expiry_days, created_at,
+      studio:studios(name, slug, logo_url, brand_color)
+    `)
+    .eq('share_token', shareToken)
+    .eq('status', 'published')
+    .single()
+
+  if (!gallery) return null
+
+  return {
+    id: gallery.id,
+    studio_id: gallery.studio_id,
+    name: gallery.name,
+    description: gallery.description,
+    seo_title: gallery.seo_title,
+    seo_description: gallery.seo_description,
+    cover_image: gallery.cover_image,
+    cover_template: gallery.cover_template,
+    heading_font: gallery.heading_font,
+    password_protected: gallery.password_protected,
+    expired: computeGalleryExpired(gallery.expiry_days, gallery.created_at),
+    studio: (gallery.studio as unknown as GalleryGateInfo['studio']) ?? null,
+  }
+}
+
+/**
+ * Full public gallery payload — media, client, share settings, entitlements.
+ * Only ever call this once the caller is known to be authorized: the
+ * gallery isn't password-protected, or verifyGalleryPassword() has already
+ * returned true for the password they supplied. Callers that need to decide
+ * whether to show a password gate first should call getGalleryGateInfo()
+ * instead, which never returns media/client/secrets.
+ *
+ * Uses the service-role client — see getGalleryGateInfo's comment; there is
+ * deliberately no anon RLS SELECT policy on galleries/media/
+ * gallery_share_settings for this to rely on (migration 031).
+ */
+export async function getGalleryByToken(shareToken: string) {
+  const { data: gallery } = await supabaseAdmin
     .from('galleries')
     .select(`
       *,
@@ -649,17 +723,27 @@ export async function getGalleryByToken(shareToken: string) {
 
   if (!gallery) return null
 
-  // Check if expired
-  if (gallery.expiry_days && gallery.created_at) {
-    const created = new Date(gallery.created_at)
-    const expiry = new Date(created.getTime() + gallery.expiry_days * 24 * 60 * 60 * 1000)
-    if (new Date() > expiry) {
-      return { ...gallery, expired: true }
-    }
-  }
+  // password_hash is selected (via `*`) both on the gallery row itself and
+  // on the embedded share_settings row, purely because verifyGalleryPassword
+  // needs it elsewhere — it must never actually leave the server. This
+  // object is passed as a prop straight into a Client Component, so
+  // anything left on it here is serialized to the browser regardless of
+  // whether the UI renders it, verified visitor or not.
+  const rawShareSettings = gallery.share_settings as unknown as (Record<string, unknown> & { password_hash?: unknown }) | Array<Record<string, unknown> & { password_hash?: unknown }> | null
+  const shareSettings = Array.isArray(rawShareSettings)
+    ? rawShareSettings.map(({ password_hash: _ph, ...rest }) => rest)
+    : rawShareSettings
+      ? (({ password_hash: _ph, ...rest }) => rest)(rawShareSettings)
+      : rawShareSettings
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars -- destructured only to omit it below
+  const { password_hash: _galleryPasswordHash, ...galleryWithoutHash } = gallery
+
+  const expired = computeGalleryExpired(gallery.expiry_days, gallery.created_at)
 
   // Resolved server-side so the client never decides for itself whether
-  // downloads/branding are allowed — it only renders what this says.
+  // downloads/branding are allowed — it only renders what this says. Not
+  // meaningful once expired, but always computed so the return shape is
+  // consistent regardless of which branch below runs.
   const plan = await getEffectivePlan(gallery.studio_id)
   const entitlements = {
     canDownloadOriginals: plan.canDownloadOriginals,
@@ -667,21 +751,35 @@ export async function getGalleryByToken(shareToken: string) {
     showPoweredByBadge: plan.showPoweredByBadge,
   }
 
-  const media = await attachVideoPlaybackUrls((gallery.media ?? []) as unknown as GalleryMediaRow[])
+  // original_key (the server-generated R2 storage key) is needed above to
+  // resolve video playback URLs, but must not leave the server beyond that —
+  // same reasoning as password_hash above. Downloads instead resolve
+  // original_key server-side, from media.id, via
+  // /api/storage/[assetId]/download.
+  const mediaWithPlayback = expired
+    ? []
+    : await attachVideoPlaybackUrls((gallery.media ?? []) as unknown as GalleryMediaRow[])
+  const media = mediaWithPlayback.map(({ original_key: _originalKey, ...rest }) => rest)
 
-  return { ...gallery, media, entitlements }
+  return { ...galleryWithoutHash, share_settings: shareSettings, media, entitlements, expired }
 }
 
-export async function verifyGalleryPassword(shareToken: string, password: string) {
-  const supabase = await createClient()
-
-  const { data: gallery } = await supabase
+/**
+ * Verifies a password against the gallery's stored hash. Returns true (no
+ * password needed) when the gallery isn't password-protected. Used both by
+ * the public gallery page and, for downloads, by the storage/bulk-download
+ * routes — always re-verify the actual password there too rather than
+ * trusting a client-asserted "already verified" flag.
+ */
+export async function verifyGalleryPassword(shareToken: string, password: string): Promise<boolean> {
+  const { data: gallery } = await supabaseAdmin
     .from('galleries')
     .select('password_hash, password_protected')
     .eq('share_token', shareToken)
     .single()
 
   if (!gallery || !gallery.password_protected) return true
+  if (!gallery.password_hash) return false
 
   return await verifyPassword(password, gallery.password_hash)
 }
@@ -716,8 +814,19 @@ export async function incrementGalleryDownload(shareToken: string) {
 }
 
 // Share Settings Actions
+/**
+ * Authenticated, tenant-scoped share-settings lookup. Resolves the
+ * gallery's *actual* owning studio_id from the gallery row itself (not just
+ * the caller-supplied studioSlug) so a gallery belonging to a different
+ * studio can never be reached here — even by an authenticated member of
+ * some other studio who happens to pass their own studioSlug alongside a
+ * galleryId they don't own.
+ */
 export async function getShareSettings(galleryId: string, studioSlug: string) {
   const supabase = await createClient()
+
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return null
 
   const { data: studio } = await supabase
     .from('studios')
@@ -726,6 +835,25 @@ export async function getShareSettings(galleryId: string, studioSlug: string) {
     .single()
 
   if (!studio) return null
+
+  const { data: membership } = await supabase
+    .from('studio_members')
+    .select('id')
+    .eq('studio_id', studio.id)
+    .eq('user_id', user.id)
+    .eq('status', 'active')
+    .single()
+
+  if (!membership) return null
+
+  const { data: gallery } = await supabase
+    .from('galleries')
+    .select('id')
+    .eq('id', galleryId)
+    .eq('studio_id', studio.id)
+    .single()
+
+  if (!gallery) return null
 
   const { data: settings } = await supabase
     .from('gallery_share_settings')

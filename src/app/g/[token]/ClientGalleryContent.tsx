@@ -229,9 +229,14 @@ export function ClientGalleryContent({
       .catch(() => {})
       .finally(() => clearTimeout(trackingTimeout))
 
-    // Gated, server-authoritative route — the studio's plan is checked again
+    // Gated, server-authoritative route — the studio's plan (and, for a
+    // password-protected gallery, the password itself) are checked again
     // here even though the download button is already conditionally shown.
-    const response = await fetch(`/api/storage/${item.id}/download`)
+    const passwordParam = searchParams.get('password')
+    const downloadUrl = passwordParam
+      ? `/api/storage/${item.id}/download?password=${encodeURIComponent(passwordParam)}`
+      : `/api/storage/${item.id}/download`
+    const response = await fetch(downloadUrl)
     if (!response.ok) {
       const body = await response.json().catch(() => ({}))
       throw new Error(body.error || 'Failed to download')
@@ -269,7 +274,11 @@ export function ClientGalleryContent({
     if (media.length === 0 || isDownloadingAll) return
     setIsDownloadingAll(true)
     try {
-      const response = await fetch(`/api/g/${token}/bulk-download`, { method: 'POST' })
+      const passwordParam = searchParams.get('password')
+      const bulkDownloadUrl = passwordParam
+        ? `/api/g/${token}/bulk-download?password=${encodeURIComponent(passwordParam)}`
+        : `/api/g/${token}/bulk-download`
+      const response = await fetch(bulkDownloadUrl, { method: 'POST' })
       if (!response.ok) {
         const body = await response.json().catch(() => ({}))
         throw new Error(body.error || 'Bulk download is not available for this gallery')

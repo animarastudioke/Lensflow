@@ -2,6 +2,7 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
+import { requireStudioPermission } from '@/lib/auth/server'
 
 export type OrderStatus = 'pending' | 'processing' | 'shipped' | 'delivered' | 'cancelled' | 'refunded'
 export type PaymentStatus = 'pending' | 'paid' | 'partial' | 'refunded'
@@ -87,29 +88,16 @@ export async function updateOrderStatus(
   studioSlug: string,
   status: OrderStatus
 ): Promise<{ error: string } | undefined> {
+  const membership = await requireStudioPermission('store:manage_orders')
+  if ('error' in membership) return membership
+
   const supabase = await createClient()
-
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) {
-    return { error: 'Unauthorized' }
-  }
-
-  const { data: membership } = await supabase
-    .from('studio_members')
-    .select('studio_id')
-    .eq('user_id', user.id)
-    .eq('status', 'active')
-    .single()
-
-  if (!membership) {
-    return { error: 'No active studio membership' }
-  }
 
   const { error } = await supabase
     .from('orders')
     .update({ status, updated_at: new Date().toISOString() })
     .eq('id', orderId)
-    .eq('studio_id', membership.studio_id)
+    .eq('studio_id', membership.studioId)
 
   if (error) {
     console.error('Update order status error:', error)
@@ -120,29 +108,16 @@ export async function updateOrderStatus(
 }
 
 export async function deleteOrder(orderId: string, studioSlug: string): Promise<{ error: string } | undefined> {
+  const membership = await requireStudioPermission('store:manage_orders')
+  if ('error' in membership) return membership
+
   const supabase = await createClient()
-
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) {
-    return { error: 'Unauthorized' }
-  }
-
-  const { data: membership } = await supabase
-    .from('studio_members')
-    .select('studio_id')
-    .eq('user_id', user.id)
-    .eq('status', 'active')
-    .single()
-
-  if (!membership) {
-    return { error: 'No active studio membership' }
-  }
 
   const { error } = await supabase
     .from('orders')
     .delete()
     .eq('id', orderId)
-    .eq('studio_id', membership.studio_id)
+    .eq('studio_id', membership.studioId)
 
   if (error) {
     console.error('Delete order error:', error)
