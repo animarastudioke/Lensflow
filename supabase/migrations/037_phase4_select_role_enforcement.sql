@@ -1,3 +1,33 @@
+-- ⚠️ DEPLOYED AND THEN EMERGENCY-ROLLED-BACK on 2026-08-24. DO NOT
+-- REDEPLOY THIS FILE AS-IS.
+--
+-- Root cause: has_studio_permission(studio_id, permission)'s CASE
+-- statement (migration 032) only enumerates WRITE permissions (plus a
+-- coincidental owner-only match for payments:read). None of this
+-- migration's new :read permission strings (clients:read, contracts:read,
+-- bookings:read, projects:read, quotes:read, invoices:read, tasks:read,
+-- expenses:read, questionnaires:read, store:read, website:read,
+-- team:read) are cased in that function, so every one of them silently
+-- falls through to its ELSE ARRAY[]::text[] branch -- owner-only --
+-- regardless of what ROLE_PERMISSIONS actually grants. Live-verified
+-- immediately after deployment: team_member and photographer, who
+-- should retain read access to all of the tables above, were
+-- incorrectly denied. payouts:read/subscriptions:read were unaffected
+-- only because owner-only happens to be their correct behavior too.
+--
+-- The live database was reverted to its pre-037 SELECT policies
+-- (recorded in Supabase migration history as
+-- "037_emergency_rollback_missing_permission_cases", immediately after
+-- this migration's own entry -- no corresponding file exists in this
+-- repo for that rollback, since creating a new numbered migration file
+-- for it was out of scope for the emergency response; see the Phase 4
+-- Security Deployment report for the full incident record). This file's
+-- SQL is otherwise still the reviewed, correct target design -- it
+-- cannot be safely redeployed until has_studio_permission's CASE
+-- statement is extended to cover these :read permissions (or the
+-- function is redesigned to consult ROLE_PERMISSIONS directly instead
+-- of a hardcoded CASE), and that fix is itself reviewed and tested.
+--
 -- Phase 4: role-checked SELECT policies for tables where RLS currently
 -- enforces tenant isolation (is_studio_member) but not role, and where
 -- ROLE_PERMISSIONS (src/lib/auth/permissions.ts) already defines an
