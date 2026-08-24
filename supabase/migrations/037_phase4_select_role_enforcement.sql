@@ -18,11 +18,20 @@
 -- reads are unaffected -- confirmed against the permission matrix, not
 -- inferred from UI behavior.
 --
+-- UPDATE (Phase 4 pre-deployment architecture review): payouts and
+-- subscriptions are now included below. Both previously had no dedicated
+-- <resource>:read permission -- ROLE_PERMISSIONS now defines
+-- 'payouts:read' and 'subscriptions:read' (src/lib/auth/permissions.ts),
+-- granted ONLY to studio_owner/super_admin, mirroring payments:read's
+-- existing role set exactly (photographer, despite holding almost every
+-- other :read permission, was already deliberately excluded from
+-- payments:read -- payouts/subscriptions follow the same established
+-- "money/billing is owner-only" pattern, not a new one). See the Phase 4
+-- pre-deployment architecture decision report for the full role-by-role
+-- justification.
+--
 -- Deliberately NOT touched in this migration (see Phase 4 report for
 -- rationale):
---   - payouts, subscriptions: no dedicated <resource>:read permission
---     exists in ROLE_PERMISSIONS yet -- inventing one is a product
---     decision, not made here.
 --   - website_pages: its only SELECT-granting policy is a combined
 --     FOR ALL policy whose WITH CHECK already role-gates writes;
 --     splitting it out risks an accidental write-policy regression,
@@ -108,6 +117,27 @@ DROP POLICY IF EXISTS "Members can view studio websites" ON websites;
 CREATE POLICY "Members can view studio websites" ON websites FOR SELECT
   TO authenticated
   USING (has_studio_permission(studio_id, 'website:read'));
+
+-- payouts: previously "Studio members can view their own payouts" --
+-- membership-only, no role check, no dedicated permission. Now requires
+-- payouts:read (studio_owner/super_admin only -- see permissions.ts).
+DROP POLICY IF EXISTS "Studio members can view their own payouts" ON payouts;
+CREATE POLICY "Studio owners can view their studio payouts" ON payouts FOR SELECT
+  TO authenticated
+  USING (has_studio_permission(studio_id, 'payouts:read'));
+
+-- subscriptions: previously "Members can view their studio subscription"
+-- -- membership-only, no role check, no dedicated permission. Now
+-- requires subscriptions:read (studio_owner/super_admin only). Does NOT
+-- affect entitlement resolution (getEffectivePlan/getStorageUsage/
+-- getSubscriptionAccessState in src/lib/entitlements/service.ts), which
+-- reads this table exclusively via supabaseAdmin (service role, bypasses
+-- RLS entirely) and remains available to every role, as required for
+-- quota/feature-gate checks regardless of who is asking.
+DROP POLICY IF EXISTS "Members can view their studio subscription" ON subscriptions;
+CREATE POLICY "Studio owners can view their studio subscription" ON subscriptions FOR SELECT
+  TO authenticated
+  USING (has_studio_permission(studio_id, 'subscriptions:read'));
 
 -- profiles: teammate-visibility only. The self-view policy ("Users can
 -- view their own profile") is untouched and stays unconditional -- every

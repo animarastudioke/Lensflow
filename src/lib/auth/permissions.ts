@@ -87,6 +87,8 @@ export type Permission =
   | 'payments:read'
   | 'payments:refund'
   | 'payments:manage_providers'
+  | 'payouts:read'
+  | 'subscriptions:read'
   | 'store:create'
   | 'store:read'
   | 'store:update'
@@ -204,6 +206,8 @@ export const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     'payments:read',
     'payments:refund',
     'payments:manage_providers',
+    'payouts:read',
+    'subscriptions:read',
     'store:create',
     'store:read',
     'store:update',
@@ -316,6 +320,8 @@ export const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     'payments:create',
     'payments:read',
     'payments:refund',
+    'payouts:read',
+    'subscriptions:read',
     'store:create',
     'store:read',
     'store:update',

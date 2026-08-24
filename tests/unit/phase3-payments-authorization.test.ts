@@ -75,10 +75,13 @@ describe('Phase 3 P1: payments-read Server Actions request payments:read', () =>
     expect(requireStudioPermissionMock).toHaveBeenCalledWith('payments:read')
   })
 
-  it('getStudioPayoutSummary requests payments:read', async () => {
+})
+
+describe('Phase 4: getStudioPayoutSummary requests the dedicated payouts:read permission', () => {
+  it('getStudioPayoutSummary requests payouts:read (not payments:read -- see payouts.ts)', async () => {
     requireStudioPermissionMock.mockResolvedValue(ALLOWED)
     await getStudioPayoutSummary('studio-slug')
-    expect(requireStudioPermissionMock).toHaveBeenCalledWith('payments:read')
+    expect(requireStudioPermissionMock).toHaveBeenCalledWith('payouts:read')
   })
 })
 

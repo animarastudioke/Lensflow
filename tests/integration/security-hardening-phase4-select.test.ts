@@ -245,8 +245,11 @@ describe('Phase 4: team_member role — tables team_member has zero :read permis
 
 // photographer: full-read across the 12-table class (matches team_member
 // minus expenses is inverted — photographer has expenses:read too), but
-// like every non-owner role, holds no payouts/subscriptions permission
-// (none is defined in ROLE_PERMISSIONS for any role but implicit owner-only).
+// like every non-owner role, holds neither payouts:read nor
+// subscriptions:read — both are new dedicated permissions (Phase 4
+// pre-deployment architecture decision), granted only to studio_owner/
+// super_admin, deliberately mirroring payments:read's existing role set
+// (photographer was already excluded from payments:read).
 describe('Phase 4: photographer role — tables photographer has zero :read permission for', () => {
   it('payouts: photographer lacks any payouts permission', async () => {
     const { data } = await photographer.client.from('payouts').select('id').eq('id', payoutId)
