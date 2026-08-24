@@ -23,8 +23,8 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js'
  * that failure is the finding being proven for the Phase 4 report, not
  * a broken test. This file must NOT be "fixed" by weakening its
  * assertions; those blocks stay red until migration 037
- * (supabase/migrations/037_select_role_enforcement.sql — prepared,
- * NOT deployed) is deployed, at which point they should flip green like
+ * (supabase/migrations/037_phase4_select_role_enforcement.sql —
+ * prepared, NOT deployed) is deployed, at which point they should flip green like
  * phase2/phase3 did. This same file doubles as 037's acceptance test.
  *
  * The AUTHORIZED and TENANT ISOLATION blocks below are expected to PASS
@@ -61,6 +61,7 @@ let clientUserIds: string[] = []
 let owner: RoleUser
 let editor: RoleUser
 let teamMember: RoleUser
+let photographer: RoleUser
 
 let clientRowId: string
 let contractId: string
@@ -121,6 +122,7 @@ beforeAll(async () => {
   await admin.from('studios').update({ owner_id: owner.userId }).eq('id', studioId)
   editor = await createRoleUser('editor', 'editor', studioId)
   teamMember = await createRoleUser('teammember', 'team_member', studioId)
+  photographer = await createRoleUser('photographer', 'photographer', studioId)
 
   clientRowId = (await admin.from('clients').insert({ studio_id: studioId, first_name: RUN_TAG, last_name: 'Client', email: `${RUN_TAG}-c@example.com` }).select('id').single()).data!.id
   contractId = (await admin.from('contracts').insert({ studio_id: studioId, title: RUN_TAG, status: 'draft' }).select('id').single()).data!.id
@@ -241,6 +243,21 @@ describe('Phase 4: team_member role — tables team_member has zero :read permis
   })
 })
 
+// photographer: full-read across the 12-table class (matches team_member
+// minus expenses is inverted — photographer has expenses:read too), but
+// like every non-owner role, holds no payouts/subscriptions permission
+// (none is defined in ROLE_PERMISSIONS for any role but implicit owner-only).
+describe('Phase 4: photographer role — tables photographer has zero :read permission for', () => {
+  it('payouts: photographer lacks any payouts permission', async () => {
+    const { data } = await photographer.client.from('payouts').select('id').eq('id', payoutId)
+    expect(data ?? []).toEqual([])
+  })
+  it('subscriptions: photographer lacks any subscriptions/billing permission', async () => {
+    const { data } = await photographer.client.from('subscriptions').select('id').eq('id', subscriptionId)
+    expect(data ?? []).toEqual([])
+  })
+})
+
 describe('Phase 4: sanity — studio_owner retains full access (no over-correction expected)', () => {
   it('owner can read clients, payouts, and subscriptions', async () => {
     const [c, p, s] = await Promise.all([
@@ -298,7 +315,6 @@ describe('Phase 4: AUTHORIZED — team_member retains read access it is entitled
 // team_member (team_member lacks expenses:read); photographer keeps it.
 describe('Phase 4: AUTHORIZED — photographer retains expenses:read where team_member does not', () => {
   it('photographer can read expenses', async () => {
-    const photographer = await createRoleUser('photographer', 'photographer', studioId)
     const { data } = await photographer.client.from('expenses').select('id').eq('id', expenseId)
     expect(data).toHaveLength(1)
   })
