@@ -133,9 +133,13 @@ describe('has_studio_permission(): photographer', () => {
 })
 
 describe('has_studio_permission(): team_member', () => {
-  it('clients:read TRUE, expenses:read FALSE, payouts:read FALSE, subscriptions:read FALSE, team:read TRUE', async () => {
+  // expenses:read corrected to TRUE by migration 039 (Phase 5 P1) --
+  // team_member has held this permission in ROLE_PERMISSIONS since
+  // 2026-08-15, before this test was originally written; see the
+  // dedicated Phase 5 P1 block below for the full acceptance proof.
+  it('clients:read TRUE, expenses:read TRUE, payouts:read FALSE, subscriptions:read FALSE, team:read TRUE', async () => {
     expect(await check(teamMember, 'clients:read')).toBe(true)
-    expect(await check(teamMember, 'expenses:read')).toBe(false)
+    expect(await check(teamMember, 'expenses:read')).toBe(true)
     expect(await check(teamMember, 'payouts:read')).toBe(false)
     expect(await check(teamMember, 'subscriptions:read')).toBe(false)
     expect(await check(teamMember, 'team:read')).toBe(true)
