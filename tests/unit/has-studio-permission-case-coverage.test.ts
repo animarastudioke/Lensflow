@@ -37,26 +37,14 @@ const MIGRATIONS_DIR = join(process.cwd(), 'supabase', 'migrations')
 const NON_OWNER_ROLES: UserRole[] = ['photographer', 'team_member', 'editor']
 
 /**
- * KNOWN, TRACKED DISCREPANCY -- found by this test during the
- * post-Phase-4 hygiene review, not introduced by it. ROLE_PERMISSIONS
- * has granted team_member 'expenses:read' since 2026-08-15 (commit
- * 375fb3a0, well before any Phase 3/4 work), but migration 037's audit
- * and migration 038's CASE mapping incorrectly assumed team_member
- * lacked it (both authored the same incorrect assumption without
- * re-verifying against this file) -- so has_studio_permission()
- * currently denies team_member 'expenses:read', live in production,
- * confirmed via a real disposable-user PostgREST call. This is a
- * legitimate role being wrongly denied real access, not an
- * over-exposure -- see the Post-Phase-4 Security Hygiene report.
- *
- * Excluded here ONLY so this new regression guard can ship without
- * immediately failing CI over a PRE-EXISTING bug it happened to
- * uncover; it is not a statement that the discrepancy is acceptable.
- * Remove this line the moment migration 037's expenses:read CASE
- * branch is corrected to ARRAY['photographer', 'team_member'] -- at
- * that point this test will enforce the fix stays correct forever.
+ * Phase 5 P1: fixed by migration 039
+ * (039_fix_team_member_expenses_read.sql), which corrects
+ * 'expenses:read' to ARRAY['photographer', 'team_member']. No known
+ * discrepancies remain -- this set is kept (empty) as the established
+ * place to document any future one, rather than removed, so a future
+ * exception doesn't require re-deriving this pattern from scratch.
  */
-const KNOWN_DISCREPANCIES = new Set<string>(['team_member:expenses:read'])
+const KNOWN_DISCREPANCIES = new Set<string>()
 
 function loadMigrationFiles(): { name: string; content: string }[] {
   return readdirSync(MIGRATIONS_DIR)

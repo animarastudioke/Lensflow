@@ -187,3 +187,33 @@ describe('has_studio_permission(): existing WRITE permissions are unchanged by t
     expect(await check(editor, 'tasks:update')).toBe(false)
   })
 })
+
+/**
+ * Phase 5 P1 acceptance test for migration 039
+ * (039_fix_team_member_expenses_read.sql). NOT DEPLOYED as of writing --
+ * this block is EXPECTED TO FAIL against the live database until 039 is
+ * applied, matching the established phase2/phase3/phase4 convention:
+ * the failure IS the proven bug, not a broken test. Do not weaken these
+ * assertions to make them pass before the migration is actually live.
+ */
+describe('has_studio_permission(): Phase 5 P1 -- team_member expenses:read (migration 039)', () => {
+  it('team_member + expenses:read = TRUE (was FALSE pre-039 -- the bug this migration fixes)', async () => {
+    expect(await check(teamMember, 'expenses:read')).toBe(true)
+  })
+
+  it('photographer + expenses:read remains TRUE (unaffected by this fix)', async () => {
+    expect(await check(photographer, 'expenses:read')).toBe(true)
+  })
+
+  it('editor + expenses:read remains FALSE (unaffected by this fix)', async () => {
+    expect(await check(editor, 'expenses:read')).toBe(false)
+  })
+
+  it('team_member + payouts:read remains FALSE (this fix does not broaden payouts access)', async () => {
+    expect(await check(teamMember, 'payouts:read')).toBe(false)
+  })
+
+  it('team_member + subscriptions:read remains FALSE (this fix does not broaden subscriptions access)', async () => {
+    expect(await check(teamMember, 'subscriptions:read')).toBe(false)
+  })
+})

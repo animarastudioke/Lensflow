@@ -218,6 +218,43 @@ export async function sendQuestionnaire(
   return { success: true, shareToken }
 }
 
+/**
+ * Phase 5 P4: rotates a questionnaire response's share_token, matching
+ * the established regenerateInvoiceShareToken/regenerateQuoteShareToken
+ * pattern exactly. The old token stops working immediately (it's simply
+ * overwritten, not looked up by any other row), the new token works
+ * right away, and existing submission state (answers, submitted_at) is
+ * untouched -- only the token column changes. Gated on
+ * questionnaires:update, matching the permission that governs every
+ * other write to a questionnaire response's parent template.
+ */
+export async function regenerateQuestionnaireResponseShareToken(
+  responseId: string,
+  studioSlug: string
+): Promise<{ error: string } | { success: true; shareToken: string }> {
+  const membership = await requireStudioPermission('questionnaires:update')
+  if ('error' in membership) return membership
+
+  const supabase = await createClient()
+  const newToken = generateShareToken()
+
+  const { data, error } = await supabase
+    .from('questionnaire_responses')
+    .update({ share_token: newToken })
+    .eq('id', responseId)
+    .eq('studio_id', membership.studioId)
+    .select('id')
+    .single()
+
+  if (error || !data) {
+    console.error('Regenerate questionnaire response share token error:', error)
+    return { error: 'Failed to regenerate share link' }
+  }
+
+  revalidatePath(`/dashboard/${studioSlug}/questionnaires`)
+  return { success: true, shareToken: newToken }
+}
+
 export async function getResponses(studioSlug: string, templateId: string): Promise<QuestionnaireResponseRow[]> {
   const supabase = await createClient()
   const { data: studio } = await supabase.from('studios').select('id').eq('slug', studioSlug).single()
