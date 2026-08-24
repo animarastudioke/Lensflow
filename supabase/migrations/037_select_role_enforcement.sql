@@ -1,0 +1,139 @@
+-- Phase 4: role-checked SELECT policies for tables where RLS currently
+-- enforces tenant isolation (is_studio_member) but not role, and where
+-- ROLE_PERMISSIONS (src/lib/auth/permissions.ts) already defines an
+-- unambiguous, 1:1 <resource>:read permission for the gap.
+--
+-- Scope is deliberately narrower than every table flagged in the Phase 4
+-- audit. Included here only: tables with an existing, already-isolated
+-- "Members can view studio X" SELECT policy (untangled from any FOR ALL
+-- write policy), where every consumer was traced and none depends on a
+-- role that would lose access it's supposed to have. Confirmed against
+-- the live ROLE_PERMISSIONS matrix: only `editor` loses clients/contracts/
+-- bookings/projects/quotes/invoices/tasks/questionnaire_templates/
+-- products/orders/websites access (editor holds none of the
+-- corresponding :read permissions); `editor` and `team_member` both lose
+-- expenses access (team_member also lacks expenses:read); `editor` loses
+-- teammate-profile/roster visibility (lacks team:read). studio_owner,
+-- photographer, super_admin, and (for expenses) team_member's other
+-- reads are unaffected -- confirmed against the permission matrix, not
+-- inferred from UI behavior.
+--
+-- Deliberately NOT touched in this migration (see Phase 4 report for
+-- rationale):
+--   - payouts, subscriptions: no dedicated <resource>:read permission
+--     exists in ROLE_PERMISSIONS yet -- inventing one is a product
+--     decision, not made here.
+--   - website_pages: its only SELECT-granting policy is a combined
+--     FOR ALL policy whose WITH CHECK already role-gates writes;
+--     splitting it out risks an accidental write-policy regression,
+--     which is explicitly out of scope for a SELECT-only change.
+--
+-- This migration is prepared but NOT deployed as of Phase 4. Per this
+-- task's explicit instruction, it stays ⚠️ CODE-FIXED / NOT DEPLOYED
+-- until separately authorized.
+
+-- clients
+DROP POLICY IF EXISTS "Members can view studio clients" ON clients;
+CREATE POLICY "Members can view studio clients" ON clients FOR SELECT
+  TO authenticated
+  USING (has_studio_permission(studio_id, 'clients:read'));
+
+-- contracts
+DROP POLICY IF EXISTS "Members can view studio contracts" ON contracts;
+CREATE POLICY "Members can view studio contracts" ON contracts FOR SELECT
+  TO authenticated
+  USING (has_studio_permission(studio_id, 'contracts:read'));
+
+-- bookings
+DROP POLICY IF EXISTS "Members can view studio bookings" ON bookings;
+CREATE POLICY "Members can view studio bookings" ON bookings FOR SELECT
+  TO authenticated
+  USING (has_studio_permission(studio_id, 'bookings:read'));
+
+-- projects
+DROP POLICY IF EXISTS "Members can view studio projects" ON projects;
+CREATE POLICY "Members can view studio projects" ON projects FOR SELECT
+  TO authenticated
+  USING (has_studio_permission(studio_id, 'projects:read'));
+
+-- quotes
+DROP POLICY IF EXISTS "Members can view studio quotes" ON quotes;
+CREATE POLICY "Members can view studio quotes" ON quotes FOR SELECT
+  TO authenticated
+  USING (has_studio_permission(studio_id, 'quotes:read'));
+
+-- invoices
+DROP POLICY IF EXISTS "Members can view studio invoices" ON invoices;
+CREATE POLICY "Members can view studio invoices" ON invoices FOR SELECT
+  TO authenticated
+  USING (has_studio_permission(studio_id, 'invoices:read'));
+
+-- tasks
+DROP POLICY IF EXISTS "Members can view studio tasks" ON tasks;
+CREATE POLICY "Members can view studio tasks" ON tasks FOR SELECT
+  TO authenticated
+  USING (has_studio_permission(studio_id, 'tasks:read'));
+
+-- expenses (note: also removes team_member, which lacks expenses:read --
+-- confirmed intentional per ROLE_PERMISSIONS, not an oversight)
+DROP POLICY IF EXISTS "Members can view studio expenses" ON expenses;
+CREATE POLICY "Members can view studio expenses" ON expenses FOR SELECT
+  TO authenticated
+  USING (has_studio_permission(studio_id, 'expenses:read'));
+
+-- questionnaire_templates
+DROP POLICY IF EXISTS "Members can view studio questionnaire templates" ON questionnaire_templates;
+CREATE POLICY "Members can view studio questionnaire templates" ON questionnaire_templates FOR SELECT
+  TO authenticated
+  USING (has_studio_permission(studio_id, 'questionnaires:read'));
+
+-- products (public "active products" policy is untouched -- storefront
+-- browsing stays anonymous-accessible by design)
+DROP POLICY IF EXISTS "Members can view studio products" ON products;
+CREATE POLICY "Members can view studio products" ON products FOR SELECT
+  TO authenticated
+  USING (has_studio_permission(studio_id, 'store:read'));
+
+-- orders (no dedicated orders:read permission exists; store:read is the
+-- same permission that already governs product-catalog visibility and
+-- is the closest existing match -- store:manage_orders remains the write
+-- gate, unchanged)
+DROP POLICY IF EXISTS "Members can view studio orders" ON orders;
+CREATE POLICY "Members can view studio orders" ON orders FOR SELECT
+  TO authenticated
+  USING (has_studio_permission(studio_id, 'store:read'));
+
+-- websites (public "published websites" policy is untouched)
+DROP POLICY IF EXISTS "Members can view studio websites" ON websites;
+CREATE POLICY "Members can view studio websites" ON websites FOR SELECT
+  TO authenticated
+  USING (has_studio_permission(studio_id, 'website:read'));
+
+-- profiles: teammate-visibility only. The self-view policy ("Users can
+-- view their own profile") is untouched and stays unconditional -- every
+-- role, including editor, must always be able to read their own profile.
+DROP POLICY IF EXISTS "Studio members can view teammate profiles" ON profiles;
+CREATE POLICY "Studio members can view teammate profiles" ON profiles FOR SELECT
+  USING (
+    EXISTS (
+      SELECT 1
+      FROM studio_members sm1
+      JOIN studio_members sm2 ON sm1.studio_id = sm2.studio_id
+      WHERE sm1.user_id = (SELECT auth.uid())
+        AND sm1.status = 'active'
+        AND sm2.user_id = profiles.id
+        AND sm2.status = 'active'
+        AND has_studio_permission(sm1.studio_id, 'team:read')
+    )
+  );
+
+-- studio_members: the caller's own membership row stays unconditionally
+-- visible (the `user_id = auth.uid()` clause is untouched) -- only
+-- visibility of *other* members' rows (roster enumeration, roles) now
+-- requires team:read.
+DROP POLICY IF EXISTS "Members can view studio membership" ON studio_members;
+CREATE POLICY "Members can view studio membership" ON studio_members FOR SELECT
+  USING (
+    has_studio_permission(studio_id, 'team:read')
+    OR user_id = (SELECT auth.uid())
+  );

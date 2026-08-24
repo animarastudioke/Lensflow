@@ -18,12 +18,21 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js'
  * (src/lib/auth/permissions.ts) does NOT grant `<table>:read` for.
  *
  * IMPORTANT: per current, intentional design, SELECT is membership-only
- * on every table below except `payments`. So the "editor CANNOT read"
- * tests are EXPECTED TO FAIL right now — that failure is the finding
- * being proven for the Phase 4 report, not a broken test. This file
- * must NOT be "fixed" by weakening its assertions; it stays red until a
- * future migration (037, not created this phase) tightens these SELECT
- * policies, at which point it should flip green like phase2/phase3 did.
+ * on every table below except `payments`. So the "editor/team_member
+ * CANNOT read" (UNAUTHORIZED) tests are EXPECTED TO FAIL right now —
+ * that failure is the finding being proven for the Phase 4 report, not
+ * a broken test. This file must NOT be "fixed" by weakening its
+ * assertions; those blocks stay red until migration 037
+ * (supabase/migrations/037_select_role_enforcement.sql — prepared,
+ * NOT deployed) is deployed, at which point they should flip green like
+ * phase2/phase3 did. This same file doubles as 037's acceptance test.
+ *
+ * The AUTHORIZED and TENANT ISOLATION blocks below are expected to PASS
+ * today and must keep passing after 037 deploys — they prove the fix
+ * (once deployed) won't over-correct (roles that should keep read access
+ * still get it) and that this is a role-boundary gap, not a tenant-
+ * isolation failure (cross-studio access is, and must remain, blocked
+ * regardless of role).
  *
  * Runs against the REAL Supabase project. Only via `npm run test:integration`.
  */
@@ -67,6 +76,13 @@ let orderId: string
 let websiteId: string
 let payoutId: string
 let subscriptionId: string
+
+// Tenant isolation control group: a second, wholly separate studio +
+// owner, used only to prove cross-studio access is blocked regardless of
+// role — distinguishing a role-boundary gap from a tenant-isolation failure.
+let otherStudioId: string
+let otherOwner: RoleUser
+let otherClientRowId: string
 
 async function createRoleUser(label: string, role: 'studio_owner' | 'photographer' | 'team_member' | 'editor', targetStudioId: string): Promise<RoleUser> {
   const email = `${RUN_TAG}-${label}@example.com`
@@ -122,10 +138,22 @@ beforeAll(async () => {
 
   const { data: freePlan } = await admin.from('plans').select('id').eq('slug', 'free').single()
   subscriptionId = (await admin.from('subscriptions').insert({ studio_id: studioId, plan_id: freePlan!.id, status: 'active' }).select('id').single()).data!.id
+
+  const { data: otherStudio, error: otherStudioError } = await admin
+    .from('studios')
+    .insert({ name: `${RUN_TAG}-other`, slug: `${RUN_TAG}-other`, owner_id: null })
+    .select('id')
+    .single()
+  if (otherStudioError || !otherStudio) throw new Error(`Failed to create tenant-isolation control studio: ${otherStudioError?.message}`)
+  otherStudioId = otherStudio.id
+  otherOwner = await createRoleUser('other-owner', 'studio_owner', otherStudioId)
+  await admin.from('studios').update({ owner_id: otherOwner.userId }).eq('id', otherStudioId)
+  otherClientRowId = (await admin.from('clients').insert({ studio_id: otherStudioId, first_name: RUN_TAG, last_name: 'OtherClient', email: `${RUN_TAG}-other-c@example.com` }).select('id').single()).data!.id
 })
 
 afterAll(async () => {
   if (studioId) await admin.from('studios').delete().eq('id', studioId)
+  if (otherStudioId) await admin.from('studios').delete().eq('id', otherStudioId)
   for (const id of clientUserIds) {
     await admin.auth.admin.deleteUser(id).catch(() => {})
   }
@@ -168,6 +196,10 @@ describe('Phase 4: editor role — tables editor has zero :read permission for',
   })
   it('questionnaire_templates: editor lacks questionnaires:read', async () => {
     const { data } = await editor.client.from('questionnaire_templates').select('id').eq('id', templateId)
+    expect(data ?? []).toEqual([])
+  })
+  it('products: editor lacks store:read', async () => {
+    const { data } = await editor.client.from('products').select('id').eq('id', productId)
     expect(data ?? []).toEqual([])
   })
   it('orders: editor lacks store:read', async () => {
@@ -227,5 +259,67 @@ describe('Phase 4: profiles — teammate visibility exceeds team:read', () => {
     const { data } = await editor.client.from('profiles').select('id, email, first_name, last_name, phone, role').eq('id', owner.userId)
     expect(data).toHaveLength(1)
     expect(data?.[0]?.email).toBeTruthy()
+  })
+})
+
+// AUTHORIZED: team_member holds every :read permission migration 037
+// checks except expenses:read — these must keep working exactly as they
+// do today, both before and after 037 deploys. Proves the fix (once
+// deployed) targets only editor/expenses, not team_member generally.
+describe('Phase 4: AUTHORIZED — team_member retains read access it is entitled to', () => {
+  it('team_member can read clients, contracts, bookings, projects, quotes, invoices, tasks, questionnaire_templates, products, orders, websites', async () => {
+    const results = await Promise.all([
+      teamMember.client.from('clients').select('id').eq('id', clientRowId),
+      teamMember.client.from('contracts').select('id').eq('id', contractId),
+      teamMember.client.from('bookings').select('id').eq('id', bookingId),
+      teamMember.client.from('projects').select('id').eq('id', projectId),
+      teamMember.client.from('quotes').select('id').eq('id', quoteId),
+      teamMember.client.from('invoices').select('id').eq('id', invoiceId),
+      teamMember.client.from('tasks').select('id').eq('id', taskId),
+      teamMember.client.from('questionnaire_templates').select('id').eq('id', templateId),
+      teamMember.client.from('products').select('id').eq('id', productId),
+      teamMember.client.from('orders').select('id').eq('id', orderId),
+      teamMember.client.from('websites').select('id').eq('id', websiteId),
+    ])
+    for (const { data } of results) {
+      expect(data).toHaveLength(1)
+    }
+  })
+
+  it('team_member can read the studio roster (holds team:read) and their own profile', async () => {
+    const { data: roster } = await teamMember.client.from('studio_members').select('id, role, user_id').eq('studio_id', studioId)
+    expect((roster ?? []).length).toBeGreaterThanOrEqual(2) // owner + self, at minimum
+    const { data: ownerProfile } = await teamMember.client.from('profiles').select('id').eq('id', owner.userId)
+    expect(ownerProfile).toHaveLength(1)
+  })
+})
+
+// AUTHORIZED: expenses is the one table where migration 037 also removes
+// team_member (team_member lacks expenses:read); photographer keeps it.
+describe('Phase 4: AUTHORIZED — photographer retains expenses:read where team_member does not', () => {
+  it('photographer can read expenses', async () => {
+    const photographer = await createRoleUser('photographer', 'photographer', studioId)
+    const { data } = await photographer.client.from('expenses').select('id').eq('id', expenseId)
+    expect(data).toHaveLength(1)
+  })
+})
+
+// TENANT ISOLATION control: confirms every gap proven above is a
+// role-boundary issue, not a cross-tenant breach. Even the studio_owner
+// of a wholly separate studio — the highest-privilege role that exists —
+// must never see another studio's rows. This must hold before AND after
+// migration 037 (037 does not touch tenant scoping, only role scoping).
+describe('Phase 4: TENANT ISOLATION — cross-studio access remains blocked regardless of role', () => {
+  it('the other studio\'s owner cannot read this studio\'s clients', async () => {
+    const { data } = await otherOwner.client.from('clients').select('id').eq('id', clientRowId)
+    expect(data ?? []).toEqual([])
+  })
+  it('this studio\'s owner cannot read the other studio\'s clients', async () => {
+    const { data } = await owner.client.from('clients').select('id').eq('id', otherClientRowId)
+    expect(data ?? []).toEqual([])
+  })
+  it('this studio\'s owner cannot read the other studio\'s roster', async () => {
+    const { data } = await owner.client.from('studio_members').select('id').eq('studio_id', otherStudioId)
+    expect(data ?? []).toEqual([])
   })
 })
