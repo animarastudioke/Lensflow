@@ -274,9 +274,14 @@ describe('Phase 4: sanity — studio_owner retains full access (no over-correcti
   })
 })
 
-describe('Phase 4: profiles — teammate visibility exceeds team:read', () => {
-  it('editor (lacking team:read) can still read the owner\'s full profile row via the teammate-visibility policy', async () => {
+describe('Phase 4: profiles — teammate visibility now requires team:read (post-037/038 fix)', () => {
+  it('editor (lacking team:read) is denied the owner\'s profile row', async () => {
     const { data } = await editor.client.from('profiles').select('id, email, first_name, last_name, phone, role').eq('id', owner.userId)
+    expect(data ?? []).toEqual([])
+  })
+
+  it('team_member (holds team:read) can still read the owner\'s profile row', async () => {
+    const { data } = await teamMember.client.from('profiles').select('id, email').eq('id', owner.userId)
     expect(data).toHaveLength(1)
     expect(data?.[0]?.email).toBeTruthy()
   })
