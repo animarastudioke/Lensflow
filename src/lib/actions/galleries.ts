@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import { supabaseAdmin } from '@/lib/supabase/admin'
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
+import { headers } from 'next/headers'
 import { z } from 'zod'
 import sharp from 'sharp'
 import { canCreateGallery, getEffectivePlan, getSubscriptionAccessState, hasEntitlement, reserveUploadQuota, releaseUploadReservations } from '@/lib/entitlements'
@@ -23,6 +24,7 @@ import { sendEmail } from '@/lib/email/resend'
 import { galleryPublishedEmail } from '@/lib/email/templates'
 import { mapWithConcurrency } from '@/lib/utils/concurrency'
 import { hashGalleryPassword, verifyGalleryPasswordHash } from '@/lib/security/gallery-password'
+import { checkGalleryPasswordRateLimit, hashIpForRateLimit, resetGalleryPasswordRateLimit } from '@/lib/security/gallery-password-rate-limit'
 
 // Types
 export type GalleryType = 'wedding' | 'portrait' | 'commercial' | 'event' | 'other'
@@ -750,12 +752,41 @@ export async function getGalleryByToken(shareToken: string) {
   return { ...galleryWithoutHash, share_settings: shareSettings, media, entitlements, expired }
 }
 
+export type GalleryPasswordVerification =
+  | { status: 'valid' }
+  | { status: 'invalid' }
+  | { status: 'rate_limited'; retryAfterSeconds: number }
+
 /**
- * Verifies a password against the gallery's stored hash. Returns true (no
- * password needed) when the gallery isn't password-protected. Used both by
- * the public gallery page and, for downloads, by the storage/bulk-download
- * routes — always re-verify the actual password there too rather than
- * trusting a client-asserted "already verified" flag.
+ * Best-effort client IP for rate-limit purposes only -- never used for
+ * authorization. Matches the existing pattern in
+ * src/lib/actions/signup-risk.ts exactly (x-forwarded-for first entry,
+ * fallback x-real-ip, swallow any error from headers() being unavailable).
+ */
+async function getRequestIp(): Promise<string | null> {
+  try {
+    const hdrs = await headers()
+    return hdrs.get('x-forwarded-for')?.split(',')[0]?.trim() || hdrs.get('x-real-ip') || null
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Verifies a password against the gallery's stored hash. Returns
+ * {status:'valid'} (no password needed) when the gallery isn't
+ * password-protected -- that case never touches the rate limiter, since
+ * there's no password-guessing surface to protect. Used both by the public
+ * gallery page and, for downloads, by the storage/bulk-download routes —
+ * always re-verify the actual password there too rather than trusting a
+ * client-asserted "already verified" flag.
+ *
+ * Rate limiting (src/lib/security/gallery-password-rate-limit.ts) runs
+ * BEFORE Argon2id: two layers (per-gallery+IP, and a looser global per-IP)
+ * are checked first, and only when both allow the request does Argon2id
+ * verification happen at all. A successful verification resets the
+ * per-gallery+IP layer only -- the global layer is deliberately never
+ * reset by any single gallery's success (see that module's comments).
  *
  * Transparently upgrades a legacy SHA-256 hash to Argon2id the moment it's
  * confirmed correct — never on a failed attempt, and never for a hash that's
@@ -766,15 +797,23 @@ export async function getGalleryByToken(shareToken: string) {
  * result is still returned — a client should never see a rehash failure as
  * "wrong password".
  */
-export async function verifyGalleryPassword(shareToken: string, password: string): Promise<boolean> {
+export async function verifyGalleryPassword(shareToken: string, password: string): Promise<GalleryPasswordVerification> {
   const { data: gallery } = await supabaseAdmin
     .from('galleries')
     .select('id, password_hash, password_protected')
     .eq('share_token', shareToken)
     .single()
 
-  if (!gallery || !gallery.password_protected) return true
-  if (!gallery.password_hash) return false
+  if (!gallery || !gallery.password_protected) return { status: 'valid' }
+  if (!gallery.password_hash) return { status: 'invalid' }
+
+  const ip = await getRequestIp()
+  const ipHash = ip ? await hashIpForRateLimit(ip) : null
+
+  const rateLimit = await checkGalleryPasswordRateLimit(gallery.id, ipHash)
+  if (!rateLimit.allowed) {
+    return { status: 'rate_limited', retryAfterSeconds: rateLimit.retryAfterSeconds ?? 60 }
+  }
 
   const { valid, needsRehash } = await verifyGalleryPasswordHash(password, gallery.password_hash)
 
@@ -789,7 +828,12 @@ export async function verifyGalleryPassword(shareToken: string, password: string
     }
   }
 
-  return valid
+  if (valid) {
+    await resetGalleryPasswordRateLimit(gallery.id, ipHash)
+    return { status: 'valid' }
+  }
+
+  return { status: 'invalid' }
 }
 
 export async function incrementGalleryView(shareToken: string) {

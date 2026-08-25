@@ -33,8 +33,14 @@ export async function POST(
   // Re-verify the actual password server-side — never trust a client-side
   // "already unlocked this gallery" claim.
   const providedPassword = request.nextUrl.searchParams.get('password') ?? ''
-  const passwordOk = await verifyGalleryPassword(gallery.share_token, providedPassword)
-  if (!passwordOk) {
+  const verification = await verifyGalleryPassword(gallery.share_token, providedPassword)
+  if (verification.status === 'rate_limited') {
+    return NextResponse.json(
+      { error: 'Too many attempts. Please wait and try again.' },
+      { status: 429, headers: { 'Retry-After': String(verification.retryAfterSeconds) } }
+    )
+  }
+  if (verification.status !== 'valid') {
     return NextResponse.json({ error: 'This gallery is password protected' }, { status: 403 })
   }
 

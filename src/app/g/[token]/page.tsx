@@ -64,9 +64,15 @@ export default async function ClientGalleryPage({ params, searchParams }: Props)
 
   if (gate.password_protected) {
     const providedPassword = password || ''
-    const isValid = providedPassword ? await verifyGalleryPassword(token, providedPassword) : false
+    const verification = providedPassword ? await verifyGalleryPassword(token, providedPassword) : null
 
-    if (!isValid) {
+    if (verification?.status !== 'valid') {
+      const passwordError = !providedPassword
+        ? undefined
+        : verification?.status === 'rate_limited'
+          ? 'Too many attempts. Please wait and try again.'
+          : 'Incorrect password. Please try again.'
+
       return (
         <ClientGalleryContent
           gallery={{
@@ -96,7 +102,7 @@ export default async function ClientGalleryPage({ params, searchParams }: Props)
           token={token}
           embed={embed === 'true'}
           requirePassword
-          passwordError={providedPassword ? 'Incorrect password. Please try again.' : undefined}
+          passwordError={passwordError}
         />
       )
     }
