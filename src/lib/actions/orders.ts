@@ -126,3 +126,43 @@ export async function deleteOrder(orderId: string, studioSlug: string): Promise<
 
   revalidatePath(`/dashboard/${studioSlug}/store`)
 }
+
+/**
+ * Phase 5 P5: rotates an order's share_token, matching the established
+ * regenerateInvoiceShareToken/regenerateQuoteShareToken pattern exactly.
+ * The old token stops working immediately, the new token works right
+ * away, and the order's own fields (status, items, everything digital-
+ * download eligibility is derived from) are untouched -- only the token
+ * column changes. Gated on store:manage_orders, the same permission
+ * that already governs every other order mutation (updateOrderStatus/
+ * deleteOrder above) -- no new RLS policy is needed, orders already has
+ * a granular UPDATE policy requiring this permission (migration 032).
+ */
+export async function regenerateOrderShareToken(
+  orderId: string,
+  studioSlug: string
+): Promise<{ error: string } | { success: true; shareToken: string }> {
+  const membership = await requireStudioPermission('store:manage_orders')
+  if ('error' in membership) return membership
+
+  const supabase = await createClient()
+  const newToken = Array.from(crypto.getRandomValues(new Uint8Array(16)))
+    .map((b) => b.toString(16).padStart(2, '0'))
+    .join('')
+
+  const { data, error } = await supabase
+    .from('orders')
+    .update({ share_token: newToken, updated_at: new Date().toISOString() })
+    .eq('id', orderId)
+    .eq('studio_id', membership.studioId)
+    .select('id')
+    .single()
+
+  if (error || !data) {
+    console.error('Regenerate order share token error:', error)
+    return { error: 'Failed to regenerate share link' }
+  }
+
+  revalidatePath(`/dashboard/${studioSlug}/store`)
+  return { success: true, shareToken: newToken }
+}

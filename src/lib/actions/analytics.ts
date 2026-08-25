@@ -2,6 +2,7 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { getStudioCurrency } from '@/lib/actions/studios'
+import { requireStudioPermission } from '@/lib/auth/server'
 
 export type AnalyticsRange = '7d' | '30d' | '90d' | '12m'
 
@@ -81,10 +82,20 @@ function percentChange(current: number, previous: number): number | null {
  * implemented). "Revenue" below means fully-settled invoices (paid_at set),
  * not partial deposits — outstandingInvoices covers the rest of the picture.
  */
+// Phase 4: analytics:read is deliberately withheld from team_member and
+// editor in ROLE_PERMISSIONS -- both would otherwise reach full studio
+// revenue/client/booking figures through this Server Action's RPC
+// endpoint even with the analytics page itself gated, since a Server
+// Action is a directly callable endpoint. Also switches studio scoping
+// from an untrusted studioSlug lookup to the caller's verified
+// membership.studioId, matching the Phase 3 payments.ts/billing.ts fix
+// pattern.
 export async function getAnalyticsOverview(studioSlug: string, range: AnalyticsRange): Promise<AnalyticsData | null> {
+  const access = await requireStudioPermission('analytics:read')
+  if ('error' in access) return null
+  const studio = { id: access.studioId }
+
   const supabase = await createClient()
-  const { data: studio } = await supabase.from('studios').select('id').eq('slug', studioSlug).single()
-  if (!studio) return null
 
   const currency = await getStudioCurrency(studioSlug)
 

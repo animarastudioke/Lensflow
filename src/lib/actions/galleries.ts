@@ -22,6 +22,7 @@ import {
 import { sendEmail } from '@/lib/email/resend'
 import { galleryPublishedEmail } from '@/lib/email/templates'
 import { mapWithConcurrency } from '@/lib/utils/concurrency'
+import { hashGalleryPassword, verifyGalleryPasswordHash } from '@/lib/security/gallery-password'
 
 // Types
 export type GalleryType = 'wedding' | 'portrait' | 'commercial' | 'event' | 'other'
@@ -222,21 +223,6 @@ function generateShareToken(): string {
     .join('')
 }
 
-// Hash password using bcrypt (would use proper bcrypt in production)
-async function hashPassword(password: string): Promise<string> {
-  const encoder = new TextEncoder()
-  const data = encoder.encode(password)
-  const hashBuffer = await crypto.subtle.digest('SHA-256', data)
-  return Array.from(new Uint8Array(hashBuffer))
-    .map(b => b.toString(16).padStart(2, '0'))
-    .join('')
-}
-
-async function verifyPassword(password: string, hash: string): Promise<boolean> {
-  const newHash = await hashPassword(password)
-  return newHash === hash
-}
-
 // Server Actions
 
 export async function createGallery(formData: FormData) {
@@ -303,7 +289,7 @@ export async function createGallery(formData: FormData) {
   // Hash password if provided
   let passwordHash: string | undefined
   if (validated.password_protected && validated.password) {
-    passwordHash = await hashPassword(validated.password)
+    passwordHash = await hashGalleryPassword(validated.password)
   }
 
   // Create gallery
@@ -424,7 +410,7 @@ export async function updateGallery(formData: FormData) {
   // Hash password if provided and changed
   let passwordHash = existing.password_hash
   if (validated.password_protected && validated.password && validated.password !== existing.password_hash) {
-    passwordHash = await hashPassword(validated.password)
+    passwordHash = await hashGalleryPassword(validated.password)
   } else if (!validated.password_protected) {
     passwordHash = null
   }
@@ -770,18 +756,40 @@ export async function getGalleryByToken(shareToken: string) {
  * the public gallery page and, for downloads, by the storage/bulk-download
  * routes — always re-verify the actual password there too rather than
  * trusting a client-asserted "already verified" flag.
+ *
+ * Transparently upgrades a legacy SHA-256 hash to Argon2id the moment it's
+ * confirmed correct — never on a failed attempt, and never for a hash that's
+ * already Argon2id. The rehash write is scoped to `gallery.id` as read back
+ * from this exact row (never the caller-supplied shareToken/password), so a
+ * successful verification can only ever upgrade the row it just checked.
+ * The rehash is best-effort: if it fails, the (already-correct) verification
+ * result is still returned — a client should never see a rehash failure as
+ * "wrong password".
  */
 export async function verifyGalleryPassword(shareToken: string, password: string): Promise<boolean> {
   const { data: gallery } = await supabaseAdmin
     .from('galleries')
-    .select('password_hash, password_protected')
+    .select('id, password_hash, password_protected')
     .eq('share_token', shareToken)
     .single()
 
   if (!gallery || !gallery.password_protected) return true
   if (!gallery.password_hash) return false
 
-  return await verifyPassword(password, gallery.password_hash)
+  const { valid, needsRehash } = await verifyGalleryPasswordHash(password, gallery.password_hash)
+
+  if (valid && needsRehash) {
+    const upgradedHash = await hashGalleryPassword(password)
+    const { error: rehashError } = await supabaseAdmin
+      .from('galleries')
+      .update({ password_hash: upgradedHash })
+      .eq('id', gallery.id)
+    if (rehashError) {
+      console.error('Gallery password lazy-rehash failed:', rehashError)
+    }
+  }
+
+  return valid
 }
 
 export async function incrementGalleryView(shareToken: string) {
@@ -916,7 +924,7 @@ export async function updateShareSettings(galleryId: string, studioSlug: string,
   // Hash password if needed
   let passwordHash: string | null = null
   if (validated.password_protected && validated.password) {
-    passwordHash = await hashPassword(validated.password)
+    passwordHash = await hashGalleryPassword(validated.password)
   }
 
   // Update gallery table with access settings

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { z } from 'zod'
+import { hashGalleryPassword } from '@/lib/security/gallery-password'
 
 const shareSettingsSchema = z.object({
   link_name: z.string().max(50).optional(),
@@ -28,15 +29,6 @@ const shareSettingsSchema = z.object({
   message: 'Password is required when password protection is enabled',
   path: ['password'],
 })
-
-async function hashPassword(password: string): Promise<string> {
-  const encoder = new TextEncoder()
-  const data = encoder.encode(password)
-  const hashBuffer = await crypto.subtle.digest('SHA-256', data)
-  return Array.from(new Uint8Array(hashBuffer))
-    .map(b => b.toString(16).padStart(2, '0'))
-    .join('')
-}
 
 export async function PATCH(
   request: NextRequest,
@@ -108,7 +100,7 @@ export async function PATCH(
     // Hash password if provided
     let passwordHash: string | null = null
     if (validated.password_protected && validated.password) {
-      passwordHash = await hashPassword(validated.password)
+      passwordHash = await hashGalleryPassword(validated.password)
     }
 
     // Update gallery access settings

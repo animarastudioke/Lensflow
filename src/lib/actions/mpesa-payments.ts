@@ -4,34 +4,32 @@ import { createClient } from '@/lib/supabase/server'
 import { supabaseAdmin } from '@/lib/supabase/admin'
 import { revalidatePath } from 'next/cache'
 import { requireEntitlement } from '@/lib/entitlements'
+import { requireStudioPermission } from '@/lib/auth/server'
 import { initiateStkPush, normalizeKenyanPhone, queryStkPushStatus } from '@/lib/payments/mpesa'
 import { applyMpesaPaymentOutcome } from '@/lib/payments/resolve'
 import { getStudioCurrency } from '@/lib/actions/studios'
 
-async function requireMembership(): Promise<{ error: string } | { userId: string; studioId: string }> {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { error: 'Unauthorized' }
-
-  const { data: membership } = await supabase
-    .from('studio_members')
-    .select('studio_id')
-    .eq('user_id', user.id)
-    .eq('status', 'active')
-    .single()
-
-  if (!membership) return { error: 'No active studio membership' }
-
-  return { userId: user.id, studioId: membership.studio_id }
-}
-
 /**
- * Photographer-initiated M-Pesa collection: the dashboard user enters (or
- * confirms) the client's phone number and triggers an STK push on the
- * client's behalf. Kept alongside initiateMpesaInvoicePaymentPublic (the
- * client's own self-serve path on the public invoice page) for cases where
- * the photographer is collecting in person or over a call rather than
- * pointing the client at their invoice link.
+ * Dashboard-user-initiated M-Pesa collection: enters (or confirms) the
+ * client's phone number and triggers an STK push on the client's behalf.
+ * Kept alongside initiateMpesaInvoicePaymentPublic (the client's own
+ * self-serve path on the public invoice page) for cases where staff are
+ * collecting in person or over a call rather than pointing the client at
+ * their invoice link.
+ *
+ * Phase 5 P2: previously gated only by requireMembership() (any active
+ * member, no permission check) -- the actual payments INSERT below runs
+ * through supabaseAdmin (service role, bypasses RLS), so that weak check
+ * was the ENTIRE authorization boundary for triggering a real charge
+ * attempt. An editor (zero financial permissions in ROLE_PERMISSIONS)
+ * could previously initiate and poll a real M-Pesa charge. Now requires
+ * payments:create, matching ROLE_PERMISSIONS exactly -- granted only to
+ * studio_owner/super_admin today. Note this file's own prior doc comment
+ * described "photographer-initiated" collection as the intended
+ * workflow, but photographer holds no payments:* permission in
+ * ROLE_PERMISSIONS -- flagged in the Phase 5 report as a product
+ * decision to make (grant photographer payments:create, or accept this
+ * workflow is now owner/super_admin-only), not assumed here.
  */
 export async function initiateMpesaInvoicePayment(
   invoiceId: string,
@@ -39,7 +37,7 @@ export async function initiateMpesaInvoicePayment(
   phoneNumberInput: string,
   amount?: number
 ): Promise<{ paymentId: string; checkoutRequestId: string; customerMessage: string } | { error: string }> {
-  const membership = await requireMembership()
+  const membership = await requireStudioPermission('payments:create')
   if ('error' in membership) return membership
 
   await requireEntitlement(membership.studioId, 'payments')
@@ -314,12 +312,20 @@ export interface MpesaPaymentStatus {
  * updates the DB if it discovers a resolved outcome the webhook hasn't
  * delivered yet — same idempotent path the webhook uses, so calling this
  * repeatedly is always safe.
+ *
+ * Phase 5 P2: gated on payments:read (a read-intent action), not
+ * payments:create -- narrower than initiateMpesaInvoicePayment's gate,
+ * per this phase's "do not broaden access" instruction. Both permissions
+ * happen to have the identical grantee set today (studio_owner/
+ * super_admin only), so this doesn't change who can poll today; it
+ * decouples the check from a permission this function doesn't actually
+ * exercise (it never creates a payment).
  */
 export async function pollMpesaPaymentStatus(
   paymentId: string,
   studioSlug: string
 ): Promise<MpesaPaymentStatus | { error: string }> {
-  const membership = await requireMembership()
+  const membership = await requireStudioPermission('payments:read')
   if ('error' in membership) return membership
 
   const supabase = await createClient()

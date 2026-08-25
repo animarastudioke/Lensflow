@@ -27,8 +27,15 @@ export interface StudioPayoutSummary {
 // invoice or a store order, never a subscription payment (plan_id), which
 // runs the other direction (studio paying the platform). See resolve.ts's
 // invoice_id/order_id/plan_id branches, the same distinction this mirrors.
+//
+// Reads both `payments` (payments:read) and `payouts` (payouts:read) --
+// gated on payouts:read since that's this function's namesake resource.
+// Both permissions are granted to the identical role set (studio_owner/
+// super_admin only) today, so this doesn't change who can call it; it
+// decouples the check from a permission this function only incidentally
+// also depends on.
 export async function getStudioPayoutSummary(_studioSlug: string): Promise<StudioPayoutSummary | null> {
-  const membership = await requireStudioPermission('payments:read')
+  const membership = await requireStudioPermission('payouts:read')
   if ('error' in membership) return null
 
   const supabase = await createClient()
