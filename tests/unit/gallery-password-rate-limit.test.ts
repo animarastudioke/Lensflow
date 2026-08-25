@@ -39,7 +39,17 @@ class FakeRatelimit {
   }
   async limit(identifier: string) {
     limitCalls.push({ prefix: this.opts.prefix, identifier })
-    if (shouldThrowOnLimit) throw new Error('simulated Upstash outage')
+    if (shouldThrowOnLimit) {
+      // Mirrors the REAL @upstash/redis/@upstash/ratelimit failure shape
+      // confirmed during Phase 6b live provider verification: a rejected
+      // command's Error.message embeds the full failed Redis command,
+      // including this exact identifier (gallery id + IP hash). A naive
+      // fake that just threw a short synthetic string (as this one
+      // originally did) can never catch a logging leak of that content --
+      // this reproduces the real shape so the leak-fix test below is a
+      // genuine regression guard, not one that trivially passes regardless.
+      throw new Error(`WRONGPASS invalid or missing auth token. command was: [["evalsha","abc123",3,"${this.opts.prefix}:${identifier}:5958908","${this.opts.prefix}:${identifier}:5958907","",5,1787672400844,300000,1]]`)
+    }
     const key = `${this.opts.prefix}::${identifier}`
     const now = Date.now()
     const windowMs = this.opts.limiter.windowMs
@@ -51,7 +61,9 @@ class FakeRatelimit {
   }
   async resetUsedTokens(identifier: string) {
     resetCalls.push({ prefix: this.opts.prefix, identifier })
-    if (shouldThrowOnReset) throw new Error('simulated Upstash outage on reset')
+    if (shouldThrowOnReset) {
+      throw new Error(`WRONGPASS invalid or missing auth token. command was: [["evalsha","def456",1,"${this.opts.prefix}:${identifier}:*","null"]]`)
+    }
     store.delete(`${this.opts.prefix}::${identifier}`)
   }
 }
@@ -224,6 +236,48 @@ describe('gallery-password-rate-limit', () => {
     shouldThrowOnReset = true
     const { resetGalleryPasswordRateLimit } = await import('@/lib/security/gallery-password-rate-limit')
     await expect(resetGalleryPasswordRateLimit('gallery-a', 'iphash-1')).resolves.toBeUndefined()
+  })
+
+  it('14d. a provider error on check() never logs the caught error -- only a fixed generic diagnostic (regression guard for the Phase 6b live-provider leak)', async () => {
+    shouldThrowOnLimit = true
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    try {
+      const { checkGalleryPasswordRateLimit } = await import('@/lib/security/gallery-password-rate-limit')
+      const galleryId = 'gallery-secret-42'
+      const ipHash = 'iphash-secret-99'
+      await checkGalleryPasswordRateLimit(galleryId, ipHash)
+
+      expect(spy).toHaveBeenCalled()
+      const loggedText = spy.mock.calls.map((args) => args.map((a) => (typeof a === 'string' ? a : JSON.stringify(a))).join(' ')).join('\n')
+      // The identifiers this specific call used must never appear -- proves
+      // the fix, not just that logging happened at all.
+      expect(loggedText).not.toContain(galleryId)
+      expect(loggedText).not.toContain(ipHash)
+      expect(loggedText).not.toMatch(/evalsha|WRONGPASS|command was/i)
+      expect(loggedText).toContain('failing open')
+    } finally {
+      spy.mockRestore()
+    }
+  })
+
+  it('14e. a provider error on reset() never logs the caught error -- only a fixed generic diagnostic (regression guard for the Phase 6b live-provider leak)', async () => {
+    shouldThrowOnReset = true
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    try {
+      const { resetGalleryPasswordRateLimit } = await import('@/lib/security/gallery-password-rate-limit')
+      const galleryId = 'gallery-secret-43'
+      const ipHash = 'iphash-secret-100'
+      await resetGalleryPasswordRateLimit(galleryId, ipHash)
+
+      expect(spy).toHaveBeenCalled()
+      const loggedText = spy.mock.calls.map((args) => args.map((a) => (typeof a === 'string' ? a : JSON.stringify(a))).join(' ')).join('\n')
+      expect(loggedText).not.toContain(galleryId)
+      expect(loggedText).not.toContain(ipHash)
+      expect(loggedText).not.toMatch(/evalsha|WRONGPASS|command was/i)
+      expect(loggedText).toContain('failing open')
+    } finally {
+      spy.mockRestore()
+    }
   })
 
   it('14c. no Upstash env vars configured at all fails open without ever constructing a client', async () => {

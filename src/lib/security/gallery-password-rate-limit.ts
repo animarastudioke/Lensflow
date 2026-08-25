@@ -59,8 +59,13 @@ function getLimiters(): { galleryIp: Ratelimit; globalIp: Ratelimit } | null {
           limiter: Ratelimit.slidingWindow(GLOBAL_IP_MAX_FAILURES, GLOBAL_IP_WINDOW),
           prefix: `${KEY_PREFIX}:ip`,
         })
-      } catch (err) {
-        console.error('Gallery password rate limiter: failed to initialize Upstash client, failing open:', err instanceof Error ? err.message : err)
+      } catch {
+        // Never log the caught error itself: a real (non-mocked) Upstash
+        // client/command failure's message can embed the full failed Redis
+        // command, including this module's own key names (gallery id, IP
+        // hash) -- confirmed live during Phase 6b provider verification.
+        // A fixed, generic diagnostic is deliberately all that's logged.
+        console.error('Gallery password rate limiter: provider initialization error -- failing open (rate limiting disabled)')
         galleryIpLimiter = null
         globalIpLimiter = null
       }
@@ -133,8 +138,9 @@ export async function checkGalleryPasswordRateLimit(galleryId: string, ipHash: s
     )
     const retryAfterSeconds = Math.max(1, Math.ceil((soonestResetMs - Date.now()) / 1000))
     return { allowed: false, retryAfterSeconds }
-  } catch (err) {
-    console.error('Gallery password rate limiter: provider error, failing open:', err instanceof Error ? err.message : err)
+  } catch {
+    // Never log the caught error itself -- see the comment in getLimiters().
+    console.error('Gallery password rate limiter: provider error on check -- failing open')
     return { allowed: true }
   }
 }
@@ -155,9 +161,10 @@ export async function resetGalleryPasswordRateLimit(galleryId: string, ipHash: s
   try {
     const galleryIpIdentifier = `${galleryId}:${ipHash ?? 'unknown'}`
     await limiters.galleryIp.resetUsedTokens(galleryIpIdentifier)
-  } catch (err) {
+  } catch {
     // Best-effort -- a failed reset just means a legitimate user's budget
     // isn't refunded this time, not that their successful login fails.
-    console.error('Gallery password rate limiter: reset failed (non-fatal):', err instanceof Error ? err.message : err)
+    // Never log the caught error itself -- see the comment in getLimiters().
+    console.error('Gallery password rate limiter: provider error on reset -- failing open (non-fatal)')
   }
 }

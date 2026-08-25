@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { createHash } from 'node:crypto'
 import { NextRequest } from 'next/server'
@@ -340,6 +340,86 @@ describe('TEST 8 -- fail-open under a REAL provider error (invalid credentials, 
     try {
       await expect(resetGalleryPasswordRateLimit(crypto.randomUUID(), await hashIpForRateLimit(testIp(10)))).resolves.toBeUndefined()
     } finally {
+      process.env['UPSTASH_REDIS_REST_TOKEN'] = originalToken
+      __resetGalleryPasswordRateLimiterForTests()
+    }
+  })
+
+  // Phase 6b.1 regression: the live provider verification originally run in
+  // this file (before the fix) proved the REAL @upstash/redis client's
+  // rejected-command Error.message embeds the full failed Redis command --
+  // including this module's own key names (gallery id, IP hash) -- and the
+  // module's catch blocks were logging that message verbatim. These two
+  // tests re-run the exact same real-provider-rejection scenario against
+  // the now-fixed source and inspect the actual captured console output,
+  // rather than trusting the fix by code inspection alone.
+  //
+  // Assertions are written as booleans derived from the captured text,
+  // never comparing the raw token/identifiers directly in a way that could
+  // echo them into a Vitest failure diff.
+  it('a real unauthorized check() logs only a safe generic diagnostic -- no galleryId, ipHash, command, or token', async () => {
+    const originalToken = process.env['UPSTASH_REDIS_REST_TOKEN']
+    const invalidToken = `${originalToken}-deliberately-invalid`
+    process.env['UPSTASH_REDIS_REST_TOKEN'] = invalidToken
+    __resetGalleryPasswordRateLimiterForTests()
+
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    try {
+      const galleryId = crypto.randomUUID()
+      const ipHash = await hashIpForRateLimit(testIp(12))
+      await checkGalleryPasswordRateLimit(galleryId, ipHash)
+
+      const loggedText = spy.mock.calls.map((args) => args.map((a) => (typeof a === 'string' ? a : JSON.stringify(a))).join(' ')).join('\n')
+
+      const wasLogged = spy.mock.calls.length > 0
+      const containsGalleryId = loggedText.includes(galleryId)
+      const containsIpHash = loggedText.includes(ipHash)
+      const containsToken = originalToken ? loggedText.includes(originalToken) || loggedText.includes(invalidToken) : false
+      const containsCommandShape = /evalsha|WRONGPASS|command was/i.test(loggedText)
+      const containsSafeDiagnostic = loggedText.includes('failing open')
+
+      expect(wasLogged).toBe(true)
+      expect(containsGalleryId).toBe(false)
+      expect(containsIpHash).toBe(false)
+      expect(containsToken).toBe(false)
+      expect(containsCommandShape).toBe(false)
+      expect(containsSafeDiagnostic).toBe(true)
+    } finally {
+      spy.mockRestore()
+      process.env['UPSTASH_REDIS_REST_TOKEN'] = originalToken
+      __resetGalleryPasswordRateLimiterForTests()
+    }
+  })
+
+  it('a real unauthorized reset() logs only a safe generic diagnostic -- no galleryId, ipHash, command, or token', async () => {
+    const originalToken = process.env['UPSTASH_REDIS_REST_TOKEN']
+    const invalidToken = `${originalToken}-deliberately-invalid`
+    process.env['UPSTASH_REDIS_REST_TOKEN'] = invalidToken
+    __resetGalleryPasswordRateLimiterForTests()
+
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    try {
+      const galleryId = crypto.randomUUID()
+      const ipHash = await hashIpForRateLimit(testIp(13))
+      await resetGalleryPasswordRateLimit(galleryId, ipHash)
+
+      const loggedText = spy.mock.calls.map((args) => args.map((a) => (typeof a === 'string' ? a : JSON.stringify(a))).join(' ')).join('\n')
+
+      const wasLogged = spy.mock.calls.length > 0
+      const containsGalleryId = loggedText.includes(galleryId)
+      const containsIpHash = loggedText.includes(ipHash)
+      const containsToken = originalToken ? loggedText.includes(originalToken) || loggedText.includes(invalidToken) : false
+      const containsCommandShape = /evalsha|WRONGPASS|command was/i.test(loggedText)
+      const containsSafeDiagnostic = loggedText.includes('failing open')
+
+      expect(wasLogged).toBe(true)
+      expect(containsGalleryId).toBe(false)
+      expect(containsIpHash).toBe(false)
+      expect(containsToken).toBe(false)
+      expect(containsCommandShape).toBe(false)
+      expect(containsSafeDiagnostic).toBe(true)
+    } finally {
+      spy.mockRestore()
       process.env['UPSTASH_REDIS_REST_TOKEN'] = originalToken
       __resetGalleryPasswordRateLimiterForTests()
     }
