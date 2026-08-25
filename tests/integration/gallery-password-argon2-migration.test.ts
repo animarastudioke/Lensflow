@@ -18,6 +18,18 @@ import { verifyGalleryPassword } from '@/lib/actions/galleries'
  * what every gallery's password_hash looked like before this phase, since
  * production currently has zero password-protected galleries to migrate
  * from live (confirmed during Phase 6 reconnaissance).
+ *
+ * UPDATED (Phase 6b, durable rate limiting): verifyGalleryPassword's return
+ * type changed from a plain boolean to {status: 'valid'|'invalid'|
+ * 'rate_limited', ...} so callers can distinguish a rate-limited request
+ * from a wrong password. This is a necessary, already-designed interface
+ * change (see the Phase 6b design writeup), not a behavior regression --
+ * every assertion below was updated to match the new shape while checking
+ * exactly the same underlying outcome. No Upstash credentials are
+ * configured in this environment, so the rate limiter itself fails open
+ * throughout this file (see gallery-password-rate-limit.test.ts for that
+ * module's own isolated coverage) -- these tests exercise the Argon2id/
+ * lazy-rehash behavior only, unaffected by the rate limiter being disabled.
  */
 
 const RUN_ID = crypto.randomUUID().slice(0, 8)
@@ -108,7 +120,7 @@ describe('legacy SHA-256 gallery: correct password verifies AND transparently up
     expect(before!.startsWith('$argon2')).toBe(false)
 
     const firstVerify = await verifyGalleryPassword(gallery.shareToken, password)
-    expect(firstVerify).toBe(true)
+    expect(firstVerify).toEqual({ status: 'valid' })
 
     const after = await readHash(gallery.id)
     expect(after).not.toBeNull()
@@ -117,7 +129,7 @@ describe('legacy SHA-256 gallery: correct password verifies AND transparently up
 
     // The upgraded hash must still authenticate the same password going forward.
     const secondVerify = await verifyGalleryPassword(gallery.shareToken, password)
-    expect(secondVerify).toBe(true)
+    expect(secondVerify).toEqual({ status: 'valid' })
 
     // Verifying again with an already-Argon2id hash must not rewrite it further.
     const afterSecondVerify = await readHash(gallery.id)
@@ -132,7 +144,7 @@ describe('legacy SHA-256 gallery: wrong password never rehashes', () => {
     const gallery = await makeGallery(studioAId, 'legacy-wrong', legacyHash)
 
     const result = await verifyGalleryPassword(gallery.shareToken, 'incorrect-guess')
-    expect(result).toBe(false)
+    expect(result).toEqual({ status: 'invalid' })
 
     const stillHash = await readHash(gallery.id)
     expect(stillHash).toBe(legacyHash)
@@ -148,8 +160,8 @@ describe('new Argon2id gallery: works end to end without ever touching legacy lo
     const hash = await hashGalleryPassword(password)
     const gallery = await makeGallery(studioAId, 'new-argon2', hash)
 
-    expect(await verifyGalleryPassword(gallery.shareToken, password)).toBe(true)
-    expect(await verifyGalleryPassword(gallery.shareToken, 'wrong')).toBe(false)
+    expect(await verifyGalleryPassword(gallery.shareToken, password)).toEqual({ status: 'valid' })
+    expect(await verifyGalleryPassword(gallery.shareToken, 'wrong')).toEqual({ status: 'invalid' })
 
     const finalHash = await readHash(gallery.id)
     expect(finalHash).toBe(hash)
@@ -165,7 +177,7 @@ describe('cross-studio / cross-gallery isolation of the verify-and-rehash path',
     const beforeBHash = await readHash(galleryB.id)
 
     const result = await verifyGalleryPassword(galleryA.shareToken, sharedPassword)
-    expect(result).toBe(true)
+    expect(result).toEqual({ status: 'valid' })
 
     const afterAHash = await readHash(galleryA.id)
     const afterBHash = await readHash(galleryB.id)
@@ -194,8 +206,8 @@ describe('non-password-protected gallery: verification is a no-op regardless of 
     if (error || !data) throw new Error(`Failed to create unprotected gallery: ${error?.message}`)
     galleryIds.push(data.id)
 
-    expect(await verifyGalleryPassword(shareToken, 'literally anything')).toBe(true)
-    expect(await verifyGalleryPassword(shareToken, '')).toBe(true)
+    expect(await verifyGalleryPassword(shareToken, 'literally anything')).toEqual({ status: 'valid' })
+    expect(await verifyGalleryPassword(shareToken, '')).toEqual({ status: 'valid' })
 
     const hash = await readHash(data.id)
     expect(hash).toBeNull()
