@@ -25,6 +25,12 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js'
  * the live vulnerability, not a broken test, exactly like Phase 2's
  * before-state. Once 036 is deployed, re-run this file; it should reach
  * 0 failures.
+ *
+ * Phase 8 Target 2 update: per the explicit product decision to grant
+ * photographer payments:create/payments:read (migration
+ * 043_photographer_mpesa_permissions.sql), photographer's expected
+ * result below changed from DENIED to AUTHORIZED. team_member and editor
+ * are unaffected by Phase 8 and remain DENIED.
  */
 
 const RUN_ID = crypto.randomUUID().slice(0, 8)
@@ -109,7 +115,7 @@ afterAll(async () => {
   }
 })
 
-describe('Phase 3 P1: payments table — role enforcement (payments:read is owner/super_admin-only)', () => {
+describe('Phase 3 P1 / Phase 8 Target 2: payments table — role enforcement', () => {
   it('team_member cannot SELECT the studio\'s payments (matrix: team_member has no payments:read)', async () => {
     const { data } = await teamMember.client.from('payments').select('id, amount, phone_number').eq('id', paymentId)
     expect(data ?? []).toEqual([])
@@ -120,9 +126,10 @@ describe('Phase 3 P1: payments table — role enforcement (payments:read is owne
     expect(data ?? []).toEqual([])
   })
 
-  it('photographer cannot SELECT the studio\'s payments (matrix: photographer has no payments:read either)', async () => {
+  it('photographer CAN SELECT the studio\'s payments (Phase 8 Target 2: photographer now holds payments:read)', async () => {
     const { data } = await photographer.client.from('payments').select('id, amount, phone_number').eq('id', paymentId)
-    expect(data ?? []).toEqual([])
+    expect(data).toHaveLength(1)
+    expect(data?.[0]?.amount).toBe(5000)
   })
 
   it('studio_owner CAN SELECT the studio\'s payments', async () => {
