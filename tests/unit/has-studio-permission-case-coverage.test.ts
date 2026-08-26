@@ -43,8 +43,26 @@ const NON_OWNER_ROLES: UserRole[] = ['photographer', 'team_member', 'editor']
  * discrepancies remain -- this set is kept (empty) as the established
  * place to document any future one, rather than removed, so a future
  * exception doesn't require re-deriving this pattern from scratch.
+ *
+ * Phase 10 Target 1: 'editor:galleries:update' is a deliberate, documented
+ * exception, not an oversight. Three independent authorization sources
+ * exist for gallery mutation permissions -- ROLE_PERMISSIONS (TypeScript),
+ * has_studio_permission() (this DB function), and checkGalleryPermission()
+ * (a third, separately-maintained inline map local to
+ * src/lib/actions/galleries.ts) -- and they disagree: ROLE_PERMISSIONS
+ * grants editor 'galleries:update', but checkGalleryPermission() (the
+ * function that actually gates every gallery-editing Server Action today)
+ * does not grant editor 'galleries.edit'. Migration 044 aligns the DB
+ * boundary with checkGalleryPermission()'s narrower, currently-enforced
+ * behavior rather than ROLE_PERMISSIONS' broader claim, per the security
+ * principle that the DB boundary must not be broader than the
+ * application's actual enforced boundary. Reconciling all three sources
+ * (checkGalleryPermission() consolidation) is explicitly out of scope for
+ * Phase 10 -- see supabase/migrations/044_phase10_authorization_hardening.sql
+ * for the full rationale. This is the one, single, intentional exception;
+ * it must not be used as precedent to silently exempt anything else.
  */
-const KNOWN_DISCREPANCIES = new Set<string>()
+const KNOWN_DISCREPANCIES = new Set<string>(['editor:galleries:update'])
 
 function loadMigrationFiles(): { name: string; content: string }[] {
   return readdirSync(MIGRATIONS_DIR)

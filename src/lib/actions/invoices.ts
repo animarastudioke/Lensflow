@@ -160,23 +160,6 @@ export async function regenerateInvoiceShareToken(
   return { success: true, shareToken: newToken }
 }
 
-async function requireMembership(): Promise<{ error: string } | { studioId: string }> {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { error: 'Unauthorized' }
-
-  const { data: membership } = await supabase
-    .from('studio_members')
-    .select('studio_id')
-    .eq('user_id', user.id)
-    .eq('status', 'active')
-    .single()
-
-  if (!membership) return { error: 'No active studio membership' }
-
-  return { studioId: membership.studio_id }
-}
-
 /**
  * Best-effort — a failed send should never block the invoice itself from
  * being marked sent, so this only ever logs, never throws or returns an
@@ -353,27 +336,14 @@ const invoiceCreateSchema = z.object({
 })
 
 export async function createInvoice(formData: FormData) {
-  const supabase = await createClient()
+  const membership = await requireStudioPermission('invoices:create')
+  if ('error' in membership) throw new Error(membership.error)
 
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) {
-    throw new Error('Unauthorized')
-  }
+  const supabase = await createClient()
 
   const studioSlug = formData.get('studio_slug') as string
 
-  const { data: membership } = await supabase
-    .from('studio_members')
-    .select('studio_id, role')
-    .eq('user_id', user.id)
-    .eq('status', 'active')
-    .single()
-
-  if (!membership) {
-    throw new Error('No active studio membership')
-  }
-
-  await requireEntitlement(membership.studio_id, 'payments')
+  await requireEntitlement(membership.studioId, 'payments')
 
   let items: unknown
   try {
@@ -404,14 +374,14 @@ export async function createInvoice(formData: FormData) {
   const { count } = await supabase
     .from('invoices')
     .select('id', { count: 'exact', head: true })
-    .eq('studio_id', membership.studio_id)
+    .eq('studio_id', membership.studioId)
 
   const invoiceNumber = `INV-${String((count ?? 0) + 1).padStart(3, '0')}`
 
   const { data: invoice, error } = await supabase
     .from('invoices')
     .insert({
-      studio_id: membership.studio_id,
+      studio_id: membership.studioId,
       client_id: validated.client_id,
       invoice_number: invoiceNumber,
       status: validated.status,
@@ -450,7 +420,7 @@ export async function createInvoice(formData: FormData) {
   }
 
   if (validated.status === 'sent') {
-    await sendInvoiceSentEmail(invoice.id, membership.studio_id)
+    await sendInvoiceSentEmail(invoice.id, membership.studioId)
   }
 
   revalidatePath(`/dashboard/${studioSlug}/invoices`)
@@ -469,7 +439,7 @@ const invoiceUpdateSchema = z.object({
 })
 
 export async function updateInvoice(formData: FormData) {
-  const membership = await requireMembership()
+  const membership = await requireStudioPermission('invoices:update')
   if ('error' in membership) throw new Error(membership.error)
 
   const id = formData.get('id') as string

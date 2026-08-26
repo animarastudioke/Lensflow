@@ -6,6 +6,7 @@ import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 import { canAddTeamSeat } from '@/lib/entitlements'
 import { createNotification } from '@/lib/actions/notifications'
+import { canManageRole } from '@/lib/auth/permissions'
 
 // Real assignable roles for a studio's team, matching the user_role enum and
 // the permission map already enforced in checkGalleryPermission
@@ -29,7 +30,7 @@ export interface TeamMemberRow {
 }
 
 async function requireManager(studioSlug: string): Promise<
-  { error: string } | { userId: string; studioId: string }
+  { error: string } | { userId: string; studioId: string; role: 'studio_owner' | 'photographer' }
 > {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -49,7 +50,7 @@ async function requireManager(studioSlug: string): Promise<
   const isManager = membership && ['studio_owner', 'photographer'].includes(membership.role)
   if (!isManager) return { error: 'Only studio owners and photographers can manage the team' }
 
-  return { userId: user.id, studioId: studio.id }
+  return { userId: user.id, studioId: studio.id, role: membership.role as 'studio_owner' | 'photographer' }
 }
 
 export async function getTeamMembers(studioSlug: string): Promise<TeamMemberRow[]> {
@@ -208,6 +209,8 @@ export async function resendTeamInvite(
   return { success: true }
 }
 
+const teamRoleSchema = z.enum(['photographer', 'team_member', 'editor'])
+
 export async function updateTeamMemberRole(
   memberId: string,
   role: TeamRole,
@@ -216,10 +219,39 @@ export async function updateTeamMemberRole(
   const manager = await requireManager(studioSlug)
   if ('error' in manager) return manager
 
+  // role arrives as a Server Action argument, not validated by TypeScript
+  // at runtime -- a caller bypassing the UI could pass any string,
+  // including 'studio_owner'. Reject anything outside the three roles
+  // actually assignable via team management (studio_owner is never
+  // offered on the invite form either -- see the TeamRole comment above).
+  const parsedRole = teamRoleSchema.safeParse(role)
+  if (!parsedRole.success) return { error: 'Invalid role' }
+
+  // Existing role hierarchy (src/lib/auth/permissions.ts) -- a manager can
+  // only assign a role strictly below their own. This stops a
+  // photographer-manager from unilaterally creating peer managers
+  // (assigning 'photographer') without the owner's involvement, while
+  // still letting them assign 'team_member'/'editor' as before.
+  if (!canManageRole(manager.role, parsedRole.data)) {
+    return { error: 'You do not have permission to assign this role' }
+  }
+
   const supabase = await createClient()
+
+  const { data: target } = await supabase
+    .from('studio_members')
+    .select('user_id, role')
+    .eq('id', memberId)
+    .eq('studio_id', manager.studioId)
+    .single()
+
+  if (!target) return { error: 'Team member not found' }
+  if (target.role === 'studio_owner') return { error: 'The studio owner\'s role cannot be changed' }
+  if (target.user_id === manager.userId) return { error: 'You cannot change your own role' }
+
   const { error } = await supabase
     .from('studio_members')
-    .update({ role, updated_at: new Date().toISOString() })
+    .update({ role: parsedRole.data, updated_at: new Date().toISOString() })
     .eq('id', memberId)
     .eq('studio_id', manager.studioId)
     .neq('role', 'studio_owner')
