@@ -258,3 +258,40 @@ describe('has_studio_permission(): Phase 8 Target 2 -- photographer payments:cre
     expect(await check(editor, 'payments:read')).toBe(false)
   })
 })
+
+/**
+ * Phase 10 Target 1 acceptance test for migration
+ * 044_phase10_authorization_hardening.sql: galleries:create/update/delete
+ * were never cased in has_studio_permission() at all before this
+ * migration (fell through to ELSE, owner-only) -- irrelevant while the
+ * galleries table's own write policies never called this function, but
+ * now load-bearing since migration 044 wires the galleries RLS policies
+ * up to it. Matches checkGalleryPermission()'s actual currently-enforced
+ * role set exactly (see the migration's own header for why that, not the
+ * broader ROLE_PERMISSIONS claim for editor, is the correct reference).
+ */
+describe('has_studio_permission(): Phase 10 Target 1 -- galleries:create/update/delete (migration 044)', () => {
+  it('photographer: galleries:create TRUE, galleries:update TRUE, galleries:delete FALSE', async () => {
+    expect(await check(photographer, 'galleries:create')).toBe(true)
+    expect(await check(photographer, 'galleries:update')).toBe(true)
+    expect(await check(photographer, 'galleries:delete')).toBe(false)
+  })
+
+  it('studio_owner: galleries:create TRUE, galleries:update TRUE, galleries:delete TRUE (unchanged -- short-circuit)', async () => {
+    expect(await check(owner, 'galleries:create')).toBe(true)
+    expect(await check(owner, 'galleries:update')).toBe(true)
+    expect(await check(owner, 'galleries:delete')).toBe(true)
+  })
+
+  it('team_member: galleries:create FALSE, galleries:update TRUE, galleries:delete FALSE', async () => {
+    expect(await check(teamMember, 'galleries:create')).toBe(false)
+    expect(await check(teamMember, 'galleries:update')).toBe(true)
+    expect(await check(teamMember, 'galleries:delete')).toBe(false)
+  })
+
+  it('editor: galleries:create FALSE, galleries:update FALSE, galleries:delete FALSE', async () => {
+    expect(await check(editor, 'galleries:create')).toBe(false)
+    expect(await check(editor, 'galleries:update')).toBe(false)
+    expect(await check(editor, 'galleries:delete')).toBe(false)
+  })
+})
