@@ -405,6 +405,8 @@ export const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     'invoices:read',
     'invoices:update',
     'invoices:send',
+    'payments:create',
+    'payments:read',
     'store:read',
     'store:manage_products',
     'store:manage_orders',

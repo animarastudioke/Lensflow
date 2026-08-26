@@ -221,3 +221,40 @@ describe('has_studio_permission(): Phase 5 P1 -- team_member expenses:read (migr
     expect(await check(teamMember, 'subscriptions:read')).toBe(false)
   })
 })
+
+/**
+ * Phase 8 Target 2 acceptance test for migration 043
+ * (043_photographer_mpesa_permissions.sql): photographer gains
+ * payments:create/payments:read via a narrow CASE addition; every other
+ * role's payments:* result is unchanged (studio_owner already
+ * short-circuits to TRUE for everything; team_member/editor were never
+ * granted payments:* and remain FALSE; payments:refund and
+ * payments:manage_providers are deliberately NOT granted to photographer
+ * and remain owner/super_admin-only via the unchanged ELSE branch).
+ */
+describe('has_studio_permission(): Phase 8 Target 2 -- photographer payments:create/payments:read (migration 043)', () => {
+  it('photographer: payments:create TRUE, payments:read TRUE', async () => {
+    expect(await check(photographer, 'payments:create')).toBe(true)
+    expect(await check(photographer, 'payments:read')).toBe(true)
+  })
+
+  it('photographer: payments:refund FALSE, payments:manage_providers FALSE (not granted by this migration)', async () => {
+    expect(await check(photographer, 'payments:refund')).toBe(false)
+    expect(await check(photographer, 'payments:manage_providers')).toBe(false)
+  })
+
+  it('studio_owner: payments:create TRUE, payments:read TRUE (unchanged -- short-circuit)', async () => {
+    expect(await check(owner, 'payments:create')).toBe(true)
+    expect(await check(owner, 'payments:read')).toBe(true)
+  })
+
+  it('team_member: payments:create FALSE, payments:read FALSE (unaffected by this migration)', async () => {
+    expect(await check(teamMember, 'payments:create')).toBe(false)
+    expect(await check(teamMember, 'payments:read')).toBe(false)
+  })
+
+  it('editor: payments:create FALSE, payments:read FALSE (unaffected by this migration)', async () => {
+    expect(await check(editor, 'payments:create')).toBe(false)
+    expect(await check(editor, 'payments:read')).toBe(false)
+  })
+})
