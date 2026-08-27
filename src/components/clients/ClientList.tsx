@@ -190,7 +190,10 @@ function getStatusBadge(status: Client['status']) {
     active: { label: 'Active', variant: 'success' as const },
     lead: { label: 'Lead', variant: 'info' as const },
     inactive: { label: 'Inactive', variant: 'secondary' as const },
-    archived: { label: 'Archived', variant: 'destructive' as const },
+    // secondary (neutral), matching "archived" everywhere else in the app
+    // (galleries, websites, products, projects) -- archived describes a
+    // quiet/inactive state, not a failure, so it should not be destructive.
+    archived: { label: 'Archived', variant: 'secondary' as const },
   }
   const config = statusConfig[status]
   return <Badge variant={config.variant}>{config.label}</Badge>

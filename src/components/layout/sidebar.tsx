@@ -22,7 +22,6 @@ import {
   Menu,
   Building2,
   Briefcase,
-  Megaphone,
   NotepadText,
   LogOut,
   CalendarDays,
@@ -135,12 +134,6 @@ const navigation = [
     href: (studioSlug: string) => `/dashboard/${studioSlug}/website`,
     icon: Globe,
     permission: 'website:read',
-  },
-  {
-    title: 'Marketing',
-    href: (studioSlug: string) => `/dashboard/${studioSlug}/marketing`,
-    icon: Megaphone,
-    permission: 'analytics:read',
   },
   {
     title: 'Analytics',

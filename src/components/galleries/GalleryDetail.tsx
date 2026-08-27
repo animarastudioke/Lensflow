@@ -15,6 +15,7 @@ import {
   setMediaFavorite,
   deleteMedia,
   updateGalleryStatus,
+  updateGallery,
 } from '@/lib/actions/galleries'
 import {
   Card,
@@ -95,6 +96,7 @@ import {
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
+import { StatusBadge } from '@/components/layout/StatusBadge'
 import Image from 'next/image'
 
 interface GalleryImage {
@@ -156,27 +158,15 @@ export interface Gallery {
   updatedAt: string
 }
 
-function getStatusBadge(status: Gallery['status']) {
-  const statusConfig = {
-    draft: { label: 'Draft', className: 'bg-gray-100 text-gray-800' },
-    published: { label: 'Published', className: 'bg-green-100 text-green-800' },
-    archived: { label: 'Archived', className: 'bg-gray-100 text-gray-600' },
-    private: { label: 'Private', className: 'bg-amber-100 text-amber-800' },
-  }
-  const config = statusConfig[status]
-  return <Badge className={config.className}>{config.label}</Badge>
-}
-
-function getTypeBadge(type: Gallery['type']) {
-  const typeConfig = {
-    wedding: { label: 'Wedding', className: 'bg-pink-100 text-pink-800' },
-    portrait: { label: 'Portrait', className: 'bg-blue-100 text-blue-800' },
-    commercial: { label: 'Commercial', className: 'bg-purple-100 text-purple-800' },
-    event: { label: 'Event', className: 'bg-orange-100 text-orange-800' },
-    other: { label: 'Other', className: 'bg-gray-100 text-gray-800' },
-  }
-  const config = typeConfig[type]
-  return <Badge className={config.className}>{config.label}</Badge>
+// Type is a category label, not a status -- rendered as a neutral outline
+// badge (token-based, dark-mode-safe) rather than the semantic
+// success/warning/destructive palette StatusBadge uses for gallery.status.
+const GALLERY_TYPE_LABEL: Record<Gallery['type'], string> = {
+  wedding: 'Wedding',
+  portrait: 'Portrait',
+  commercial: 'Commercial',
+  event: 'Event',
+  other: 'Other',
 }
 
 interface GalleryDetailProps {
@@ -207,6 +197,35 @@ export function GalleryDetail({ studioSlug, initialGallery }: GalleryDetailProps
   const [albumDeleteConfirm, setAlbumDeleteConfirm] = React.useState<GalleryAlbum | null>(null)
   const [addToAlbumOpen, setAddToAlbumOpen] = React.useState(false)
   const [addToAlbumTargetIds, setAddToAlbumTargetIds] = React.useState<string[]>([])
+
+  // Settings tab -- form state for the fields updateGallery() actually
+  // persists. "Primary Color" and "Require Email" were removed from this
+  // tab: they belong to gallery_share_settings (updateShareSettings), a
+  // separate action with its own required fields (link_name, notify/embed
+  // settings) -- submitting this simpler form through it would silently
+  // reset those unrelated settings to their zod defaults. Fixing that
+  // requires either extending updateGallery or building a dedicated
+  // share-settings surface, both out of scope for this pass; primary
+  // color is already editable on the gallery's Design page.
+  const initialSettingsForm = React.useCallback(
+    (g: Gallery) => ({
+      name: g.name,
+      description: g.description ?? '',
+      type: g.type,
+      passwordProtected: g.passwordProtected,
+      password: '',
+      downloadEnabled: g.downloadEnabled,
+      watermarkEnabled: g.watermarkEnabled,
+      allowFavorites: g.allowFavorites,
+      allowComments: g.allowComments,
+      expiryEnabled: g.expiryDays != null,
+      expiryDays: g.expiryDays ?? 30,
+    }),
+    []
+  )
+  const [settingsForm, setSettingsForm] = React.useState(() => initialSettingsForm(gallery))
+  const [isSavingSettings, setIsSavingSettings] = React.useState(false)
+  const [settingsError, setSettingsError] = React.useState<string | null>(null)
 
   // Filter and sort images
   const filteredImages = React.useMemo(() => {
@@ -455,6 +474,64 @@ export function GalleryDetail({ studioSlug, initialGallery }: GalleryDetailProps
     toast.success(status === 'published' ? 'Gallery published — share link is now live' : 'Gallery status updated')
   }
 
+  const handleCancelSettings = () => {
+    setSettingsForm(initialSettingsForm(gallery))
+    setSettingsError(null)
+  }
+
+  const handleSaveSettings = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault()
+    setSettingsError(null)
+    setIsSavingSettings(true)
+
+    const formData = new FormData()
+    formData.set('id', gallery.id)
+    formData.set('studio_slug', studioSlug)
+    formData.set('name', settingsForm.name)
+    formData.set('description', settingsForm.description)
+    formData.set('type', settingsForm.type)
+    formData.set('password_protected', String(settingsForm.passwordProtected))
+    if (settingsForm.password) {
+      formData.set('password', settingsForm.password)
+    }
+    formData.set('allow_download', String(settingsForm.downloadEnabled))
+    formData.set('allow_favorites', String(settingsForm.allowFavorites))
+    formData.set('allow_comments', String(settingsForm.allowComments))
+    formData.set('watermark_enabled', String(settingsForm.watermarkEnabled))
+    formData.set('expiry_days', settingsForm.expiryEnabled ? String(settingsForm.expiryDays) : '')
+
+    try {
+      await updateGallery(formData)
+      // updateGallery redirects to this same route on success -- the
+      // server component re-fetches and this component remounts with the
+      // saved values, but update local state too so the tab reflects the
+      // save immediately without waiting on the navigation.
+      setGallery((prev) => ({
+        ...prev,
+        name: settingsForm.name,
+        description: settingsForm.description,
+        type: settingsForm.type,
+        passwordProtected: settingsForm.passwordProtected,
+        downloadEnabled: settingsForm.downloadEnabled,
+        watermarkEnabled: settingsForm.watermarkEnabled,
+        allowFavorites: settingsForm.allowFavorites,
+        allowComments: settingsForm.allowComments,
+        expiryDays: settingsForm.expiryEnabled ? settingsForm.expiryDays : undefined,
+      }))
+      setSettingsForm((prev) => ({ ...prev, password: '' }))
+      toast.success('Gallery settings saved')
+    } catch (err) {
+      if (err instanceof Error && err.message !== 'NEXT_REDIRECT') {
+        setSettingsError(err.message || 'Failed to save gallery settings')
+        toast.error(err.message || 'Failed to save gallery settings')
+      } else if (!(err instanceof Error)) {
+        throw err
+      }
+    } finally {
+      setIsSavingSettings(false)
+    }
+  }
+
   const handleBulkAction = async (action: 'delete' | 'favorite' | 'download' | 'album') => {
     if (selectedImages.length === 0) return
 
@@ -517,8 +594,8 @@ export function GalleryDetail({ studioSlug, initialGallery }: GalleryDetailProps
           <div>
             <div className="flex items-center gap-3">
               <h1 className="text-display-sm font-display font-bold">{gallery.name}</h1>
-              {getStatusBadge(gallery.status)}
-              {getTypeBadge(gallery.type)}
+              <StatusBadge status={gallery.status} />
+              <Badge variant="outline">{GALLERY_TYPE_LABEL[gallery.type]}</Badge>
               {gallery.passwordProtected && (
                 <Badge variant="outline" className="gap-1">
                   <span>🔐</span>
@@ -1052,21 +1129,33 @@ export function GalleryDetail({ studioSlug, initialGallery }: GalleryDetailProps
 
         {/* Settings Tab */}
         <TabsContent value="settings" className="flex-1 overflow-auto">
-          <div className="space-y-6 max-w-3xl">
+          <form onSubmit={handleSaveSettings} className="space-y-6 max-w-3xl" aria-label="Gallery settings">
             <div className="space-y-4">
               <h3 className="text-heading font-semibold">Basic Information</h3>
               <div className="grid gap-4 md:grid-cols-2">
                 <div className="space-y-2">
-                  <Label>Gallery Name</Label>
-                  <Input defaultValue={gallery.name} />
+                  <Label htmlFor="settings-name">Gallery Name</Label>
+                  <Input
+                    id="settings-name"
+                    value={settingsForm.name}
+                    onChange={(e) => setSettingsForm((prev) => ({ ...prev, name: e.target.value }))}
+                    required
+                    maxLength={100}
+                  />
                 </div>
                 <div className="space-y-2">
-                  <Label>Public Link</Label>
-                  <Input readOnly value={`/g/${gallery.shareToken}`} />
+                  <Label htmlFor="settings-link">Public Link</Label>
+                  <Input id="settings-link" readOnly value={`/g/${gallery.shareToken}`} />
                 </div>
                 <div className="md:col-span-2 space-y-2">
-                  <Label>Description</Label>
-                  <Textarea defaultValue={gallery.description || ''} rows={3} />
+                  <Label htmlFor="settings-description">Description</Label>
+                  <Textarea
+                    id="settings-description"
+                    value={settingsForm.description}
+                    onChange={(e) => setSettingsForm((prev) => ({ ...prev, description: e.target.value }))}
+                    rows={3}
+                    maxLength={1000}
+                  />
                 </div>
               </div>
             </div>
@@ -1089,10 +1178,14 @@ export function GalleryDetail({ studioSlug, initialGallery }: GalleryDetailProps
                       <SelectItem value="archived">Archived</SelectItem>
                     </SelectContent>
                   </Select>
+                  <p className="text-caption text-muted-foreground">Saves immediately when changed.</p>
                 </div>
                 <div className="space-y-2">
                   <Label>Type</Label>
-                  <Select defaultValue={gallery.type}>
+                  <Select
+                    value={settingsForm.type}
+                    onValueChange={(value) => setSettingsForm((prev) => ({ ...prev, type: value as Gallery['type'] }))}
+                  >
                     <SelectTrigger>
                       <SelectValue />
                     </SelectTrigger>
@@ -1106,13 +1199,23 @@ export function GalleryDetail({ studioSlug, initialGallery }: GalleryDetailProps
                   </Select>
                 </div>
                 <div className="flex items-center gap-2 pt-6">
-                  <Switch defaultChecked={gallery.passwordProtected} />
-                  <Label>Password Protected</Label>
+                  <Switch
+                    id="settings-password-protected"
+                    checked={settingsForm.passwordProtected}
+                    onCheckedChange={(checked) => setSettingsForm((prev) => ({ ...prev, passwordProtected: checked }))}
+                  />
+                  <Label htmlFor="settings-password-protected">Password Protected</Label>
                 </div>
-                {gallery.passwordProtected && (
+                {settingsForm.passwordProtected && (
                   <div className="space-y-2">
-                    <Label>Password</Label>
-                    <Input type="password" placeholder="Enter password" />
+                    <Label htmlFor="settings-password">Password</Label>
+                    <Input
+                      id="settings-password"
+                      type="password"
+                      placeholder="Leave blank to keep current password"
+                      value={settingsForm.password}
+                      onChange={(e) => setSettingsForm((prev) => ({ ...prev, password: e.target.value }))}
+                    />
                   </div>
                 )}
               </div>
@@ -1122,46 +1225,59 @@ export function GalleryDetail({ studioSlug, initialGallery }: GalleryDetailProps
 
             <div className="space-y-4">
               <h3 className="text-heading font-semibold">Display Options</h3>
-              <div className="grid gap-4 md:grid-cols-3">
-                <div className="space-y-2">
-                  <Label>Primary Color</Label>
-                  <Input type="color" defaultValue={gallery.settings.primaryColor} />
-                </div>
-                <div className="space-y-2">
-                  <Label>Sort By</Label>
-                  <Select value={sortBy} onValueChange={(value) => setSortBy(value as typeof sortBy)}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="custom">Custom Order</SelectItem>
-                      <SelectItem value="date">Date</SelectItem>
-                      <SelectItem value="name">Name</SelectItem>
-                      <SelectItem value="favorites">Favorites</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
+              <p className="text-caption text-muted-foreground">
+                Cover photo and color settings live on this gallery's{' '}
+                <Link href={`/dashboard/${studioSlug}/galleries/${gallery.id}/design`} className="underline underline-offset-2">
+                  Design page
+                </Link>
+                .
+              </p>
+              <div className="space-y-2 max-w-xs">
+                <Label>Sort By (this view only)</Label>
+                <Select value={sortBy} onValueChange={(value) => setSortBy(value as typeof sortBy)}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="custom">Custom Order</SelectItem>
+                    <SelectItem value="date">Date</SelectItem>
+                    <SelectItem value="name">Name</SelectItem>
+                    <SelectItem value="favorites">Favorites</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
-              <div className="flex items-center gap-4">
+              <div className="flex flex-wrap items-center gap-4">
                 <div className="flex items-center gap-2">
-                  <Switch defaultChecked={gallery.downloadEnabled} />
-                  <Label>Enable Downloads</Label>
+                  <Switch
+                    id="settings-download"
+                    checked={settingsForm.downloadEnabled}
+                    onCheckedChange={(checked) => setSettingsForm((prev) => ({ ...prev, downloadEnabled: checked }))}
+                  />
+                  <Label htmlFor="settings-download">Enable Downloads</Label>
                 </div>
                 <div className="flex items-center gap-2">
-                  <Switch defaultChecked={gallery.watermarkEnabled} />
-                  <Label>Watermark Images</Label>
+                  <Switch
+                    id="settings-watermark"
+                    checked={settingsForm.watermarkEnabled}
+                    onCheckedChange={(checked) => setSettingsForm((prev) => ({ ...prev, watermarkEnabled: checked }))}
+                  />
+                  <Label htmlFor="settings-watermark">Watermark Images</Label>
                 </div>
                 <div className="flex items-center gap-2">
-                  <Switch defaultChecked={gallery.allowFavorites} />
-                  <Label>Allow Favorites</Label>
+                  <Switch
+                    id="settings-favorites"
+                    checked={settingsForm.allowFavorites}
+                    onCheckedChange={(checked) => setSettingsForm((prev) => ({ ...prev, allowFavorites: checked }))}
+                  />
+                  <Label htmlFor="settings-favorites">Allow Favorites</Label>
                 </div>
                 <div className="flex items-center gap-2">
-                  <Switch defaultChecked={gallery.allowComments} />
-                  <Label>Allow Comments</Label>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Switch defaultChecked={gallery.requireEmail} />
-                  <Label>Require Email</Label>
+                  <Switch
+                    id="settings-comments"
+                    checked={settingsForm.allowComments}
+                    onCheckedChange={(checked) => setSettingsForm((prev) => ({ ...prev, allowComments: checked }))}
+                  />
+                  <Label htmlFor="settings-comments">Allow Comments</Label>
                 </div>
               </div>
             </div>
@@ -1172,18 +1288,37 @@ export function GalleryDetail({ studioSlug, initialGallery }: GalleryDetailProps
               <h3 className="text-heading font-semibold">Expiration</h3>
               <div className="flex items-center gap-4">
                 <div className="flex items-center gap-2">
-                  <Switch defaultChecked={gallery.expiryDays != null} />
-                  <Label>Expire gallery link</Label>
+                  <Switch
+                    id="settings-expiry-enabled"
+                    checked={settingsForm.expiryEnabled}
+                    onCheckedChange={(checked) => setSettingsForm((prev) => ({ ...prev, expiryEnabled: checked }))}
+                  />
+                  <Label htmlFor="settings-expiry-enabled">Expire gallery link</Label>
                 </div>
-                <Input type="number" min={1} placeholder="Days" defaultValue={gallery.expiryDays} className="w-[200px]" />
+                <Input
+                  type="number"
+                  min={1}
+                  placeholder="Days"
+                  value={settingsForm.expiryDays}
+                  onChange={(e) => setSettingsForm((prev) => ({ ...prev, expiryDays: Number(e.target.value) || 1 }))}
+                  disabled={!settingsForm.expiryEnabled}
+                  className="w-[200px]"
+                  aria-label="Expire gallery link after this many days"
+                />
               </div>
             </div>
 
+            {settingsError && <p className="text-sm text-destructive">{settingsError}</p>}
+
             <div className="flex justify-end gap-2 pt-4 border-t">
-              <Button variant="outline">Cancel</Button>
-              <Button>Save Changes</Button>
+              <Button type="button" variant="outline" onClick={handleCancelSettings} disabled={isSavingSettings}>
+                Cancel
+              </Button>
+              <Button type="submit" loading={isSavingSettings}>
+                Save Changes
+              </Button>
             </div>
-          </div>
+          </form>
         </TabsContent>
 
         {/* Analytics Tab */}
