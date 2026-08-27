@@ -3,11 +3,13 @@ import Link from 'next/link'
 import { cn } from '@/lib/utils'
 import { getAuthUserServer } from '@/lib/auth'
 import { getUpcomingBookings } from '@/lib/actions/bookings'
-import { getDashboardStats } from '@/lib/actions/dashboard'
+import { getDashboardStats, getOverdueInvoices } from '@/lib/actions/dashboard'
 import { getStudioForSettings, getStudioCurrency } from '@/lib/actions/studios'
 import { getStudioBillingOverview } from '@/lib/actions/billing'
+import { getNotifications } from '@/lib/actions/notifications'
 import { StorageUsageWidget } from '@/components/dashboard/StorageUsageWidget'
 import { formatCurrency } from '@/lib/currencies'
+import { PageHeader } from '@/components/layout/PageHeader'
 import {
   Card,
   CardContent,
@@ -25,8 +27,10 @@ import {
   Plus,
   FileText,
   Store,
+  AlertCircle,
+  CheckCircle2,
 } from 'lucide-react'
-import { format } from 'date-fns'
+import { format, formatDistanceToNow } from 'date-fns'
 
 interface DashboardPageProps {
   params: Promise<{ studioSlug: string }>
@@ -81,17 +85,18 @@ export default async function DashboardPage({ params }: DashboardPageProps) {
     return null // Layout handles redirect
   }
 
-  const [stats, studio, upcomingBookings, currency, billing] = await Promise.all([
+  const [stats, studio, upcomingBookings, currency, billing, overdueInvoices, activity] = await Promise.all([
     getDashboardStats(studioSlug),
     getStudioForSettings(studioSlug),
     getUpcoming(studioSlug),
     getStudioCurrency(studioSlug),
     getStudioBillingOverview(studioSlug),
+    getOverdueInvoices(studioSlug, 5),
+    getNotifications(studioSlug, { limit: 5 }),
   ])
 
   const studioName = studio?.name ?? studioSlug
   const quickActions = getQuickActions(studioSlug)
-  const recentActivity: { id: string; message: string; time: string; icon: any }[] = []
 
   const statItems = [
     { label: 'Total Galleries', value: stats.totalGalleries.toLocaleString(), icon: Image, href: `/dashboard/${studioSlug}/galleries` },
@@ -102,150 +107,221 @@ export default async function DashboardPage({ params }: DashboardPageProps) {
 
   return (
     <div className="space-y-6">
-        {/* Page Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div>
-            <h1 className="text-display-md font-display font-semibold text-foreground">
-              Welcome back, {user.firstName}
-            </h1>
-            <p className="text-body text-muted-foreground mt-1">
-              Here's what's happening with {studioName} today
-            </p>
-          </div>
-          <div className="flex items-center gap-2">
-            <Link href={`/dashboard/${studioSlug}/galleries/new`}>
-              <Button>
-                <Plus className="h-4 w-4 mr-2" />
-                Create Gallery
-              </Button>
-            </Link>
-          </div>
-        </div>
+      <PageHeader
+        title="Dashboard"
+        description={`Welcome back, ${user.firstName}. Here's what's happening with ${studioName} today.`}
+        actions={
+          <Link href={`/dashboard/${studioSlug}/galleries/new`}>
+            <Button>
+              <Plus className="h-4 w-4 mr-2" />
+              Create Gallery
+            </Button>
+          </Link>
+        }
+      />
 
-        {/* Stats plaque: one bordered region, hairline dividers, not repeated cards */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 divide-x divide-y lg:divide-y-0 divide-border border border-border">
-          {statItems.map((stat) => (
-            <Link
-              key={stat.label}
-              href={stat.href}
-              className="group px-5 py-5 transition-colors hover:bg-accent"
-            >
-              <div className="flex items-center justify-between">
-                <span className="label-caption">{stat.label}</span>
-                <stat.icon className="h-4 w-4 text-muted-foreground/60" strokeWidth={1.5} />
-              </div>
-              <div className="mt-2 font-mono text-2xl font-medium text-foreground tabular-nums">
-                {stat.value}
-              </div>
-            </Link>
-          ))}
-        </div>
-
-        {/* Quick Actions & Upcoming */}
-        <div className="grid gap-6 lg:grid-cols-3">
-          {/* Quick Actions */}
-          <div className="lg:col-span-2 space-y-4">
-            <h2 className="text-heading font-semibold">Quick Actions</h2>
-            <div className="border-y border-border divide-y divide-border">
-              {quickActions.map((action) => (
+      {/* Needs Attention -- the one thing on this page that answers "what
+          should I deal with today" rather than "how many things exist".
+          Only overdue invoices today: it's the sole attention-worthy
+          signal with a real, already-relied-upon data source
+          (invoices.status = 'overdue', the same status the Invoices list
+          itself filters/counts on) that isn't already surfaced elsewhere
+          on this page. */}
+      {overdueInvoices.totalCount > 0 ? (
+        <div className="border border-warning/30 bg-warning/5">
+          <div className="flex items-center gap-2 px-5 py-3 border-b border-warning/20">
+            <AlertCircle className="h-4 w-4 text-warning" strokeWidth={1.5} />
+            <h2 className="text-heading-sm font-semibold text-foreground">
+              Needs attention &middot; {overdueInvoices.totalCount} overdue {overdueInvoices.totalCount === 1 ? 'invoice' : 'invoices'}
+            </h2>
+          </div>
+          <ul className="divide-y divide-warning/20">
+            {overdueInvoices.invoices.map((invoice) => (
+              <li key={invoice.id}>
                 <Link
-                  key={action.title}
-                  href={action.href}
-                  className="group flex items-center gap-4 py-3.5 transition-colors hover:bg-accent -mx-1 px-1"
+                  href={`/dashboard/${studioSlug}/invoices/${invoice.id}`}
+                  className="flex items-center justify-between gap-4 px-5 py-3 transition-colors hover:bg-warning/10"
                 >
-                  <action.icon
-                    className={cn('h-5 w-5 flex-shrink-0', action.primary ? 'text-primary' : 'text-muted-foreground')}
-                    strokeWidth={1.5}
-                  />
-                  <div className="min-w-0 flex-1">
-                    <p className="font-medium text-foreground">{action.title}</p>
-                    <p className="text-sm text-muted-foreground">{action.description}</p>
+                  <div className="min-w-0">
+                    <p className="font-medium text-foreground truncate">
+                      {invoice.invoiceNumber}
+                      {invoice.clientName && <span className="text-muted-foreground"> &middot; {invoice.clientName}</span>}
+                    </p>
+                    {invoice.dueDate && (
+                      <p className="text-caption text-muted-foreground">
+                        Due {format(new Date(invoice.dueDate), 'MMM d, yyyy')}
+                      </p>
+                    )}
                   </div>
-                  <ArrowRight className="h-4 w-4 text-muted-foreground/40 flex-shrink-0 opacity-0 transition-opacity group-hover:opacity-100" />
+                  <span className="font-mono text-sm font-medium text-warning tabular-nums shrink-0">
+                    {formatCurrency(invoice.balanceDue, currency)}
+                  </span>
                 </Link>
-              ))}
+              </li>
+            ))}
+          </ul>
+          {overdueInvoices.totalCount > overdueInvoices.invoices.length && (
+            // The Invoices page accepts no status filter via URL today
+            // (out of scope to add here -- see Deferred items), so this
+            // links to the plain invoice list rather than implying an
+            // auto-filter that wouldn't actually happen.
+            <Link
+              href={`/dashboard/${studioSlug}/invoices`}
+              className="block px-5 py-2.5 text-caption text-primary hover:underline border-t border-warning/20"
+            >
+              View all invoices
+            </Link>
+          )}
+        </div>
+      ) : (
+        <div className="flex items-center gap-2 border border-border px-5 py-3 text-body-sm text-muted-foreground">
+          <CheckCircle2 className="h-4 w-4 text-success" strokeWidth={1.5} />
+          No overdue invoices &mdash; you&apos;re all caught up.
+        </div>
+      )}
+
+      {/* Stats plaque: one bordered region, hairline dividers, not repeated cards */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 divide-x divide-y lg:divide-y-0 divide-border border border-border">
+        {statItems.map((stat) => (
+          <Link
+            key={stat.label}
+            href={stat.href}
+            className="group px-5 py-5 transition-colors hover:bg-accent"
+          >
+            <div className="flex items-center justify-between">
+              <span className="label-caption">{stat.label}</span>
+              <stat.icon className="h-4 w-4 text-muted-foreground/60" strokeWidth={1.5} />
             </div>
+            <div className="mt-2 font-mono text-2xl font-medium text-foreground tabular-nums">
+              {stat.value}
+            </div>
+          </Link>
+        ))}
+      </div>
+
+      {/* Quick Actions & Upcoming */}
+      <div className="grid gap-6 lg:grid-cols-3">
+        {/* Quick Actions */}
+        <div className="lg:col-span-2 space-y-4">
+          <h2 className="text-heading font-semibold">Quick Actions</h2>
+          <div className="border-y border-border divide-y divide-border">
+            {quickActions.map((action) => (
+              <Link
+                key={action.title}
+                href={action.href}
+                className="group flex items-center gap-4 py-3.5 transition-colors hover:bg-accent -mx-1 px-1"
+              >
+                <action.icon
+                  className={cn('h-5 w-5 flex-shrink-0', action.primary ? 'text-primary' : 'text-muted-foreground')}
+                  strokeWidth={1.5}
+                />
+                <div className="min-w-0 flex-1">
+                  <p className="font-medium text-foreground">{action.title}</p>
+                  <p className="text-sm text-muted-foreground">{action.description}</p>
+                </div>
+                <ArrowRight className="h-4 w-4 text-muted-foreground/40 flex-shrink-0 opacity-0 transition-opacity group-hover:opacity-100" />
+              </Link>
+            ))}
           </div>
+        </div>
 
-          {/* Right sidebar - Upcoming & Recent */}
-          <div className="space-y-6">
-            {billing && (
-              <StorageUsageWidget plan={billing.plan} storage={billing.storage} studioSlug={studioSlug} />
-            )}
+        {/* Right sidebar - Upcoming & Recent */}
+        <div className="space-y-6">
+          {billing && (
+            <StorageUsageWidget plan={billing.plan} storage={billing.storage} studioSlug={studioSlug} />
+          )}
 
-            {/* Upcoming Bookings */}
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between">
-                <CardTitle className="text-sm font-medium">Upcoming Bookings</CardTitle>
-                <Link href={`/dashboard/${studioSlug}/bookings`} className="text-xs text-primary hover:underline">
-                  View all
-                </Link>
-              </CardHeader>
-              <CardContent>
-                {upcomingBookings.length === 0 ? (
-                  <div className="text-center py-8">
-                    <Calendar className="h-12 w-12 mx-auto text-muted-foreground/50 mb-3" />
-                    <p className="text-sm text-muted-foreground mb-2">No upcoming bookings</p>
-                    <Link href={`/dashboard/${studioSlug}/bookings/new`}>
-                      <Button variant="outline" size="sm" className="w-full">
-                        <Plus className="h-3.5 w-3.5 mr-1.5" />
-                        Schedule Session
-                      </Button>
-                    </Link>
-                  </div>
-                ) : (
-                  <ul className="space-y-3">
-                    {upcomingBookings.map((booking) => (
-                      <li key={booking.id} className="flex items-center justify-between text-sm">
-                        <div>
-                          <p className="font-medium">{booking.clientName}</p>
-                          <p className="text-muted-foreground">
-                            {format(new Date(booking.startDateTime), 'MMM d, h:mm a')}
+          {/* Upcoming Bookings */}
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <CardTitle className="text-sm font-medium">Upcoming Bookings</CardTitle>
+              <Link href={`/dashboard/${studioSlug}/bookings`} className="text-xs text-primary hover:underline">
+                View all
+              </Link>
+            </CardHeader>
+            <CardContent>
+              {upcomingBookings.length === 0 ? (
+                <div className="text-center py-8">
+                  <Calendar className="h-12 w-12 mx-auto text-muted-foreground/50 mb-3" />
+                  <p className="text-sm text-muted-foreground mb-2">No upcoming bookings</p>
+                  <Link href={`/dashboard/${studioSlug}/bookings/new`}>
+                    <Button variant="outline" size="sm" className="w-full">
+                      <Plus className="h-3.5 w-3.5 mr-1.5" />
+                      Schedule Session
+                    </Button>
+                  </Link>
+                </div>
+              ) : (
+                <ul className="space-y-3">
+                  {upcomingBookings.map((booking) => (
+                    <li key={booking.id} className="flex items-center justify-between text-sm">
+                      <div>
+                        <p className="font-medium">{booking.clientName}</p>
+                        <p className="text-muted-foreground">
+                          {format(new Date(booking.startDateTime), 'MMM d, h:mm a')}
+                        </p>
+                      </div>
+                      <span className="px-2 py-1 text-xs rounded-full bg-success/10 text-success">
+                        {booking.status}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Recent Activity -- real studio-scoped events (the same
+              notifications table/action already backing the header's
+              notification bell), not the previously hardcoded []. No
+              "View all" link: there is no dedicated activity page, and
+              every one of these events is already reachable from the
+              header's notification bell, which does show the fuller
+              (up to 50-item) list. */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-sm font-medium">Recent Activity</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {activity.notifications.length === 0 ? (
+                <div className="text-center py-8">
+                  <Clock className="h-12 w-12 mx-auto text-muted-foreground/50 mb-3" />
+                  <p className="text-sm text-muted-foreground">No recent activity</p>
+                </div>
+              ) : (
+                <ul className="space-y-3">
+                  {activity.notifications.map((event) => {
+                    const content = (
+                      <>
+                        <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center flex-shrink-0">
+                          <Clock className="h-4 w-4 text-muted-foreground" />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="font-medium truncate">{event.title}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {formatDistanceToNow(new Date(event.createdAt), { addSuffix: true })}
                           </p>
                         </div>
-                        <span className="px-2 py-1 text-xs rounded-full bg-success/10 text-success">
-                          {booking.status}
-                        </span>
+                      </>
+                    )
+                    return (
+                      <li key={event.id} className="text-sm">
+                        {event.link ? (
+                          <Link href={event.link} className="flex items-start gap-3 -mx-1 px-1 py-0.5 rounded-md transition-colors hover:bg-accent">
+                            {content}
+                          </Link>
+                        ) : (
+                          <div className="flex items-start gap-3">{content}</div>
+                        )}
                       </li>
-                    ))}
-                  </ul>
-                )}
-              </CardContent>
-            </Card>
-
-            {/* Recent Activity */}
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between">
-                <CardTitle className="text-sm font-medium">Recent Activity</CardTitle>
-                <Link href={`/dashboard/${studioSlug}/activity`} className="text-xs text-primary hover:underline">
-                  View all
-                </Link>
-              </CardHeader>
-              <CardContent>
-                {recentActivity.length === 0 ? (
-                  <div className="text-center py-8">
-                    <Clock className="h-12 w-12 mx-auto text-muted-foreground/50 mb-3" />
-                    <p className="text-sm text-muted-foreground">No recent activity</p>
-                  </div>
-                ) : (
-                  <ul className="space-y-3">
-                    {recentActivity.map((activity) => (
-                      <li key={activity.id} className="flex items-start gap-3 text-sm">
-                        <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center flex-shrink-0">
-                          <activity.icon className="h-4 w-4 text-muted-foreground" />
-                        </div>
-                        <div>
-                          <p className="font-medium">{activity.message}</p>
-                          <p className="text-xs text-muted-foreground">{activity.time}</p>
-                        </div>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </CardContent>
-            </Card>
-          </div>
+                    )
+                  })}
+                </ul>
+              )}
+            </CardContent>
+          </Card>
         </div>
       </div>
+    </div>
   )
 }
