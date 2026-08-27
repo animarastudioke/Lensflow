@@ -6,6 +6,7 @@ import { NewGalleryForm } from '@/components/galleries/NewGalleryForm'
 
 interface NewGalleryPageProps {
   params: Promise<{ studioSlug: string }>
+  searchParams: Promise<{ client?: string }>
 }
 
 export async function generateMetadata({
@@ -18,8 +19,9 @@ export async function generateMetadata({
   }
 }
 
-export default async function NewGalleryPage({ params }: NewGalleryPageProps) {
+export default async function NewGalleryPage({ params, searchParams }: NewGalleryPageProps) {
   const { studioSlug } = await params
+  const { client: clientIdParam } = await searchParams
   const user = await getAuthUserServer()
 
   if (!user) {
@@ -27,6 +29,7 @@ export default async function NewGalleryPage({ params }: NewGalleryPageProps) {
   }
 
   const { clients } = await getClients(studioSlug)
+  const initialClientId = clients.some(c => c.id === clientIdParam) ? clientIdParam : undefined
 
-  return <NewGalleryForm studioSlug={studioSlug} clients={clients.map(c => ({ id: c.id, name: c.name }))} />
+  return <NewGalleryForm studioSlug={studioSlug} clients={clients.map(c => ({ id: c.id, name: c.name }))} initialClientId={initialClientId} />
 }

@@ -8,6 +8,7 @@ import { requireEntitlement } from '@/lib/entitlements'
 import { requireStudioPermission } from '@/lib/auth/server'
 import { sendEmail } from '@/lib/email/resend'
 import { bookingConfirmationEmail } from '@/lib/email/templates'
+import { clientBelongsToStudio } from '@/lib/actions/clients'
 
 export type BookingStatus = 'inquiry' | 'confirmed' | 'scheduled' | 'completed' | 'cancelled' | 'no_show'
 
@@ -45,6 +46,7 @@ async function getStudioId(studioSlug: string): Promise<string | null> {
 
 export async function getBookings(studioSlug: string, options?: {
   status?: BookingStatus
+  clientId?: string
 }): Promise<{ bookings: BookingRow[]; total: number }> {
   const supabase = await createClient()
   const studioId = await getStudioId(studioSlug)
@@ -58,6 +60,9 @@ export async function getBookings(studioSlug: string, options?: {
   if (options?.status) {
     query = query.eq('status', options.status)
   }
+  if (options?.clientId) {
+    query = query.eq('client_id', options.clientId)
+  }
 
   query = query.order('session_date', { ascending: false })
 
@@ -69,6 +74,19 @@ export async function getBookings(studioSlug: string, options?: {
   }
 
   return { bookings: (bookings as unknown as BookingRow[]) || [], total: count || 0 }
+}
+
+/** Guards projects.booking_id the same way clientBelongsToStudio guards client_id -- see that function's doc comment. */
+export async function bookingBelongsToStudio(bookingId: string, studioId: string): Promise<boolean> {
+  const supabase = await createClient()
+  const { data } = await supabase
+    .from('bookings')
+    .select('id')
+    .eq('id', bookingId)
+    .eq('studio_id', studioId)
+    .single()
+
+  return !!data
 }
 
 export async function getUpcomingBookings(studioSlug: string, limit = 5): Promise<BookingRow[]> {
@@ -139,6 +157,11 @@ export async function createBooking(formData: FormData) {
   }
 
   const validated = bookingCreateSchema.parse(rawData)
+
+  if (validated.client_id && !(await clientBelongsToStudio(validated.client_id, membership.studioId))) {
+    throw new Error('Invalid client')
+  }
+
   const balanceDue = Math.max(validated.total_price - validated.deposit_amount, 0)
 
   const { error } = await supabase
@@ -239,6 +262,11 @@ export async function updateBooking(formData: FormData) {
   }
 
   const validated = bookingCreateSchema.parse(rawData)
+
+  if (validated.client_id && !(await clientBelongsToStudio(validated.client_id, membership.studioId))) {
+    throw new Error('Invalid client')
+  }
+
   const balanceDue = Math.max(validated.total_price - validated.deposit_amount, 0)
 
   const { error } = await supabase

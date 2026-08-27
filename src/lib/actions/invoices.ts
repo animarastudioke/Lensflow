@@ -9,6 +9,7 @@ import { requireEntitlement } from '@/lib/entitlements'
 import { requireStudioPermission } from '@/lib/auth/server'
 import { sendEmail } from '@/lib/email/resend'
 import { invoiceSentEmail } from '@/lib/email/templates'
+import { clientBelongsToStudio } from '@/lib/actions/clients'
 
 export type InvoiceStatus = 'draft' | 'sent' | 'viewed' | 'paid' | 'partial' | 'overdue' | 'cancelled' | 'refunded'
 
@@ -55,6 +56,7 @@ async function getStudioId(studioSlug: string): Promise<string | null> {
 
 export async function getInvoices(studioSlug: string, options?: {
   status?: InvoiceStatus
+  clientId?: string
 }): Promise<{ invoices: InvoiceRow[]; total: number }> {
   const supabase = await createClient()
   const studioId = await getStudioId(studioSlug)
@@ -67,6 +69,9 @@ export async function getInvoices(studioSlug: string, options?: {
 
   if (options?.status) {
     query = query.eq('status', options.status)
+  }
+  if (options?.clientId) {
+    query = query.eq('client_id', options.clientId)
   }
 
   query = query.order('issue_date', { ascending: false })
@@ -368,6 +373,10 @@ export async function createInvoice(formData: FormData) {
 
   const validated = invoiceCreateSchema.parse(rawData)
 
+  if (validated.client_id && !(await clientBelongsToStudio(validated.client_id, membership.studioId))) {
+    throw new Error('Invalid client')
+  }
+
   const subtotal = validated.items.reduce((sum, item) => sum + item.quantity * item.unit_price, 0)
   const total = Math.max(subtotal + validated.tax - validated.discount, 0)
 
@@ -478,6 +487,10 @@ export async function updateInvoice(formData: FormData) {
     notes: formData.get('notes') || undefined,
     items,
   })
+
+  if (validated.client_id && !(await clientBelongsToStudio(validated.client_id, membership.studioId))) {
+    throw new Error('Invalid client')
+  }
 
   const subtotal = validated.items.reduce((sum, item) => sum + item.quantity * item.unit_price, 0)
   const total = Math.max(subtotal + validated.tax - validated.discount, 0)

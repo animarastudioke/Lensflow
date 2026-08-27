@@ -27,6 +27,7 @@ import { createInvoice } from '@/lib/actions/invoices'
 interface NewInvoiceFormProps {
   studioSlug: string
   clients: { id: string; name: string }[]
+  initialClientId?: string
 }
 
 interface LineItem {
@@ -35,11 +36,11 @@ interface LineItem {
   unit_price: number
 }
 
-export function NewInvoiceForm({ studioSlug, clients }: NewInvoiceFormProps) {
+export function NewInvoiceForm({ studioSlug, clients, initialClientId }: NewInvoiceFormProps) {
   const [isSubmitting, setIsSubmitting] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
   const [status, setStatus] = React.useState('draft')
-  const [clientId, setClientId] = React.useState<string>('none')
+  const [clientId, setClientId] = React.useState<string>(initialClientId ?? 'none')
   const [tax, setTax] = React.useState(0)
   const [discount, setDiscount] = React.useState(0)
   const [items, setItems] = React.useState<LineItem[]>([

@@ -29,14 +29,15 @@ interface NewProjectFormProps {
   studioSlug: string
   clients: { id: string; name: string }[]
   bookings: { id: string; label: string }[]
+  initialClientId?: string
 }
 
-export function NewProjectForm({ studioSlug, clients, bookings }: NewProjectFormProps) {
+export function NewProjectForm({ studioSlug, clients, bookings, initialClientId }: NewProjectFormProps) {
   const [isSubmitting, setIsSubmitting] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
   const [type, setType] = React.useState('wedding')
   const [status, setStatus] = React.useState('planning')
-  const [clientId, setClientId] = React.useState<string>('none')
+  const [clientId, setClientId] = React.useState<string>(initialClientId ?? 'none')
   const [bookingId, setBookingId] = React.useState<string>('none')
 
   const onSubmit = async (e: React.FormEvent<HTMLFormElement>) => {

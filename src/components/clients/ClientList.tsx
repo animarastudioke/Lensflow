@@ -15,14 +15,6 @@ import {
   CardContent,
   CardHeader,
 } from '@/components/ui/card'
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-  DialogFooter,
-} from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
@@ -44,8 +36,8 @@ import {
   Edit,
   Eye,
   Users,
-  DollarSign,
   Calendar as CalendarIcon,
+  DollarSign,
   ArrowUpDown,
   LayoutGrid,
   LayoutList,
@@ -69,6 +61,11 @@ import {
 import { Badge } from '@/components/ui/badge'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Separator } from '@/components/ui/separator'
+import { PageHeader } from '@/components/layout/PageHeader'
+import { EmptyState } from '@/components/layout/EmptyState'
+import { ConfirmDialog } from '@/components/layout/ConfirmDialog'
+import { ViewToggle } from '@/components/layout/ViewToggle'
+import { StatusBadge } from '@/components/layout/StatusBadge'
 
 interface Client {
   id: string
@@ -91,89 +88,6 @@ interface Client {
   updatedAt: string
 }
 
-const mockClients: Client[] = [
-  {
-    id: '1',
-    firstName: 'Sarah',
-    lastName: 'Chen',
-    email: 'sarah.chen@email.com',
-    phone: '(555) 123-4567',
-    address: '123 Main St',
-    city: 'San Francisco',
-    state: 'CA',
-    zipCode: '94102',
-    country: 'USA',
-    status: 'active',
-    source: 'Referral',
-    tags: ['wedding', 'vip'],
-    totalSpent: 4500,
-    totalOrders: 3,
-    lastContact: '2024-01-15T10:30:00Z',
-    createdAt: '2023-06-10T14:20:00Z',
-    updatedAt: '2024-01-15T10:30:00Z',
-  },
-  {
-    id: '2',
-    firstName: 'Marcus',
-    lastName: 'Johnson',
-    email: 'marcus.j@email.com',
-    phone: '(555) 987-6543',
-    address: '456 Oak Ave',
-    city: 'Los Angeles',
-    state: 'CA',
-    zipCode: '90210',
-    country: 'USA',
-    status: 'active',
-    source: 'Instagram',
-    tags: ['portrait', 'family'],
-    totalSpent: 2800,
-    totalOrders: 2,
-    lastContact: '2024-01-10T16:45:00Z',
-    createdAt: '2023-08-22T09:15:00Z',
-    updatedAt: '2024-01-10T16:45:00Z',
-  },
-  {
-    id: '3',
-    firstName: 'Emily',
-    lastName: 'Rodriguez',
-    email: 'emily.r@email.com',
-    phone: '(555) 456-7890',
-    address: '789 Pine Rd',
-    city: 'Austin',
-    state: 'TX',
-    zipCode: '78701',
-    country: 'USA',
-    status: 'lead',
-    source: 'Website',
-    tags: ['engagement', 'newborn'],
-    totalSpent: 0,
-    totalOrders: 0,
-    lastContact: '2024-01-12T11:20:00Z',
-    createdAt: '2024-01-08T13:00:00Z',
-    updatedAt: '2024-01-12T11:20:00Z',
-  },
-  {
-    id: '4',
-    firstName: 'David',
-    lastName: 'Park',
-    email: 'david.park@email.com',
-    phone: '(555) 321-0987',
-    address: '321 Elm St',
-    city: 'Seattle',
-    state: 'WA',
-    zipCode: '98101',
-    country: 'USA',
-    status: 'active',
-    source: 'Referral',
-    tags: ['corporate', 'headshots'],
-    totalSpent: 6200,
-    totalOrders: 5,
-    lastContact: '2024-01-05T09:00:00Z',
-    createdAt: '2022-11-15T10:30:00Z',
-    updatedAt: '2024-01-05T09:00:00Z',
-  },
-]
-
 interface ClientListProps {
   studioSlug: string
   initialClients?: Client[]
@@ -185,19 +99,10 @@ interface ClientListProps {
   newLabel?: string
 }
 
-function getStatusBadge(status: Client['status']) {
-  const statusConfig = {
-    active: { label: 'Active', variant: 'success' as const },
-    lead: { label: 'Lead', variant: 'info' as const },
-    inactive: { label: 'Inactive', variant: 'secondary' as const },
-    // secondary (neutral), matching "archived" everywhere else in the app
-    // (galleries, websites, products, projects) -- archived describes a
-    // quiet/inactive state, not a failure, so it should not be destructive.
-    archived: { label: 'Archived', variant: 'secondary' as const },
-  }
-  const config = statusConfig[status]
-  return <Badge variant={config.variant}>{config.label}</Badge>
-}
+const VIEW_OPTIONS = [
+  { value: 'table' as const, label: 'List', icon: LayoutList },
+  { value: 'grid' as const, label: 'Grid', icon: LayoutGrid },
+]
 
 export function ClientList({
   studioSlug,
@@ -209,13 +114,14 @@ export function ClientList({
   newHref,
   newLabel = 'Add Client',
 }: ClientListProps) {
-  const [clients, setClients] = React.useState<Client[]>(initialClients ?? mockClients)
+  const [clients, setClients] = React.useState<Client[]>(initialClients ?? [])
   const [searchQuery, setSearchQuery] = React.useState('')
   const [statusFilter, setStatusFilter] = React.useState<string>('all')
   const [sortBy, setSortBy] = React.useState<string>('createdAt')
   const [sortOrder, setSortOrder] = React.useState<'asc' | 'desc'>('desc')
   const [viewMode, setViewMode] = React.useState<'table' | 'grid'>('table')
   const [selectedClients, setSelectedClients] = React.useState<string[]>([])
+  const [isBulkPending, setIsBulkPending] = React.useState(false)
 
   // Filter and sort clients
   const filteredClients = React.useMemo(() => {
@@ -249,6 +155,7 @@ export function ClientList({
 
   const [deleteConfirm, setDeleteConfirm] = React.useState<string | null>(null)
   const [bulkDeleteConfirm, setBulkDeleteConfirm] = React.useState(false)
+  const hasFilters = searchQuery !== '' || statusFilter !== 'all'
 
   const handleDelete = (id: string) => {
     setDeleteConfirm(id)
@@ -258,24 +165,22 @@ export function ClientList({
     const result = await deleteClient(id, studioSlug)
     if (result?.error) {
       toast.error(result.error)
-    } else {
-      setClients(prev => prev.filter(c => c.id !== id))
-      setSelectedClients(prev => prev.filter(g => g !== id))
-      toast.success('Client deleted')
+      throw new Error(result.error)
     }
-    setDeleteConfirm(null)
+    setClients(prev => prev.filter(c => c.id !== id))
+    setSelectedClients(prev => prev.filter(g => g !== id))
+    toast.success('Client deleted')
   }
 
   const confirmBulkDelete = async () => {
     const result = await bulkDeleteClients(selectedClients, studioSlug)
     if (result?.error) {
       toast.error(result.error)
-    } else {
-      setClients(prev => prev.filter(c => !selectedClients.includes(c.id)))
-      toast.success('Clients deleted')
+      throw new Error(result.error)
     }
+    setClients(prev => prev.filter(c => !selectedClients.includes(c.id)))
     setSelectedClients([])
-    setBulkDeleteConfirm(false)
+    toast.success('Clients deleted')
   }
 
   const exportToCsv = (rows: Client[]) => {
@@ -303,7 +208,9 @@ export function ClientList({
         setBulkDeleteConfirm(true)
         break
       case 'archive': {
+        setIsBulkPending(true)
         const result = await setClientsStatus(selectedClients, 'archived', studioSlug)
+        setIsBulkPending(false)
         if (result?.error) {
           toast.error(result.error)
           break
@@ -358,19 +265,18 @@ export function ClientList({
 
   return (
     <div className="space-y-6">
-      {/* Page Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-display-md font-display font-semibold text-foreground">{title}</h1>
-          <p className="text-body text-muted-foreground mt-1">{description}</p>
-        </div>
-        <Link href={newHref ?? `/dashboard/${studioSlug}/clients/new`}>
-          <Button>
-            <Plus className="h-4 w-4 mr-2" />
-            {newLabel}
-          </Button>
-        </Link>
-      </div>
+      <PageHeader
+        title={title}
+        description={description}
+        actions={
+          <Link href={newHref ?? `/dashboard/${studioSlug}/clients/new`}>
+            <Button>
+              <Plus className="h-4 w-4 mr-2" />
+              {newLabel}
+            </Button>
+          </Link>
+        }
+      />
 
       {/* Filters & Search */}
       <Card>
@@ -409,12 +315,10 @@ export function ClientList({
                   <SelectItem value="totalSpent">Total Spent</SelectItem>
                 </SelectContent>
               </Select>
-              <Button variant="outline" size="icon" onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}>
+              <Button variant="outline" size="icon" onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')} aria-label={sortOrder === 'asc' ? 'Sort descending' : 'Sort ascending'}>
                 {sortOrder === 'asc' ? <ArrowUpDown className="h-4 w-4" /> : <ArrowUpDown className="h-4 w-4 rotate-180" />}
               </Button>
-              <Button variant="outline" size="icon" onClick={() => setViewMode(viewMode === 'table' ? 'grid' : 'table')}>
-                {viewMode === 'table' ? <LayoutGrid className="h-4 w-4" /> : <LayoutList className="h-4 w-4" />}
-              </Button>
+              <ViewToggle value={viewMode} onValueChange={setViewMode} options={VIEW_OPTIONS} />
             </div>
           </div>
         </CardContent>
@@ -429,13 +333,13 @@ export function ClientList({
                 {selectedClients.length} client{selectedClients.length !== 1 ? 's' : ''} selected
               </span>
               <div className="flex items-center gap-2">
-                <Button variant="outline" size="sm" onClick={() => handleBulkAction('archive')}>
+                <Button variant="outline" size="sm" disabled={isBulkPending} onClick={() => handleBulkAction('archive')}>
                   Archive
                 </Button>
-                <Button variant="outline" size="sm" onClick={() => handleBulkAction('export')}>
+                <Button variant="outline" size="sm" disabled={isBulkPending} onClick={() => handleBulkAction('export')}>
                   Export
                 </Button>
-                <Button variant="destructive" size="sm" onClick={() => handleBulkAction('delete')}>
+                <Button variant="destructive" size="sm" disabled={isBulkPending} onClick={() => handleBulkAction('delete')}>
                   <Trash2 className="h-3.5 w-3.5 mr-1.5" />
                   Delete
                 </Button>
@@ -446,40 +350,49 @@ export function ClientList({
       )}
 
       {/* Client Table */}
-      <Card>
-        <CardContent className="p-0">
-          {viewMode === 'table' ? (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-12">
-                    <input
-                      type="checkbox"
-                      checked={selectedClients.length === filteredClients.length && filteredClients.length > 0}
-                      onChange={toggleSelectAll}
-                      aria-label="Select all clients"
-                      className="h-4 w-4 rounded border-input text-primary focus:ring-2 focus:ring-primary"
-                    />
-                  </TableHead>
-                  <TableHead>Client</TableHead>
-                  <TableHead>Contact</TableHead>
-                  <TableHead>Location</TableHead>
-                  <TableHead className="hidden md:table-cell">Status</TableHead>
-                  <TableHead className="hidden lg:table-cell">Source</TableHead>
-                  <TableHead className="text-right hidden xl:table-cell">Value</TableHead>
-                  <TableHead className="w-48">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredClients.length === 0 ? (
+      {filteredClients.length === 0 ? (
+        <Card>
+          <CardContent className="p-0">
+            <EmptyState
+              icon={Users}
+              title={clients.length === 0 ? 'No clients yet' : 'No clients match your filters'}
+              description={
+                clients.length === 0
+                  ? 'Add your first client to start tracking relationships.'
+                  : 'Try adjusting your search or filters.'
+              }
+              action={clients.length === 0 ? { label: newLabel, href: newHref ?? `/dashboard/${studioSlug}/clients/new` } : undefined}
+              secondaryAction={hasFilters ? { label: 'Clear filters', onClick: () => { setSearchQuery(''); setStatusFilter('all') } } : undefined}
+            />
+          </CardContent>
+        </Card>
+      ) : (
+        <Card>
+          <CardContent className="p-0">
+            {viewMode === 'table' ? (
+              <Table>
+                <TableHeader>
                   <TableRow>
-                    <TableCell colSpan={9} className="text-center py-12">
-                      <Users className="h-12 w-12 mx-auto text-muted-foreground/50 mb-3" />
-                      <p className="text-muted-foreground">No clients found</p>
-                    </TableCell>
+                    <TableHead className="w-12">
+                      <input
+                        type="checkbox"
+                        checked={selectedClients.length === filteredClients.length && filteredClients.length > 0}
+                        onChange={toggleSelectAll}
+                        aria-label="Select all clients"
+                        className="h-4 w-4 rounded border-input text-primary focus:ring-2 focus:ring-primary"
+                      />
+                    </TableHead>
+                    <TableHead>Client</TableHead>
+                    <TableHead>Contact</TableHead>
+                    <TableHead>Location</TableHead>
+                    <TableHead className="hidden md:table-cell">Status</TableHead>
+                    <TableHead className="hidden lg:table-cell">Source</TableHead>
+                    <TableHead className="text-right hidden xl:table-cell">Value</TableHead>
+                    <TableHead className="w-48">Actions</TableHead>
                   </TableRow>
-                ) : (
-                  filteredClients.map((client) => (
+                </TableHeader>
+                <TableBody>
+                  {filteredClients.map((client) => (
                     <TableRow key={client.id} className="hover:bg-muted/50">
                       <TableCell>
                         <input
@@ -524,7 +437,7 @@ export function ClientList({
                         </div>
                       </TableCell>
                       <TableCell className="hidden md:table-cell">
-                        {getStatusBadge(client.status)}
+                        <StatusBadge status={client.status} />
                       </TableCell>
                       <TableCell className="hidden lg:table-cell">
                         <Badge variant="outline" className="text-xs">{client.source || '—'}</Badge>
@@ -535,7 +448,7 @@ export function ClientList({
                       <TableCell>
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon" className="h-8 w-8">
+                            <Button variant="ghost" size="icon" className="h-8 w-8" aria-label={`Actions for ${client.firstName} ${client.lastName}`}>
                               <MoreVertical className="h-4 w-4" />
                             </Button>
                           </DropdownMenuTrigger>
@@ -583,20 +496,13 @@ export function ClientList({
                         </DropdownMenu>
                       </TableCell>
                     </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
-          ) : (
-            // Grid View
-            <div className="grid gap-4 p-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-              {filteredClients.length === 0 ? (
-                <div className="col-span-full text-center py-12">
-                  <Users className="h-12 w-12 mx-auto text-muted-foreground/50 mb-3" />
-                  <p className="text-muted-foreground">No clients found</p>
-                </div>
-              ) : (
-                filteredClients.map((client) => (
+                  ))}
+                </TableBody>
+              </Table>
+            ) : (
+              // Grid View
+              <div className="grid gap-4 p-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                {filteredClients.map((client) => (
                   <Card key={client.id} className="card-hover">
                     <CardHeader className="pb-2">
                       <div className="flex items-start justify-between">
@@ -616,12 +522,12 @@ export function ClientList({
                           </Avatar>
                           <div>
                             <h3 className="font-semibold text-lg">{client.firstName} {client.lastName}</h3>
-                            {getStatusBadge(client.status)}
+                            <StatusBadge status={client.status} />
                           </div>
                         </div>
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon" className="h-8 w-8">
+                            <Button variant="ghost" size="icon" className="h-8 w-8" aria-label={`Actions for ${client.firstName} ${client.lastName}`}>
                               <MoreVertical className="h-4 w-4" />
                             </Button>
                           </DropdownMenuTrigger>
@@ -688,12 +594,12 @@ export function ClientList({
                       </div>
                     </CardContent>
                   </Card>
-                ))
-              )}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       {/* Pagination */}
       <div className="flex items-center justify-between">
@@ -706,37 +612,25 @@ export function ClientList({
         </div>
       </div>
 
-      {/* Delete confirmation */}
-      <Dialog open={!!deleteConfirm} onOpenChange={(open) => !open && setDeleteConfirm(null)}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>Delete client</DialogTitle>
-            <DialogDescription>
-              Are you sure you want to delete this client? This action cannot be undone.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setDeleteConfirm(null)}>Cancel</Button>
-            <Button variant="destructive" onClick={() => deleteConfirm && confirmDelete(deleteConfirm)}>Delete</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <ConfirmDialog
+        open={!!deleteConfirm}
+        onOpenChange={(open) => !open && setDeleteConfirm(null)}
+        title="Delete client"
+        description="Are you sure you want to delete this client? This action cannot be undone."
+        confirmLabel="Delete"
+        destructive
+        onConfirm={async () => { if (deleteConfirm) await confirmDelete(deleteConfirm) }}
+      />
 
-      {/* Bulk delete confirmation */}
-      <Dialog open={bulkDeleteConfirm} onOpenChange={setBulkDeleteConfirm}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>Delete {selectedClients.length} client{selectedClients.length !== 1 ? 's' : ''}</DialogTitle>
-            <DialogDescription>
-              This action cannot be undone.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setBulkDeleteConfirm(false)}>Cancel</Button>
-            <Button variant="destructive" onClick={confirmBulkDelete}>Delete</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <ConfirmDialog
+        open={bulkDeleteConfirm}
+        onOpenChange={setBulkDeleteConfirm}
+        title={`Delete ${selectedClients.length} client${selectedClients.length !== 1 ? 's' : ''}`}
+        description="This action cannot be undone."
+        confirmLabel="Delete"
+        destructive
+        onConfirm={confirmBulkDelete}
+      />
     </div>
   )
 }

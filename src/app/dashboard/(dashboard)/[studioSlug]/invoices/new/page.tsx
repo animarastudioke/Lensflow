@@ -10,6 +10,7 @@ import { DollarSign } from 'lucide-react'
 
 interface NewInvoicePageProps {
   params: Promise<{ studioSlug: string }>
+  searchParams: Promise<{ client?: string }>
 }
 
 export async function generateMetadata({
@@ -22,8 +23,9 @@ export async function generateMetadata({
   }
 }
 
-export default async function NewInvoicePage({ params }: NewInvoicePageProps) {
+export default async function NewInvoicePage({ params, searchParams }: NewInvoicePageProps) {
   const { studioSlug } = await params
+  const { client: clientIdParam } = await searchParams
   const user = await getAuthUserServer()
 
   if (!user) {
@@ -47,6 +49,7 @@ export default async function NewInvoicePage({ params }: NewInvoicePageProps) {
   }
 
   const { clients } = await getClients(studioSlug)
+  const initialClientId = clients.some(c => c.id === clientIdParam) ? clientIdParam : undefined
 
-  return <NewInvoiceForm studioSlug={studioSlug} clients={clients.map(c => ({ id: c.id, name: c.name }))} />
+  return <NewInvoiceForm studioSlug={studioSlug} clients={clients.map(c => ({ id: c.id, name: c.name }))} initialClientId={initialClientId} />
 }

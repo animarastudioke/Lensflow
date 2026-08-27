@@ -25,6 +25,7 @@ import { galleryPublishedEmail } from '@/lib/email/templates'
 import { mapWithConcurrency } from '@/lib/utils/concurrency'
 import { hashGalleryPassword, verifyGalleryPasswordHash } from '@/lib/security/gallery-password'
 import { checkGalleryPasswordRateLimit, hashIpForRateLimit, resetGalleryPasswordRateLimit } from '@/lib/security/gallery-password-rate-limit'
+import { clientBelongsToStudio } from '@/lib/actions/clients'
 
 // Types
 export type GalleryType = 'wedding' | 'portrait' | 'commercial' | 'event' | 'other'
@@ -271,6 +272,10 @@ export async function createGallery(formData: FormData) {
 
   const validated = galleryCreateSchema.parse(rawData)
 
+  if (validated.client_id && !(await clientBelongsToStudio(validated.client_id, membership.studio_id))) {
+    throw new Error('Invalid client')
+  }
+
   // Check permission
   const hasPermission = await checkGalleryPermission(membership.studio_id, user.id, 'galleries.create')
   if (!hasPermission) {
@@ -408,6 +413,10 @@ export async function updateGallery(formData: FormData) {
   }
 
   const validated = galleryUpdateSchema.parse(rawData)
+
+  if (validated.client_id && !(await clientBelongsToStudio(validated.client_id, studio.id))) {
+    throw new Error('Invalid client')
+  }
 
   // Hash password if provided and changed
   let passwordHash = existing.password_hash
@@ -1096,6 +1105,7 @@ export async function getGalleries(studioSlug: string, options?: {
   type?: GalleryType
   sortBy?: string
   sortOrder?: 'asc' | 'desc'
+  clientId?: string
 }) {
   const supabase = await createClient()
 
@@ -1116,7 +1126,16 @@ export async function getGalleries(studioSlug: string, options?: {
     .from('galleries')
     .select('*, client:clients(name)', { count: 'exact' })
     .eq('studio_id', studio.id)
-    .neq('status', 'archived')
+
+  // The general gallery list hides archived galleries by default; a
+  // client-scoped lookup (Client Detail's "Related work") is a CRM history
+  // view and should show the client's full gallery history, archived
+  // included, rather than silently drop past work.
+  if (options?.clientId) {
+    query = query.eq('client_id', options.clientId)
+  } else {
+    query = query.neq('status', 'archived')
+  }
 
   if (options?.search) {
     query = query.ilike('name', `%${options.search}%`)

@@ -90,6 +90,31 @@ export async function getClient(clientId: string, studioSlug: string): Promise<C
   return client
 }
 
+/**
+ * Guards every create/update that accepts a client_id foreign key
+ * (bookings, projects, invoices, galleries). Without this, a caller could
+ * supply any UUID that happens to be a real clients.id in *any* studio --
+ * the zod schema only checks it's a well-formed UUID, and a foreign key
+ * constraint only requires the referenced row to exist somewhere, not that
+ * it belongs to the caller's studio. Confirmed exploitable: invoices.ts's
+ * sendInvoiceSentEmail() resolves the linked client via the service-role
+ * client (bypassing RLS) to email name/address, so a cross-studio client_id
+ * on an invoice sent to status 'sent' would email a real third party who
+ * has no relationship to the acting studio. Call this before persisting
+ * any client_id accepted from form input.
+ */
+export async function clientBelongsToStudio(clientId: string, studioId: string): Promise<boolean> {
+  const supabase = await createClient()
+  const { data } = await supabase
+    .from('clients')
+    .select('id')
+    .eq('id', clientId)
+    .eq('studio_id', studioId)
+    .single()
+
+  return !!data
+}
+
 const clientSchema = z.object({
   first_name: z.string().min(1, 'First name is required').max(100),
   last_name: z.string().max(100).optional(),

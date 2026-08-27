@@ -27,14 +27,15 @@ import { createGallery } from '@/lib/actions/galleries'
 interface NewGalleryFormProps {
   studioSlug: string
   clients: { id: string; name: string }[]
+  initialClientId?: string
 }
 
-export function NewGalleryForm({ studioSlug, clients }: NewGalleryFormProps) {
+export function NewGalleryForm({ studioSlug, clients, initialClientId }: NewGalleryFormProps) {
   const [isSubmitting, setIsSubmitting] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
   const [type, setType] = React.useState('wedding')
   const [status, setStatus] = React.useState('draft')
-  const [clientId, setClientId] = React.useState<string>('none')
+  const [clientId, setClientId] = React.useState<string>(initialClientId ?? 'none')
   const [passwordProtected, setPasswordProtected] = React.useState(false)
   const [allowDownload, setAllowDownload] = React.useState(true)
   const [allowFavorites, setAllowFavorites] = React.useState(true)

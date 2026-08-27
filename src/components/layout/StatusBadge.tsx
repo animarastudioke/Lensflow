@@ -41,6 +41,9 @@ export const STATUS_VARIANT_MAP: Record<string, BadgeVariant> = {
   // The client didn't attend -- distinct from cancelled, matches the
   // 'warning' tone BookingList already used before adopting this map.
   no_show: 'warning',
+  // An invoice partially paid still needs action, same tone as overdue --
+  // matches InvoiceList's pre-existing local mapping.
+  partial: 'warning',
 
   // Informational / in-progress-but-not-urgent states
   draft: 'secondary',
@@ -49,6 +52,9 @@ export const STATUS_VARIANT_MAP: Record<string, BadgeVariant> = {
   lead: 'info',
   private: 'info',
   inquiry: 'info',
+  // Matches InvoiceList's pre-existing local mapping (sent: info).
+  sent: 'info',
+  viewed: 'outline',
 
   // Negative / failure / stopped states
   failed: 'destructive',

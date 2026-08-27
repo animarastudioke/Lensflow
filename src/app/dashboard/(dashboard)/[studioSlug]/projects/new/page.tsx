@@ -7,6 +7,7 @@ import { NewProjectForm } from '@/components/projects/NewProjectForm'
 
 interface NewProjectPageProps {
   params: Promise<{ studioSlug: string }>
+  searchParams: Promise<{ client?: string }>
 }
 
 export async function generateMetadata({
@@ -19,8 +20,9 @@ export async function generateMetadata({
   }
 }
 
-export default async function NewProjectPage({ params }: NewProjectPageProps) {
+export default async function NewProjectPage({ params, searchParams }: NewProjectPageProps) {
   const { studioSlug } = await params
+  const { client: clientIdParam } = await searchParams
   const user = await getAuthUserServer()
 
   if (!user) {
@@ -31,6 +33,7 @@ export default async function NewProjectPage({ params }: NewProjectPageProps) {
     getClients(studioSlug),
     getBookings(studioSlug),
   ])
+  const initialClientId = clients.some(c => c.id === clientIdParam) ? clientIdParam : undefined
 
   return (
     <NewProjectForm
@@ -40,6 +43,7 @@ export default async function NewProjectPage({ params }: NewProjectPageProps) {
         id: b.id,
         label: b.session_date ? `${b.session_name} — ${b.session_date}` : b.session_name,
       }))}
+      initialClientId={initialClientId}
     />
   )
 }

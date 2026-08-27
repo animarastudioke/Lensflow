@@ -5,6 +5,8 @@ import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { z } from 'zod'
 import { requireStudioPermission } from '@/lib/auth/server'
+import { clientBelongsToStudio } from '@/lib/actions/clients'
+import { bookingBelongsToStudio } from '@/lib/actions/bookings'
 
 export type ProjectStatus = 'planning' | 'scheduled' | 'in_progress' | 'editing' | 'review' | 'delivered' | 'archived'
 
@@ -27,6 +29,7 @@ export interface ProjectRow {
 
 export async function getProjects(studioSlug: string, options?: {
   status?: ProjectStatus
+  clientId?: string
 }): Promise<{ projects: ProjectRow[]; total: number }> {
   const supabase = await createClient()
 
@@ -45,6 +48,9 @@ export async function getProjects(studioSlug: string, options?: {
 
   if (options?.status) {
     query = query.eq('status', options.status)
+  }
+  if (options?.clientId) {
+    query = query.eq('client_id', options.clientId)
   }
 
   query = query.order('created_at', { ascending: false })
@@ -158,6 +164,24 @@ function parseProjectFormData(formData: FormData) {
   })
 }
 
+/**
+ * Guards client_id/booking_id -- see clientBelongsToStudio's doc comment
+ * for why this matters (a caller could otherwise reference another
+ * studio's client or booking; that reference is what Client Detail's
+ * "Related work" relies on being trustworthy).
+ */
+async function verifyProjectReferences(
+  validated: { client_id?: string; booking_id?: string },
+  studioId: string
+): Promise<void> {
+  if (validated.client_id && !(await clientBelongsToStudio(validated.client_id, studioId))) {
+    throw new Error('Invalid client')
+  }
+  if (validated.booking_id && !(await bookingBelongsToStudio(validated.booking_id, studioId))) {
+    throw new Error('Invalid booking')
+  }
+}
+
 export async function createProject(formData: FormData) {
   const membership = await requireStudioPermission('projects:create')
   if ('error' in membership) throw new Error(membership.error)
@@ -165,6 +189,7 @@ export async function createProject(formData: FormData) {
   const supabase = await createClient()
   const studioSlug = formData.get('studio_slug') as string
   const validated = parseProjectFormData(formData)
+  await verifyProjectReferences(validated, membership.studioId)
 
   const { data: inserted, error } = await supabase
     .from('projects')
@@ -200,6 +225,7 @@ export async function updateProject(formData: FormData) {
   const id = formData.get('id') as string
   const studioSlug = formData.get('studio_slug') as string
   const validated = parseProjectFormData(formData)
+  await verifyProjectReferences(validated, membership.studioId)
 
   const { error } = await supabase
     .from('projects')
