@@ -195,3 +195,125 @@ export async function createBooking(formData: FormData) {
   revalidatePath(`/dashboard/${studioSlug}/bookings`)
   redirect(`/dashboard/${studioSlug}/bookings`)
 }
+
+export async function getBooking(bookingId: string, studioSlug: string): Promise<BookingRow | null> {
+  const supabase = await createClient()
+  const studioId = await getStudioId(studioSlug)
+  if (!studioId) return null
+
+  const { data: booking } = await supabase
+    .from('bookings')
+    .select('*, client:clients(name, email)')
+    .eq('id', bookingId)
+    .eq('studio_id', studioId)
+    .single()
+
+  return (booking as unknown as BookingRow) ?? null
+}
+
+export async function updateBooking(formData: FormData) {
+  const membership = await requireStudioPermission('bookings:update')
+  if ('error' in membership) throw new Error(membership.error)
+
+  const supabase = await createClient()
+
+  const id = formData.get('id') as string
+  const studioSlug = formData.get('studio_slug') as string
+
+  const totalPriceRaw = formData.get('total_price')
+  const depositAmountRaw = formData.get('deposit_amount')
+
+  const rawData = {
+    session_name: formData.get('session_name'),
+    client_id: formData.get('client_id') || undefined,
+    package_name: formData.get('package_name') || undefined,
+    type: formData.get('type'),
+    status: formData.get('status') || 'inquiry',
+    session_date: formData.get('session_date') || undefined,
+    start_time: formData.get('start_time') || undefined,
+    end_time: formData.get('end_time') || undefined,
+    location: formData.get('location') || undefined,
+    total_price: totalPriceRaw ? Number(totalPriceRaw) : 0,
+    deposit_amount: depositAmountRaw ? Number(depositAmountRaw) : 0,
+    notes: formData.get('notes') || undefined,
+  }
+
+  const validated = bookingCreateSchema.parse(rawData)
+  const balanceDue = Math.max(validated.total_price - validated.deposit_amount, 0)
+
+  const { error } = await supabase
+    .from('bookings')
+    .update({
+      client_id: validated.client_id ?? null,
+      session_name: validated.session_name,
+      package_name: validated.package_name ?? null,
+      type: validated.type,
+      status: validated.status,
+      session_date: validated.session_date ?? null,
+      start_time: validated.start_time ?? null,
+      end_time: validated.end_time ?? null,
+      location: validated.location ?? null,
+      total_price: validated.total_price,
+      deposit_amount: validated.deposit_amount,
+      balance_due: balanceDue,
+      notes: validated.notes ?? null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', id)
+    .eq('studio_id', membership.studioId)
+
+  if (error) {
+    console.error('Update booking error:', error)
+    throw new Error('Failed to update booking')
+  }
+
+  revalidatePath(`/dashboard/${studioSlug}/bookings`)
+  revalidatePath(`/dashboard/${studioSlug}/bookings/${id}`)
+  redirect(`/dashboard/${studioSlug}/bookings/${id}`)
+}
+
+export async function deleteBooking(bookingId: string, studioSlug: string): Promise<{ error: string } | undefined> {
+  const membership = await requireStudioPermission('bookings:delete')
+  if ('error' in membership) return membership
+
+  const supabase = await createClient()
+
+  const { error } = await supabase
+    .from('bookings')
+    .delete()
+    .eq('id', bookingId)
+    .eq('studio_id', membership.studioId)
+
+  if (error) {
+    console.error('Delete booking error:', error)
+    return { error: 'Failed to delete booking' }
+  }
+
+  revalidatePath(`/dashboard/${studioSlug}/bookings`)
+}
+
+export async function updateBookingStatus(
+  bookingId: string,
+  studioSlug: string,
+  status: BookingStatus
+): Promise<{ success: true } | { error: string }> {
+  const membership = await requireStudioPermission('bookings:update')
+  if ('error' in membership) return membership
+
+  const supabase = await createClient()
+
+  const { error } = await supabase
+    .from('bookings')
+    .update({ status, updated_at: new Date().toISOString() })
+    .eq('id', bookingId)
+    .eq('studio_id', membership.studioId)
+
+  if (error) {
+    console.error('Update booking status error:', error)
+    return { error: 'Failed to update booking status' }
+  }
+
+  revalidatePath(`/dashboard/${studioSlug}/bookings`)
+  revalidatePath(`/dashboard/${studioSlug}/bookings/${bookingId}`)
+  return { success: true }
+}

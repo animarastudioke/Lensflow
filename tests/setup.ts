@@ -13,3 +13,22 @@ if (typeof globalThis.ResizeObserver === 'undefined') {
     disconnect() {}
   }
 }
+
+// jsdom implements neither the pointer-capture API nor scrollIntoView, and
+// Radix's Popper-based menus (DropdownMenu, Select, ContextMenu) call
+// hasPointerCapture()/scrollIntoView() during their open/typeahead
+// handling -- without these no-op stubs, clicking a trigger in jsdom throws
+// (or silently fails to open) even though the same click works in a real
+// browser.
+if (typeof Element.prototype.hasPointerCapture === 'undefined') {
+  Element.prototype.hasPointerCapture = () => false
+}
+if (typeof Element.prototype.setPointerCapture === 'undefined') {
+  Element.prototype.setPointerCapture = () => {}
+}
+if (typeof Element.prototype.releasePointerCapture === 'undefined') {
+  Element.prototype.releasePointerCapture = () => {}
+}
+if (typeof Element.prototype.scrollIntoView === 'undefined') {
+  Element.prototype.scrollIntoView = () => {}
+}

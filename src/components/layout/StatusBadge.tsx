@@ -36,7 +36,11 @@ export const STATUS_VARIANT_MAP: Record<string, BadgeVariant> = {
   editing: 'warning',
   review: 'warning',
   'in-progress': 'warning',
+  in_progress: 'warning',
   invited: 'warning',
+  // The client didn't attend -- distinct from cancelled, matches the
+  // 'warning' tone BookingList already used before adopting this map.
+  no_show: 'warning',
 
   // Informational / in-progress-but-not-urgent states
   draft: 'secondary',
@@ -44,6 +48,7 @@ export const STATUS_VARIANT_MAP: Record<string, BadgeVariant> = {
   planning: 'info',
   lead: 'info',
   private: 'info',
+  inquiry: 'info',
 
   // Negative / failure / stopped states
   failed: 'destructive',

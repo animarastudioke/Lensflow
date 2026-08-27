@@ -44,7 +44,7 @@ export default async function BookingsPage({ params }: BookingsPageProps) {
     clientEmail: b.client?.email || '',
     title: b.session_name,
     type: toBookingType(b.type),
-    status: b.status === 'no_show' ? ('no-show' as const) : b.status,
+    status: b.status,
     startDateTime: b.session_date ? `${b.session_date}T${b.start_time || '00:00:00'}` : b.created_at,
     endDateTime: b.session_date ? `${b.session_date}T${b.end_time || b.start_time || '00:00:00'}` : b.created_at,
     location: b.location ?? '',
