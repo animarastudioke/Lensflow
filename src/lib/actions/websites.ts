@@ -96,6 +96,20 @@ export async function getWebsite(websiteId: string, studioSlug: string): Promise
   return website as unknown as WebsiteRow | null
 }
 
+export async function getWebsitePage(
+  pageId: string,
+  websiteId: string,
+  studioSlug: string
+): Promise<{ website: WebsiteRow; page: WebsitePageRow } | null> {
+  const website = await getWebsite(websiteId, studioSlug)
+  if (!website) return null
+
+  const page = (website.pages ?? []).find((p) => p.id === pageId)
+  if (!page) return null
+
+  return { website, page }
+}
+
 const createWebsiteSchema = z.object({
   name: z.string().min(1, 'Name is required').max(200),
   subdomain: z
@@ -487,4 +501,55 @@ export async function deleteWebsitePage(
   }
 
   revalidatePath(`/dashboard/${studioSlug}/website/${websiteId}/editor`)
+}
+
+const updatePageContentSchema = z.object({
+  heading: z.string().max(200).optional(),
+  body: z.string().max(5000).optional(),
+})
+
+// The `content` column has existed on website_pages since the baseline
+// schema but was never wired to any editor or renderer -- pages always
+// saved as `{}`. This is deliberately a single heading/body pair, not a
+// block/section model: it fills in the existing JSONB column with the
+// simplest real shape rather than inventing page-builder architecture.
+export async function updateWebsitePageContent(formData: FormData): Promise<{ error: string } | undefined> {
+  const membership = await requireStudioPermission('website:manage_pages')
+  if ('error' in membership) return membership
+
+  const pageId = formData.get('page_id') as string
+  const websiteId = formData.get('website_id') as string
+  const studioSlug = formData.get('studio_slug') as string
+
+  const validated = updatePageContentSchema.parse({
+    heading: formData.get('heading') || undefined,
+    body: formData.get('body') || undefined,
+  })
+
+  const supabase = await createClient()
+  const { data: website } = await supabase
+    .from('websites')
+    .select('id')
+    .eq('id', websiteId)
+    .eq('studio_id', membership.studioId)
+    .single()
+
+  if (!website) return { error: 'Website not found' }
+
+  const { error } = await supabase
+    .from('website_pages')
+    .update({
+      content: { heading: validated.heading ?? '', body: validated.body ?? '' },
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', pageId)
+    .eq('website_id', websiteId)
+
+  if (error) {
+    console.error('Update website page content error:', error)
+    return { error: 'Failed to save page content' }
+  }
+
+  revalidatePath(`/dashboard/${studioSlug}/website/${websiteId}/editor`)
+  revalidatePath(`/dashboard/${studioSlug}/website/${websiteId}/preview`)
 }

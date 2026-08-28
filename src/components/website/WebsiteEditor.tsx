@@ -13,10 +13,13 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Checkbox } from '@/components/ui/checkbox'
-import { Badge } from '@/components/ui/badge'
-import { ArrowLeft, Loader2, Plus, Trash2, CheckCircle, XCircle } from 'lucide-react'
+import { PageHeader } from '@/components/layout/PageHeader'
+import { EmptyState } from '@/components/layout/EmptyState'
+import { ConfirmDialog } from '@/components/layout/ConfirmDialog'
+import { StatusBadge } from '@/components/layout/StatusBadge'
+import { Loader2, Plus, Trash2, CheckCircle, XCircle, Eye, FileText, Pencil } from 'lucide-react'
 import { toast } from 'sonner'
-import type { WebsiteRow } from '@/lib/actions/websites'
+import type { WebsiteRow, WebsitePageRow } from '@/lib/actions/websites'
 import {
   updateWebsiteSettings,
   addWebsitePage,
@@ -27,6 +30,12 @@ import {
 interface WebsiteEditorProps {
   studioSlug: string
   website: WebsiteRow
+}
+
+function previewHref(studioSlug: string, websiteId: string, path: string): string {
+  const segments = path.split('/').filter(Boolean)
+  const base = `/dashboard/${studioSlug}/website/${websiteId}/preview`
+  return segments.length === 0 ? base : `${base}/${segments.join('/')}`
 }
 
 export function WebsiteEditor({ studioSlug, website }: WebsiteEditorProps) {
@@ -103,34 +112,44 @@ export function WebsiteEditor({ studioSlug, website }: WebsiteEditorProps) {
     setPages(prev => prev.map(p => p.id === pageId ? { ...p, is_published: !current } : p))
   }
 
-  const onDeletePage = async (pageId: string) => {
-    const result = await deleteWebsitePage(pageId, website.id, studioSlug)
+  const [pageToDelete, setPageToDelete] = React.useState<WebsitePageRow | null>(null)
+
+  const onDeletePage = async () => {
+    if (!pageToDelete) return
+    const result = await deleteWebsitePage(pageToDelete.id, website.id, studioSlug)
     if (result?.error) {
       toast.error(result.error)
-      return
+      throw new Error(result.error)
     }
-    setPages(prev => prev.filter(p => p.id !== pageId))
+    setPages(prev => prev.filter(p => p.id !== pageToDelete.id))
     toast.success('Page deleted')
   }
 
+  const homePath = pages.find(p => p.path === '/')?.path ?? pages[0]?.path
+
   return (
     <div className="max-w-2xl mx-auto space-y-6">
-      <div>
-        <Link
-          href={`/dashboard/${studioSlug}/website`}
-          className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground mb-4"
-        >
-          <ArrowLeft className="h-4 w-4" />
-          Back to websites
-        </Link>
-        <div className="flex items-center gap-2">
-          <h1 className="text-display-md font-display font-semibold text-foreground">{website.name}</h1>
-          <Badge variant={website.status === 'published' ? 'success' : 'secondary'}>
-            {website.status === 'published' ? 'Published' : website.status === 'draft' ? 'Draft' : 'Archived'}
-          </Badge>
-        </div>
-        <p className="text-body text-muted-foreground mt-1 font-mono text-sm">{website.subdomain}</p>
-      </div>
+      <PageHeader
+        title={website.name}
+        description={website.subdomain}
+        breadcrumbs={[
+          { label: 'Websites', href: `/dashboard/${studioSlug}/website` },
+          { label: website.name },
+        ]}
+        actions={
+          <div className="flex items-center gap-2">
+            <StatusBadge status={website.status} />
+            {homePath !== undefined && (
+              <Button variant="outline" size="sm" asChild>
+                <Link href={previewHref(studioSlug, website.id, homePath)} target="_blank" rel="noopener noreferrer">
+                  <Eye className="h-4 w-4 mr-2" />
+                  Preview
+                </Link>
+              </Button>
+            )}
+          </div>
+        }
+      />
 
       <form onSubmit={onSubmit}>
         <Card>
@@ -167,9 +186,15 @@ export function WebsiteEditor({ studioSlug, website }: WebsiteEditorProps) {
               <Input id="seo_description" name="seo_description" defaultValue={website.seo?.description ?? ''} maxLength={500} />
             </div>
 
-            <div className="flex items-center gap-2">
-              <Checkbox id="password_protected" checked={passwordProtected} onCheckedChange={(checked) => setPasswordProtected(checked === true)} />
-              <Label htmlFor="password_protected" className="font-normal">Require a password to view this site</Label>
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <Checkbox id="password_protected" checked={passwordProtected} onCheckedChange={(checked) => setPasswordProtected(checked === true)} />
+                <Label htmlFor="password_protected" className="font-normal">Require a password to view this site</Label>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Password verification for visitors isn&apos;t built yet, so while this is on, the site won&apos;t be publicly
+                reachable at all rather than reachable without a real password check.
+              </p>
             </div>
           </CardContent>
         </Card>
@@ -197,7 +222,7 @@ export function WebsiteEditor({ studioSlug, website }: WebsiteEditorProps) {
         </CardHeader>
         <CardContent className="space-y-4">
           {pages.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No pages yet.</p>
+            <EmptyState icon={FileText} title="No pages yet" description="Add your first page below." compact />
           ) : (
             <ul className="divide-y divide-border border border-border rounded-md">
               {pages.map((page) => (
@@ -206,7 +231,17 @@ export function WebsiteEditor({ studioSlug, website }: WebsiteEditorProps) {
                     <p className="font-medium text-sm">{page.name}</p>
                     <p className="text-xs text-muted-foreground font-mono">{page.path}</p>
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1">
+                    <Button variant="ghost" size="icon" className="h-8 w-8" asChild title="Edit content">
+                      <Link href={`/dashboard/${studioSlug}/website/${website.id}/editor/pages/${page.id}`}>
+                        <Pencil className="h-4 w-4" />
+                      </Link>
+                    </Button>
+                    <Button variant="ghost" size="icon" className="h-8 w-8" asChild title="Preview">
+                      <Link href={previewHref(studioSlug, website.id, page.path)} target="_blank" rel="noopener noreferrer">
+                        <Eye className="h-4 w-4" />
+                      </Link>
+                    </Button>
                     <Button variant="ghost" size="sm" onClick={() => onTogglePublished(page.id, page.is_published)}>
                       {page.is_published ? (
                         <>
@@ -220,7 +255,7 @@ export function WebsiteEditor({ studioSlug, website }: WebsiteEditorProps) {
                         </>
                       )}
                     </Button>
-                    <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive" onClick={() => onDeletePage(page.id)}>
+                    <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive" onClick={() => setPageToDelete(page)}>
                       <Trash2 className="h-4 w-4" />
                     </Button>
                   </div>
@@ -244,6 +279,16 @@ export function WebsiteEditor({ studioSlug, website }: WebsiteEditorProps) {
           </form>
         </CardContent>
       </Card>
+
+      <ConfirmDialog
+        open={pageToDelete !== null}
+        onOpenChange={(open) => !open && setPageToDelete(null)}
+        title={`Delete "${pageToDelete?.name ?? ''}"?`}
+        description="This page will be permanently removed from the website. This can't be undone."
+        confirmLabel="Delete page"
+        destructive
+        onConfirm={onDeletePage}
+      />
     </div>
   )
 }

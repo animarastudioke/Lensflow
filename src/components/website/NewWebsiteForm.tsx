@@ -19,9 +19,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { ArrowLeft, Loader2 } from 'lucide-react'
+import { Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { createWebsite } from '@/lib/actions/websites'
+import { PageHeader } from '@/components/layout/PageHeader'
 
 interface NewWebsiteFormProps {
   studioSlug: string
@@ -74,17 +75,14 @@ export function NewWebsiteForm({ studioSlug, templates }: NewWebsiteFormProps) {
 
   return (
     <div className="max-w-2xl mx-auto space-y-6">
-      <div>
-        <Link
-          href={`/dashboard/${studioSlug}/website`}
-          className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground mb-4"
-        >
-          <ArrowLeft className="h-4 w-4" />
-          Back to websites
-        </Link>
-        <h1 className="text-display-md font-display font-semibold text-foreground">New Website</h1>
-        <p className="text-body text-muted-foreground mt-1">Start a new portfolio website</p>
-      </div>
+      <PageHeader
+        title="New Website"
+        description="Start a new portfolio website"
+        breadcrumbs={[
+          { label: 'Websites', href: `/dashboard/${studioSlug}/website` },
+          { label: 'New' },
+        ]}
+      />
 
       <form onSubmit={onSubmit}>
         <Card>
