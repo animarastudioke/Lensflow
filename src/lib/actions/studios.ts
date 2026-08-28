@@ -126,7 +126,7 @@ export async function createStudio(formData: FormData): Promise<{ error: string 
     console.error('Failed to record signup risk signal:', riskError)
   }
 
-  redirect(`/dashboard/${studio.slug}`)
+  redirect(`/dashboard/${studio.slug}/welcome`)
 }
 
 export async function checkSlugAvailable(slug: string): Promise<boolean> {

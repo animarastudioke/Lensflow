@@ -8,6 +8,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Loader2, CheckCircle, AlertCircle } from 'lucide-react'
 import { toast } from 'sonner'
 import { createBrowserClient } from '@/lib/supabase/client'
+import { AuthShell } from '@/components/auth/AuthShell'
+import { getAuthErrorMessage } from '@/lib/auth/error-messages'
 
 function AuthCallbackPageContent() {
   const router = useRouter()
@@ -26,14 +28,18 @@ function AuthCallbackPageContent() {
         // redirectTo is already set from searchParams
       }
 
-      // Check for error parameters
+      // Check for error parameters. error/error_description come straight
+      // from the redirect URL -- untrusted, not something Supabase signs --
+      // so they're translated through the same allowlist as every other
+      // auth error rather than rendered verbatim.
       const error = searchParams.get('error')
       const errorDescription = searchParams.get('error_description')
 
       if (error) {
+        const safeMessage = getAuthErrorMessage(errorDescription || error)
         setStatus('error')
-        setMessage(errorDescription || error)
-        toast.error(errorDescription || error)
+        setMessage(safeMessage)
+        toast.error(safeMessage)
         return
       }
 
@@ -70,7 +76,7 @@ function AuthCallbackPageContent() {
 
         if (exchangeError) {
           setStatus('error')
-          setMessage(exchangeError.message)
+          setMessage(getAuthErrorMessage(exchangeError.message))
           toast.error('Authentication failed. Please try again.')
           return
         }
@@ -144,8 +150,8 @@ function AuthCallbackPageContent() {
 
   if (status === 'loading') {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-muted/30 px-4 py-12">
-        <Card className="max-w-md w-full">
+      <AuthShell>
+        <Card>
           <CardHeader className="text-center">
             <div className="flex justify-center mb-4">
               <Loader2 className="h-10 w-10 text-primary animate-spin" />
@@ -162,14 +168,14 @@ function AuthCallbackPageContent() {
             </div>
           </CardContent>
         </Card>
-      </div>
+      </AuthShell>
     )
   }
 
   if (status === 'error') {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-muted/30 px-4 py-12">
-        <Card className="max-w-md w-full">
+      <AuthShell>
+        <Card>
           <CardHeader className="text-center">
             <div className="flex justify-center mb-4">
               <div className="h-10 w-10 rounded-full bg-destructive/10 flex items-center justify-center">
@@ -191,14 +197,14 @@ function AuthCallbackPageContent() {
             </p>
           </CardContent>
         </Card>
-      </div>
+      </AuthShell>
     )
   }
 
   // Success state
   return (
-    <div className="min-h-screen flex items-center justify-center bg-muted/30 px-4 py-12">
-      <Card className="shadow-xl max-w-md w-full">
+    <AuthShell>
+      <Card>
         <CardHeader className="text-center">
           <div className="flex justify-center mb-4">
             <div className="h-10 w-10 rounded-full bg-success/10 flex items-center justify-center">
@@ -216,7 +222,7 @@ function AuthCallbackPageContent() {
           </div>
         </CardContent>
       </Card>
-    </div>
+    </AuthShell>
   )
 }
 

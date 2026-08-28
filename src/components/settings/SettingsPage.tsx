@@ -47,20 +47,15 @@ import {
   Loader2,
   CheckCircle,
   Upload,
-  Instagram,
-  Facebook,
-  ImageIcon,
-  Smartphone,
-  Monitor,
   Download,
   Trash2,
   AlertTriangle,
+  Eye,
+  EyeOff,
 } from 'lucide-react'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
-import { Switch } from '@/components/ui/switch'
 import { Badge } from '@/components/ui/badge'
-import { Separator } from '@/components/ui/separator'
 import {
   Table,
   TableBody,
@@ -77,6 +72,11 @@ import { cancelSubscription, resumeSubscription, cancelPendingDowngrade } from '
 import type { Plan, StorageUsage, SubscriptionAccessState } from '@/lib/entitlements'
 import { PRICING_TIERS } from '@/lib/constants/pricing'
 import { SubscribeDialog } from '@/components/settings/SubscribeDialog'
+import { PageHeader } from '@/components/layout/PageHeader'
+import { EmptyState } from '@/components/layout/EmptyState'
+import { createBrowserClient } from '@/lib/supabase/client'
+import { getAuthErrorMessage } from '@/lib/auth/error-messages'
+import { useAuthUser } from '@/lib/auth/hooks'
 import { format } from 'date-fns'
 
 interface SettingsPageProps {
@@ -92,26 +92,6 @@ interface SettingsPageProps {
     graceEndsAt: string | null
   } | null
   paymentHistory: SubscriptionPaymentRow[]
-}
-
-function NotificationRow({
-  title,
-  description,
-  defaultChecked = true,
-}: {
-  title: string
-  description: string
-  defaultChecked?: boolean
-}) {
-  return (
-    <div className="flex items-center justify-between gap-4 py-3">
-      <div>
-        <p className="text-sm font-medium text-foreground">{title}</p>
-        <p className="text-sm text-muted-foreground">{description}</p>
-      </div>
-      <Switch defaultChecked={defaultChecked} />
-    </div>
-  )
 }
 
 function IntegrationCard({
@@ -220,48 +200,126 @@ export function SettingsPage({ studioSlug, studioName, isOwner, settings, billin
     toast.success('Logo updated')
   }
 
+  // Only General and Branding actually persist through this button --
+  // Notifications/Security/Billing/Integrations/Advanced either have their
+  // own dedicated real actions or nothing to save at all. Previously this
+  // button was shown on every tab and, for the ones with no real save path,
+  // faked a 1-second spinner then reported "Saved" regardless -- showing
+  // success for a click that persisted nothing.
+  const showSaveButton = activeTab === 'general' || activeTab === 'branding'
+
   const handleSave = async () => {
     setIsSaving(true)
     setSaveStatus('idle')
 
-    if (activeTab === 'general' && generalFormRef.current) {
-      const formData = new FormData(generalFormRef.current)
-      formData.set('business_type', businessType)
-      formData.set('currency', currency)
-      formData.set('payment_terms', paymentTerms)
+    try {
+      if (activeTab === 'general' && generalFormRef.current) {
+        const formData = new FormData(generalFormRef.current)
+        formData.set('business_type', businessType)
+        formData.set('currency', currency)
+        formData.set('payment_terms', paymentTerms)
 
-      const result = await updateStudioSettings(studioSlug, formData)
-      setIsSaving(false)
-      if (result?.error) {
-        setSaveStatus('error')
-        toast.error(result.error)
+        const result = await updateStudioSettings(studioSlug, formData)
+        if (result?.error) {
+          setSaveStatus('error')
+          toast.error(result.error)
+          return
+        }
+        setSaveStatus('success')
+        setTimeout(() => setSaveStatus('idle'), 3000)
         return
       }
-      setSaveStatus('success')
-      setTimeout(() => setSaveStatus('idle'), 3000)
+
+      if (activeTab === 'branding') {
+        const formData = new FormData()
+        formData.set('brand_color', brandColor)
+        const result = await updateStudioBranding(studioSlug, formData)
+        if (result?.error) {
+          setSaveStatus('error')
+          toast.error(result.error)
+          return
+        }
+        setSaveStatus('success')
+        setTimeout(() => setSaveStatus('idle'), 3000)
+        return
+      }
+    } catch {
+      // A thrown (as opposed to returned) error here means the Server
+      // Action call itself never reached the server -- e.g. the network
+      // dropped mid-request -- so there's nothing to report beyond "it
+      // didn't go through."
+      setSaveStatus('error')
+      toast.error('Could not save changes. Check your connection and try again.')
+      return
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  const { user } = useAuthUser()
+  const [currentPassword, setCurrentPassword] = React.useState('')
+  const [newPassword, setNewPassword] = React.useState('')
+  const [confirmNewPassword, setConfirmNewPassword] = React.useState('')
+  const [showPasswords, setShowPasswords] = React.useState(false)
+  const [passwordError, setPasswordError] = React.useState<string | null>(null)
+  const [isChangingPassword, setIsChangingPassword] = React.useState(false)
+
+  const passwordRequirements = [
+    { label: 'At least 8 characters', test: (p: string) => p.length >= 8 },
+    { label: 'Uppercase letter', test: (p: string) => /[A-Z]/.test(p) },
+    { label: 'Lowercase letter', test: (p: string) => /[a-z]/.test(p) },
+    { label: 'Number', test: (p: string) => /[0-9]/.test(p) },
+    { label: 'Special character', test: (p: string) => /[^A-Za-z0-9]/.test(p) },
+  ]
+  const isNewPasswordValid = passwordRequirements.every((req) => req.test(newPassword))
+
+  const handleChangePassword = async () => {
+    setPasswordError(null)
+
+    if (!user?.email) {
+      setPasswordError('Unable to verify your account. Please refresh and try again.')
+      return
+    }
+    if (!isNewPasswordValid) {
+      setPasswordError('Your new password does not meet the requirements below.')
+      return
+    }
+    if (newPassword !== confirmNewPassword) {
+      setPasswordError('New passwords do not match.')
       return
     }
 
-    if (activeTab === 'branding') {
-      const formData = new FormData()
-      formData.set('brand_color', brandColor)
-      const result = await updateStudioBranding(studioSlug, formData)
-      setIsSaving(false)
-      if (result?.error) {
-        setSaveStatus('error')
-        toast.error(result.error)
-        return
-      }
-      setSaveStatus('success')
-      setTimeout(() => setSaveStatus('idle'), 3000)
+    setIsChangingPassword(true)
+    const supabase = createBrowserClient()
+
+    // Re-verify the current password before changing it -- Supabase's
+    // updateUser() only needs a valid session, not the current password, so
+    // without this a hijacked/left-open session could change the password
+    // with no knowledge of the original one.
+    const { error: verifyError } = await supabase.auth.signInWithPassword({
+      email: user.email,
+      password: currentPassword,
+    })
+    if (verifyError) {
+      setIsChangingPassword(false)
+      setPasswordError('Current password is incorrect.')
       return
     }
 
-    // Other tabs have no backing data yet
-    await new Promise(resolve => setTimeout(resolve, 1000))
-    setIsSaving(false)
-    setSaveStatus('success')
-    setTimeout(() => setSaveStatus('idle'), 3000)
+    const { error: updateError } = await supabase.auth.updateUser({ password: newPassword })
+    setIsChangingPassword(false)
+
+    if (updateError) {
+      const safeMessage = getAuthErrorMessage(updateError.message)
+      setPasswordError(safeMessage)
+      toast.error(safeMessage)
+      return
+    }
+
+    setCurrentPassword('')
+    setNewPassword('')
+    setConfirmNewPassword('')
+    toast.success('Password updated')
   }
 
   const handleDeleteStudio = async () => {
@@ -294,33 +352,35 @@ export function SettingsPage({ studioSlug, studioName, isOwner, settings, billin
   ]
 
   return (
-    <div className="flex-1 max-w-5xl mx-auto space-y-6">
-      {/* Page Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-display-sm font-display font-semibold">Settings</h1>
-          <p className="text-body text-muted-foreground mt-1">Manage your studio preferences and configuration</p>
-        </div>
-        <Button onClick={handleSave} disabled={isSaving}>
-          {isSaving ? (
-            <>
-              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-              Saving...
-            </>
-          ) : saveStatus === 'success' ? (
-            <>
-              <CheckCircle className="h-4 w-4 mr-2 text-success" />
-              Saved
-            </>
-          ) : (
-            <>
-              <Save className="h-4 w-4 mr-2" />
-              Save Changes
-            </>
-          )}
-        </Button>
-      </div>
+    <div className="flex-1 max-w-5xl mx-auto">
+      <PageHeader
+        title="Settings"
+        description="Manage your studio preferences and configuration"
+        actions={
+          showSaveButton ? (
+            <Button onClick={handleSave} disabled={isSaving}>
+              {isSaving ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Saving...
+                </>
+              ) : saveStatus === 'success' ? (
+                <>
+                  <CheckCircle className="h-4 w-4 mr-2 text-success" />
+                  Saved
+                </>
+              ) : (
+                <>
+                  <Save className="h-4 w-4 mr-2" />
+                  Save Changes
+                </>
+              )}
+            </Button>
+          ) : undefined
+        }
+      />
 
+      <div className="space-y-6">
       {/* Tab Navigation */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <TabsList className="grid w-full grid-cols-4 md:grid-cols-7 gap-1 mb-6">
@@ -528,101 +588,17 @@ export function SettingsPage({ studioSlug, studioName, isOwner, settings, billin
             </CardContent>
           </Card>
 
-          <Card>
-            <CardHeader>
-              <CardTitle>Default Gallery Cover</CardTitle>
-              <CardDescription>Used when a gallery doesn&apos;t have photos yet</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="flex items-center gap-6">
-                <div className="h-20 w-32 rounded-lg bg-muted flex items-center justify-center shrink-0">
-                  <ImageIcon className="h-6 w-6 text-muted-foreground" />
-                </div>
-                <Button variant="outline" size="sm">
-                  <Upload className="h-4 w-4 mr-2" />
-                  Upload cover image
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Social Media</CardTitle>
-              <CardDescription>Linked from your public studio page</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label className="flex items-center gap-2"><Instagram className="h-4 w-4" /> Instagram</Label>
-                <Input placeholder="https://instagram.com/yourstudio" />
-              </div>
-              <div className="space-y-2">
-                <Label className="flex items-center gap-2"><Facebook className="h-4 w-4" /> Facebook</Label>
-                <Input placeholder="https://facebook.com/yourstudio" />
-              </div>
-              <div className="space-y-2">
-                <Label>Pinterest</Label>
-                <Input placeholder="https://pinterest.com/yourstudio" />
-              </div>
-              <div className="space-y-2">
-                <Label>TikTok</Label>
-                <Input placeholder="https://tiktok.com/@yourstudio" />
-              </div>
-            </CardContent>
-          </Card>
         </TabsContent>
 
         {/* Notifications */}
         <TabsContent value="notifications" className="space-y-6">
           <Card>
-            <CardHeader>
-              <CardTitle>Email Notifications</CardTitle>
-              <CardDescription>Choose what you get notified about</CardDescription>
-            </CardHeader>
-            <CardContent className="divide-y divide-border">
-              <NotificationRow
-                title="New booking inquiry"
-                description="When a client requests a new session"
+            <CardContent className="p-0">
+              <EmptyState
+                icon={Bell}
+                title="Per-channel notification preferences aren't configurable yet"
+                description="You're still notified inside LensFlow — new bookings, payments, gallery activity, and more show up in the bell icon in the header. Choosing which events also go to email is planned but not built yet."
               />
-              <NotificationRow
-                title="Gallery viewed"
-                description="The first time a client opens a gallery you shared"
-              />
-              <NotificationRow
-                title="Photo favorited"
-                description="When a client favorites photos in a gallery"
-                defaultChecked={false}
-              />
-              <NotificationRow
-                title="Payment received"
-                description="When an invoice is paid"
-              />
-              <NotificationRow
-                title="Contract signed"
-                description="When a client signs a contract"
-              />
-              <NotificationRow
-                title="Quote accepted or declined"
-                description="When a client responds to a quote"
-              />
-              <NotificationRow
-                title="Weekly summary"
-                description="A recap of bookings, revenue, and gallery activity"
-                defaultChecked={false}
-              />
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Notification Email</CardTitle>
-              <CardDescription>Where studio notifications are sent</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-2 max-w-md">
-                <Label>Email address</Label>
-                <Input type="email" defaultValue="hello@animarastudio.com" />
-              </div>
             </CardContent>
           </Card>
         </TabsContent>
@@ -636,64 +612,97 @@ export function SettingsPage({ studioSlug, studioName, isOwner, settings, billin
             </CardHeader>
             <CardContent className="space-y-4 max-w-md">
               <div className="space-y-2">
-                <Label>Current password</Label>
-                <Input type="password" placeholder="••••••••" />
+                <Label htmlFor="current_password">Current password</Label>
+                <div className="relative">
+                  <Input
+                    id="current_password"
+                    type={showPasswords ? 'text' : 'password'}
+                    placeholder="••••••••"
+                    className="pr-10"
+                    value={currentPassword}
+                    onChange={(e) => setCurrentPassword(e.target.value)}
+                    disabled={isChangingPassword}
+                    autoComplete="current-password"
+                  />
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="absolute right-1 top-1/2 -translate-y-1/2 h-8 w-8"
+                    onClick={() => setShowPasswords((v) => !v)}
+                    aria-label={showPasswords ? 'Hide passwords' : 'Show passwords'}
+                    aria-pressed={showPasswords}
+                  >
+                    {showPasswords ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </Button>
+                </div>
               </div>
               <div className="space-y-2">
-                <Label>New password</Label>
-                <Input type="password" placeholder="••••••••" />
+                <Label htmlFor="new_password">New password</Label>
+                <Input
+                  id="new_password"
+                  type={showPasswords ? 'text' : 'password'}
+                  placeholder="••••••••"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  disabled={isChangingPassword}
+                  autoComplete="new-password"
+                  aria-describedby="password-requirements"
+                />
+                <div id="password-requirements" className="space-y-1 pt-1" role="list" aria-label="Password requirements">
+                  {passwordRequirements.map((req) => (
+                    <div key={req.label} className="flex items-center gap-2 text-xs">
+                      {req.test(newPassword) ? (
+                        <CheckCircle className="h-3.5 w-3.5 text-success flex-shrink-0" />
+                      ) : (
+                        <span className="h-3.5 w-3.5 rounded-full border border-border flex-shrink-0" />
+                      )}
+                      <span className="text-muted-foreground">{req.label}</span>
+                    </div>
+                  ))}
+                </div>
               </div>
               <div className="space-y-2">
-                <Label>Confirm new password</Label>
-                <Input type="password" placeholder="••••••••" />
+                <Label htmlFor="confirm_new_password">Confirm new password</Label>
+                <Input
+                  id="confirm_new_password"
+                  type={showPasswords ? 'text' : 'password'}
+                  placeholder="••••••••"
+                  value={confirmNewPassword}
+                  onChange={(e) => setConfirmNewPassword(e.target.value)}
+                  disabled={isChangingPassword}
+                  autoComplete="new-password"
+                />
               </div>
-              <Button variant="outline" size="sm">Update password</Button>
+              {passwordError && (
+                <p className="text-sm text-destructive" role="alert">{passwordError}</p>
+              )}
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleChangePassword}
+                disabled={isChangingPassword || !currentPassword || !newPassword || !confirmNewPassword}
+              >
+                {isChangingPassword ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Updating...
+                  </>
+                ) : (
+                  'Update password'
+                )}
+              </Button>
             </CardContent>
           </Card>
 
           <Card>
-            <CardHeader>
-              <CardTitle>Two-Factor Authentication</CardTitle>
-              <CardDescription>Add an extra layer of security to your account</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-foreground">Authenticator app</p>
-                  <p className="text-sm text-muted-foreground">Not enabled</p>
-                </div>
-                <Switch />
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Active Sessions</CardTitle>
-              <CardDescription>Devices currently signed in to your account</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex items-center justify-between gap-4 py-2">
-                <div className="flex items-center gap-3">
-                  <Monitor className="h-5 w-5 text-muted-foreground" />
-                  <div>
-                    <p className="text-sm font-medium text-foreground">Windows · Chrome</p>
-                    <p className="text-sm text-muted-foreground">Nairobi, Kenya</p>
-                  </div>
-                </div>
-                <Badge variant="success">This device</Badge>
-              </div>
-              <Separator />
-              <div className="flex items-center justify-between gap-4 py-2">
-                <div className="flex items-center gap-3">
-                  <Smartphone className="h-5 w-5 text-muted-foreground" />
-                  <div>
-                    <p className="text-sm font-medium text-foreground">iPhone · Safari</p>
-                    <p className="text-sm text-muted-foreground">Last active 2 days ago</p>
-                  </div>
-                </div>
-                <Button variant="ghost" size="sm">Sign out</Button>
-              </div>
+            <CardContent className="p-0">
+              <EmptyState
+                icon={Shield}
+                title="Two-factor authentication and session management aren't available yet"
+                description="These are planned but not built. Your password remains the only sign-in credential for now."
+                compact
+              />
             </CardContent>
           </Card>
         </TabsContent>
@@ -1025,6 +1034,7 @@ export function SettingsPage({ studioSlug, studioName, isOwner, settings, billin
           </Card>
         </TabsContent>
       </Tabs>
+      </div>
     </div>
   )
 }

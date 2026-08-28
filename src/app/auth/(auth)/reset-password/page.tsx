@@ -15,7 +15,8 @@ import { Loader2, Lock, AlertCircle, CheckCircle, Eye, EyeOff } from 'lucide-rea
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
 import { createBrowserClient } from '@/lib/supabase/client'
-import { LogoMark } from '@/components/marketing/home/lib/logo'
+import { AuthShell } from '@/components/auth/AuthShell'
+import { getAuthErrorMessage } from '@/lib/auth/error-messages'
 
 const resetPasswordSchema = z.object({
   password: z
@@ -108,8 +109,9 @@ function ResetPasswordPageContent() {
       })
 
       if (updateError) {
-        setError(updateError.message)
-        toast.error(updateError.message)
+        const safeMessage = getAuthErrorMessage(updateError.message)
+        setError(safeMessage)
+        toast.error(safeMessage)
         return
       }
 
@@ -127,44 +129,33 @@ function ResetPasswordPageContent() {
 
   if (!isValidToken) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-muted/30 px-4 py-12">
-        <div className="w-full max-w-md">
-          <Card>
-            <CardHeader className="text-center">
-              <CardTitle className="text-display-sm">Invalid reset link</CardTitle>
-              <CardDescription>
-                This password reset link is invalid or has expired.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <Alert variant="destructive">
-                <AlertCircle className="h-4 w-4" />
-                <AlertDescription>
-                  The reset link may have already been used or expired. Reset links are valid for 1 hour.
-                </AlertDescription>
-              </Alert>
-              <Link href="/auth/forgot-password" className="block text-center text-primary hover:underline">
-                Request a new reset link
-              </Link>
-            </CardContent>
-          </Card>
-        </div>
-      </div>
+      <AuthShell>
+        <Card>
+          <CardHeader className="text-center">
+            <CardTitle className="text-display-sm">Invalid reset link</CardTitle>
+            <CardDescription>
+              This password reset link is invalid or has expired.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <Alert variant="destructive">
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>
+                The reset link may have already been used or expired. Reset links are valid for 1 hour.
+              </AlertDescription>
+            </Alert>
+            <Link href="/auth/forgot-password" className="block text-center text-primary hover:underline">
+              Request a new reset link
+            </Link>
+          </CardContent>
+        </Card>
+      </AuthShell>
     )
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-muted/30 px-4 py-12">
-      <div className="w-full max-w-md">
-        {/* Logo */}
-        <div className="flex justify-center mb-8">
-          <Link href="/" className="flex items-center gap-2" aria-label="LensFlow Home">
-            <LogoMark className="h-10 w-10 text-primary" />
-            <span className="font-display italic text-2xl text-foreground">LensFlow</span>
-          </Link>
-        </div>
-
-        <Card>
+    <AuthShell>
+      <Card>
           <CardHeader className="text-center">
             <CardTitle className="text-display-sm">Reset your password</CardTitle>
             <CardDescription>
@@ -265,9 +256,8 @@ function ResetPasswordPageContent() {
               </Link>
             </p>
           </CardFooter>
-        </Card>
-      </div>
-    </div>
+      </Card>
+    </AuthShell>
   )
 }
 
