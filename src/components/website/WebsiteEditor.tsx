@@ -137,7 +137,7 @@ export function WebsiteEditor({ studioSlug, website }: WebsiteEditorProps) {
           { label: website.name },
         ]}
         actions={
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <StatusBadge status={website.status} />
             {homePath !== undefined && (
               <Button variant="outline" size="sm" asChild>

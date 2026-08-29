@@ -1,5 +1,7 @@
 import { formatCurrency } from '@/lib/currencies'
 import { format } from 'date-fns'
+import { cn } from '@/lib/utils'
+import { StatusBadge } from '@/components/layout/StatusBadge'
 
 export interface BillingDocumentItem {
   id: string
@@ -74,9 +76,9 @@ export function BillingDocumentView(doc: BillingDocumentProps) {
           <p className="text-sm font-medium uppercase tracking-wide" style={{ color: accent }}>{doc.kind}</p>
           <p className="font-mono text-lg font-medium text-foreground">{doc.documentNumber}</p>
           {doc.title && <p className="text-sm text-muted-foreground">{doc.title}</p>}
-          <span className="inline-block mt-2 rounded-full border border-border px-2.5 py-0.5 text-xs font-medium capitalize">
-            {doc.statusLabel}
-          </span>
+          <div className="mt-2">
+            <StatusBadge status={doc.statusLabel} />
+          </div>
         </div>
       </div>
 
@@ -104,6 +106,32 @@ export function BillingDocumentView(doc: BillingDocumentProps) {
           )}
         </div>
       </div>
+
+      {doc.balanceDue !== undefined && (
+        <div
+          className={cn(
+            'rounded-lg border p-5',
+            doc.balanceDue > 0 ? 'border-destructive/30 bg-destructive/5' : 'border-success/30 bg-success/5'
+          )}
+        >
+          <p className="text-xs uppercase tracking-wide font-medium text-muted-foreground">Balance due</p>
+          <p
+            className={cn(
+              'mt-1 font-mono text-3xl font-semibold tabular-nums',
+              doc.balanceDue > 0 ? 'text-destructive' : 'text-success'
+            )}
+          >
+            {formatCurrency(doc.balanceDue, doc.currency)}
+          </p>
+          {doc.balanceDue > 0 && doc.secondaryDate ? (
+            <p className="mt-1 text-sm text-muted-foreground">
+              {doc.secondaryDateLabel} {format(new Date(doc.secondaryDate), 'MMM d, yyyy')}
+            </p>
+          ) : doc.balanceDue === 0 ? (
+            <p className="mt-1 text-sm text-success">Paid in full</p>
+          ) : null}
+        </div>
+      )}
 
       <div className="border-t border-border pt-4">
         <table className="w-full text-sm">
@@ -148,16 +176,10 @@ export function BillingDocumentView(doc: BillingDocumentProps) {
             <span>Total</span>
             <span className="font-mono tabular-nums">{formatCurrency(doc.total, doc.currency)}</span>
           </div>
-          {doc.amountPaid !== undefined && (
+          {doc.amountPaid !== undefined && doc.amountPaid > 0 && (
             <div className="flex items-center justify-between text-muted-foreground">
               <span>Paid</span>
               <span className="font-mono tabular-nums">{formatCurrency(doc.amountPaid, doc.currency)}</span>
-            </div>
-          )}
-          {doc.balanceDue !== undefined && (
-            <div className="flex items-center justify-between font-medium text-foreground">
-              <span>Balance due</span>
-              <span className="font-mono tabular-nums">{formatCurrency(doc.balanceDue, doc.currency)}</span>
             </div>
           )}
         </div>

@@ -1,7 +1,8 @@
 import { Metadata } from 'next'
 import { notFound } from 'next/navigation'
-import { getInvoiceByToken } from '@/lib/actions/invoices'
+import { getInvoiceByToken, markInvoiceViewed } from '@/lib/actions/invoices'
 import { BillingDocumentView } from '@/components/billing/BillingDocumentView'
+import { InvoicePaymentHistory } from '@/components/invoices/InvoicePaymentHistory'
 import { PublicMpesaPaymentDialog } from '@/components/invoices/PublicMpesaPaymentDialog'
 import { Download } from 'lucide-react'
 
@@ -28,6 +29,8 @@ export default async function PublicInvoicePage({ params }: Props) {
   if (!invoice) {
     notFound()
   }
+
+  await markInvoiceViewed(invoice.id)
 
   const balanceDue = Math.max(invoice.total - invoice.amount_paid, 0)
 
@@ -61,6 +64,8 @@ export default async function PublicInvoicePage({ params }: Props) {
               address: invoice.studio.address,
             }}
           />
+
+          <InvoicePaymentHistory payments={invoice.payments} currency={invoice.currency} />
 
           <div className="mt-8 pt-6 border-t border-border flex items-center justify-end gap-3">
             <a

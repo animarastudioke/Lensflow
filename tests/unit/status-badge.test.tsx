@@ -20,7 +20,7 @@ describe('StatusBadge / STATUS_VARIANT_MAP', () => {
   })
 
   it('maps needs-attention states to warning', () => {
-    for (const status of ['pending', 'overdue', 'processing']) {
+    for (const status of ['pending', 'processing']) {
       expect(STATUS_VARIANT_MAP[status]).toBe('warning')
     }
   })
@@ -29,6 +29,14 @@ describe('StatusBadge / STATUS_VARIANT_MAP', () => {
     for (const status of ['failed', 'cancelled', 'expired']) {
       expect(STATUS_VARIANT_MAP[status]).toBe('destructive')
     }
+  })
+
+  // Phase 11 Step 12: moved from warning to destructive here -- an overdue
+  // invoice (past due, balance still owed) is the map's one real "overdue"
+  // consumer, and already treated it as destructive locally before
+  // adopting this map. No other entity in the codebase uses "overdue".
+  it('maps overdue to destructive (real severity for an unpaid invoice past due)', () => {
+    expect(STATUS_VARIANT_MAP.overdue).toBe('destructive')
   })
 
   it('falls back to secondary for an unrecognized status rather than throwing', () => {

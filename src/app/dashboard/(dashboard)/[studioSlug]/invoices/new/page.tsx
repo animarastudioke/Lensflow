@@ -2,7 +2,7 @@ import { Metadata } from 'next'
 import { getAuthUserServer } from '@/lib/auth'
 import { redirect } from 'next/navigation'
 import { getClients } from '@/lib/actions/clients'
-import { getStudioForSettings } from '@/lib/actions/studios'
+import { getStudioForSettings, getStudioCurrency } from '@/lib/actions/studios'
 import { hasEntitlement } from '@/lib/entitlements'
 import { NewInvoiceForm } from '@/components/invoices/NewInvoiceForm'
 import { FeatureUpgradePrompt } from '@/components/billing/FeatureUpgradePrompt'
@@ -48,8 +48,18 @@ export default async function NewInvoicePage({ params, searchParams }: NewInvoic
     )
   }
 
-  const { clients } = await getClients(studioSlug)
+  const [{ clients }, currency] = await Promise.all([
+    getClients(studioSlug),
+    getStudioCurrency(studioSlug),
+  ])
   const initialClientId = clients.some(c => c.id === clientIdParam) ? clientIdParam : undefined
 
-  return <NewInvoiceForm studioSlug={studioSlug} clients={clients.map(c => ({ id: c.id, name: c.name }))} initialClientId={initialClientId} />
+  return (
+    <NewInvoiceForm
+      studioSlug={studioSlug}
+      clients={clients.map(c => ({ id: c.id, name: c.name }))}
+      initialClientId={initialClientId}
+      currency={currency}
+    />
+  )
 }

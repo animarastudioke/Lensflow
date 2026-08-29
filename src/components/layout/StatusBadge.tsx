@@ -28,10 +28,11 @@ export const STATUS_VARIANT_MAP: Record<string, BadgeVariant> = {
   completed: 'success',
   delivered: 'success',
   confirmed: 'success',
+  // Quote acceptance -- matches QuoteList's pre-existing local mapping.
+  accepted: 'success',
 
   // Needs-attention states
   pending: 'warning',
-  overdue: 'warning',
   processing: 'warning',
   editing: 'warning',
   review: 'warning',
@@ -41,8 +42,8 @@ export const STATUS_VARIANT_MAP: Record<string, BadgeVariant> = {
   // The client didn't attend -- distinct from cancelled, matches the
   // 'warning' tone BookingList already used before adopting this map.
   no_show: 'warning',
-  // An invoice partially paid still needs action, same tone as overdue --
-  // matches InvoiceList's pre-existing local mapping.
+  // An invoice partially paid still needs action -- matches InvoiceList's
+  // pre-existing local mapping.
   partial: 'warning',
 
   // Informational / in-progress-but-not-urgent states
@@ -61,11 +62,21 @@ export const STATUS_VARIANT_MAP: Record<string, BadgeVariant> = {
   cancelled: 'destructive',
   expired: 'destructive',
   suspended: 'destructive',
+  // Quote rejection -- matches QuoteList's pre-existing local mapping.
+  declined: 'destructive',
+  // An invoice past due with money still owed -- matches InvoiceList's
+  // pre-existing local mapping. No other entity in the codebase currently
+  // uses an "overdue" status (verified by search), so this isn't
+  // overriding a real consumer elsewhere.
+  overdue: 'destructive',
 
   // Neutral / inactive / archival states -- quiet, not alarming
   archived: 'secondary',
   inactive: 'secondary',
-  refunded: 'secondary',
+  // Both real consumers (InvoiceList and StoreList's order paymentStatus)
+  // independently used 'outline' before adopting this map -- corrected
+  // from an earlier, unverified 'secondary' guess to match them.
+  refunded: 'outline',
 }
 
 export interface StatusBadgeProps {

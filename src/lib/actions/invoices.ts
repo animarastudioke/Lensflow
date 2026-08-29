@@ -104,6 +104,7 @@ export async function getInvoice(invoiceId: string, studioSlug: string): Promise
 export interface PublicInvoice extends InvoiceRow {
   studio: { name: string; logo_url: string | null; brand_color: string | null; email: string | null; phone: string | null; address: string | null }
   currency: string
+  payments: InvoicePaymentRow[]
 }
 
 /**
@@ -114,15 +115,81 @@ export interface PublicInvoice extends InvoiceRow {
 export async function getInvoiceByToken(token: string): Promise<PublicInvoice | null> {
   const { data, error } = await supabaseAdmin
     .from('invoices')
-    .select('*, client:clients(name, email, phone), items:invoice_items(*), studio:studios(name, logo_url, brand_color, email, phone, address, currency)')
+    .select('*, client:clients(name, email, phone), items:invoice_items(*), studio:studios(name, logo_url, brand_color, email, phone, address, currency), payments(id, amount, currency, method, status, provider_receipt_number, created_at)')
     .eq('share_token', token)
     .single()
 
   if (error || !data) return null
 
   const studio = data.studio as unknown as { name: string; logo_url: string | null; brand_color: string | null; email: string | null; phone: string | null; address: string | null; currency: string }
+  const allPayments = (data.payments ?? []) as unknown as InvoicePaymentRow[]
+  const payments = allPayments
+    .filter((p) => (p as unknown as { status: string }).status === 'completed')
+    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
 
-  return { ...(data as unknown as InvoiceRow), studio, currency: studio.currency }
+  return { ...(data as unknown as InvoiceRow), studio, currency: studio.currency, payments }
+}
+
+/**
+ * Best-effort, one-way 'sent' -> 'viewed' transition when a client actually
+ * opens the public invoice link. The WHERE clause (id + status='sent') is
+ * what makes this safe to call on every page view: it only ever fires once,
+ * and can never downgrade a further-along status (paid/partial/overdue/
+ * cancelled/refunded) back to 'viewed'. Never throws -- a client loading
+ * their invoice should never fail because this side effect didn't apply.
+ */
+export async function markInvoiceViewed(invoiceId: string): Promise<void> {
+  await supabaseAdmin
+    .from('invoices')
+    .update({ status: 'viewed', updated_at: new Date().toISOString() })
+    .eq('id', invoiceId)
+    .eq('status', 'sent')
+}
+
+export interface InvoicePaymentRow {
+  id: string
+  amount: number
+  currency: string
+  method: string
+  status: string
+  provider_receipt_number: string | null
+  created_at: string
+}
+
+/**
+ * Real completed transactions from the payments ledger (src/lib/payments,
+ * migration 017) -- distinct from invoices.amount_paid, which is the
+ * running total those transactions sum into. Only 'completed' rows are
+ * shown: a pending or failed M-Pesa attempt never moved money, so it isn't
+ * "payment history" from the studio's perspective the way a receipt is.
+ */
+export async function getInvoicePayments(invoiceId: string, studioSlug: string): Promise<InvoicePaymentRow[]> {
+  const supabase = await createClient()
+  const studioId = await getStudioId(studioSlug)
+  if (!studioId) return []
+
+  const { data: invoice } = await supabase
+    .from('invoices')
+    .select('id')
+    .eq('id', invoiceId)
+    .eq('studio_id', studioId)
+    .single()
+  if (!invoice) return []
+
+  const { data, error } = await supabase
+    .from('payments')
+    .select('id, amount, currency, method, status, provider_receipt_number, created_at')
+    .eq('invoice_id', invoiceId)
+    .eq('studio_id', studioId)
+    .eq('status', 'completed')
+    .order('created_at', { ascending: false })
+
+  if (error) {
+    console.error('Get invoice payments error:', error)
+    return []
+  }
+
+  return (data ?? []) as InvoicePaymentRow[]
 }
 
 function generateShareToken(): string {
@@ -169,12 +236,24 @@ export async function regenerateInvoiceShareToken(
  * Best-effort — a failed send should never block the invoice itself from
  * being marked sent, so this only ever logs, never throws or returns an
  * error the caller has to handle.
+ *
+ * Callers pass a caller-controlled invoiceId (a Server Action argument, not
+ * something Next.js validates) alongside the caller's own server-resolved
+ * studioId. The `.eq('studio_id', studioId)` below is load-bearing: without
+ * it, this function -- which reads via supabaseAdmin, bypassing RLS --
+ * would happily look up a foreign studio's invoice and email that foreign
+ * client using the caller's own studio branding, the same class of
+ * cross-studio reference bug fixed for client_id in Step 9.
+ * updateInvoiceStatus's own `.update(...).eq('studio_id', ...)` already
+ * guards the status write, but previously did not gate this call, which
+ * fires regardless of whether that update actually matched a row.
  */
 async function sendInvoiceSentEmail(invoiceId: string, studioId: string): Promise<void> {
   const { data: invoice } = await supabaseAdmin
     .from('invoices')
     .select('invoice_number, total, due_date, share_token, client:clients(name, email)')
     .eq('id', invoiceId)
+    .eq('studio_id', studioId)
     .single()
 
   const client = invoice?.client as unknown as { name: string; email: string } | null
@@ -215,17 +294,26 @@ export async function updateInvoiceStatus(
 
   const supabase = await createClient()
 
+  // Resolves ownership once up front (rather than trusting the update's
+  // affected-row count) so a cross-studio invoiceId gets an explicit
+  // "not found" instead of a silently-ignored no-op update that still
+  // looked like success to the caller -- and, critically, so the
+  // status === 'sent' email side effect below never fires for an invoice
+  // that was never actually verified to belong to this studio.
+  const { data: existing } = await supabase
+    .from('invoices')
+    .select('total')
+    .eq('id', invoiceId)
+    .eq('studio_id', membership.studioId)
+    .single()
+
+  if (!existing) {
+    return { error: 'Invoice not found' }
+  }
+
   const update: Record<string, unknown> = { status, updated_at: new Date().toISOString() }
   if (status === 'paid') {
-    const { data: invoice } = await supabase
-      .from('invoices')
-      .select('total')
-      .eq('id', invoiceId)
-      .eq('studio_id', membership.studioId)
-      .single()
-    if (invoice) {
-      update['amount_paid'] = invoice.total
-    }
+    update['amount_paid'] = existing.total
     update['paid_at'] = new Date().toISOString()
   }
 
@@ -274,10 +362,26 @@ export async function bulkUpdateInvoiceStatus(
   }
 
   if (status === 'paid') {
+    // Both the select and the update below are re-scoped to
+    // membership.studioId -- without it, a caller could pass a foreign
+    // studio's invoice id through invoiceIds and this loop would read that
+    // invoice's real total and overwrite its amount_paid, even though the
+    // bulk update above (correctly scoped) never touched its status. That
+    // would let any studio with invoices:manage_payments silently zero out
+    // another studio's outstanding balance on an invoice they don't own.
     for (const id of invoiceIds) {
-      const { data: invoice } = await supabase.from('invoices').select('total').eq('id', id).single()
+      const { data: invoice } = await supabase
+        .from('invoices')
+        .select('total')
+        .eq('id', id)
+        .eq('studio_id', membership.studioId)
+        .single()
       if (invoice) {
-        await supabase.from('invoices').update({ amount_paid: invoice.total }).eq('id', id)
+        await supabase
+          .from('invoices')
+          .update({ amount_paid: invoice.total })
+          .eq('id', id)
+          .eq('studio_id', membership.studioId)
       }
     }
   }
