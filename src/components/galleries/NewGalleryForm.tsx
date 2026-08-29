@@ -39,8 +39,6 @@ export function NewGalleryForm({ studioSlug, clients, initialClientId }: NewGall
   const [passwordProtected, setPasswordProtected] = React.useState(false)
   const [allowDownload, setAllowDownload] = React.useState(true)
   const [allowFavorites, setAllowFavorites] = React.useState(true)
-  const [allowComments, setAllowComments] = React.useState(true)
-  const [watermarkEnabled, setWatermarkEnabled] = React.useState(false)
 
   const onSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
@@ -57,8 +55,6 @@ export function NewGalleryForm({ studioSlug, clients, initialClientId }: NewGall
     formData.set('password_protected', String(passwordProtected))
     formData.set('allow_download', String(allowDownload))
     formData.set('allow_favorites', String(allowFavorites))
-    formData.set('allow_comments', String(allowComments))
-    formData.set('watermark_enabled', String(watermarkEnabled))
 
     try {
       await createGallery(formData)
@@ -186,14 +182,6 @@ export function NewGalleryForm({ studioSlug, clients, initialClientId }: NewGall
             <label className="flex items-center gap-3 text-sm">
               <input type="checkbox" checked={allowFavorites} onChange={(e) => setAllowFavorites(e.target.checked)} className="h-4 w-4 rounded border-input text-primary focus:ring-2 focus:ring-primary" />
               Allow clients to favorite photos
-            </label>
-            <label className="flex items-center gap-3 text-sm">
-              <input type="checkbox" checked={allowComments} onChange={(e) => setAllowComments(e.target.checked)} className="h-4 w-4 rounded border-input text-primary focus:ring-2 focus:ring-primary" />
-              Allow clients to comment on photos
-            </label>
-            <label className="flex items-center gap-3 text-sm">
-              <input type="checkbox" checked={watermarkEnabled} onChange={(e) => setWatermarkEnabled(e.target.checked)} className="h-4 w-4 rounded border-input text-primary focus:ring-2 focus:ring-primary" />
-              Watermark photos
             </label>
           </CardContent>
         </Card>

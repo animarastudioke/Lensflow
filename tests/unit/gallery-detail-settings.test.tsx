@@ -184,3 +184,39 @@ describe('GalleryDetail Settings tab: save wiring', () => {
     expect(updateGalleryMock).not.toHaveBeenCalled()
   })
 })
+
+// Phase 11 Step 13 regression coverage: "Allow Comments" and "Watermark
+// Images" both persisted to a real column via updateGallery(), but neither
+// had any consumer anywhere on the client-facing gallery -- no commenting
+// UI exists at all, and the upload pipeline never composites a watermark.
+// A toggle that saves but does nothing is a deceptive control (Step 10's
+// "honest absence over a deceptive control" rule), so both were removed
+// from this tab. These prove the controls are gone and that removing them
+// did not turn into a silent reset of whatever a gallery's existing values
+// already were.
+describe('GalleryDetail Settings tab: no controls for non-functional flags', () => {
+  it('does not render "Allow Comments" or "Watermark Images" toggles -- neither has any real effect on the public gallery', async () => {
+    await openSettingsTab()
+    expect(screen.queryByText('Allow Comments')).not.toBeInTheDocument()
+    expect(screen.queryByText('Watermark Images')).not.toBeInTheDocument()
+  })
+
+  it('a save resubmits the gallery\'s existing allow_comments/watermark_enabled unchanged, not a reset default', async () => {
+    updateGalleryMock.mockResolvedValue(undefined)
+    const user = userEvent.setup()
+    render(
+      <GalleryDetail
+        studioSlug="test-studio"
+        initialGallery={makeGallery({ allowComments: false, watermarkEnabled: true })}
+      />
+    )
+    await user.click(screen.getByRole('tab', { name: /settings/i }))
+
+    fireEvent.click(screen.getByRole('button', { name: /save changes/i }))
+
+    await waitFor(() => expect(updateGalleryMock).toHaveBeenCalledTimes(1))
+    const submittedFormData = updateGalleryMock.mock.calls[0]![0] as FormData
+    expect(submittedFormData.get('allow_comments')).toBe('false')
+    expect(submittedFormData.get('watermark_enabled')).toBe('true')
+  })
+})

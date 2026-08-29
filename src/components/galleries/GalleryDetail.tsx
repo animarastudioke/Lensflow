@@ -207,6 +207,13 @@ export function GalleryDetail({ studioSlug, initialGallery }: GalleryDetailProps
   // requires either extending updateGallery or building a dedicated
   // share-settings surface, both out of scope for this pass; primary
   // color is already editable on the gallery's Design page.
+  //
+  // allowComments/watermarkEnabled are kept here only so a save resubmits
+  // whatever they were already set to -- both persist to a real column via
+  // updateGallery, but neither has a consumer anywhere on the client-facing
+  // gallery (no commenting UI exists at all; the upload pipeline never
+  // composites a watermark), so no toggle for them is rendered below. A
+  // control that saves but does nothing is worse than no control.
   const initialSettingsForm = React.useCallback(
     (g: Gallery) => ({
       name: g.name,
@@ -1257,27 +1264,11 @@ export function GalleryDetail({ studioSlug, initialGallery }: GalleryDetailProps
                 </div>
                 <div className="flex items-center gap-2">
                   <Switch
-                    id="settings-watermark"
-                    checked={settingsForm.watermarkEnabled}
-                    onCheckedChange={(checked) => setSettingsForm((prev) => ({ ...prev, watermarkEnabled: checked }))}
-                  />
-                  <Label htmlFor="settings-watermark">Watermark Images</Label>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Switch
                     id="settings-favorites"
                     checked={settingsForm.allowFavorites}
                     onCheckedChange={(checked) => setSettingsForm((prev) => ({ ...prev, allowFavorites: checked }))}
                   />
                   <Label htmlFor="settings-favorites">Allow Favorites</Label>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Switch
-                    id="settings-comments"
-                    checked={settingsForm.allowComments}
-                    onCheckedChange={(checked) => setSettingsForm((prev) => ({ ...prev, allowComments: checked }))}
-                  />
-                  <Label htmlFor="settings-comments">Allow Comments</Label>
                 </div>
               </div>
             </div>

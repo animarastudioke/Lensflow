@@ -26,14 +26,6 @@ import {
   CardHeader,
 } from '@/components/ui/card'
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-  DialogFooter,
-} from '@/components/ui/dialog'
-import {
   Table,
   TableBody,
   TableCell,
@@ -49,22 +41,25 @@ import {
   Edit,
   Delete,
   Share2,
-  Settings,
   Image as ImageIcon,
   Calendar,
   Users,
   Heart,
   Lock,
-  Globe,
-  ChevronDown,
-  ChevronUp,
   LayoutGrid,
   LayoutList,
+  ChevronDown,
+  ChevronUp,
   X,
 } from 'lucide-react'
 import { format } from 'date-fns'
 import { toast } from 'sonner'
 import { deleteGallery, updateGalleryStatus } from '@/lib/actions/galleries'
+import { PageHeader } from '@/components/layout/PageHeader'
+import { EmptyState } from '@/components/layout/EmptyState'
+import { ConfirmDialog } from '@/components/layout/ConfirmDialog'
+import { ViewToggle } from '@/components/layout/ViewToggle'
+import { StatusBadge } from '@/components/layout/StatusBadge'
 
 export interface Gallery {
   id: string
@@ -84,20 +79,6 @@ export interface Gallery {
   shareToken?: string
   passwordProtected: boolean
   expiresAt?: string
-}
-
-const statusColors = {
-  draft: 'bg-muted text-muted-foreground',
-  published: 'bg-success/10 text-success',
-  archived: 'bg-info/10 text-info',
-  private: 'bg-warning/10 text-warning',
-}
-
-const statusIcons = {
-  draft: <Settings className="h-3.5 w-3.5" />,
-  published: <Globe className="h-3.5 w-3.5" />,
-  archived: <Lock className="h-3.5 w-3.5" />,
-  private: <Eye className="h-3.5 w-3.5" />,
 }
 
 const typeIcons = {
@@ -162,6 +143,8 @@ export function GalleryList({ studioSlug, initialGalleries, isLoading = false }:
     return result
   }, [galleries, searchQuery, statusFilter, typeFilter, sortBy, sortOrder])
 
+  const hasActiveFilters = Boolean(searchQuery) || statusFilter !== 'all' || typeFilter !== 'all'
+
   const handleDelete = (id: string) => {
     setDeleteConfirm(id)
   }
@@ -175,18 +158,19 @@ export function GalleryList({ studioSlug, initialGalleries, isLoading = false }:
     }
   }
 
-  const confirmDelete = async (id: string) => {
-    setIsProcessing(true)
+  const confirmDelete = async () => {
+    if (!deleteConfirm) return
+    const id = deleteConfirm
     const result = await removeGallery(id)
     if ('error' in result) {
       toast.error(result.error)
-    } else {
-      setGalleries(prev => prev.filter(g => g.id !== id))
-      setSelectedGalleries(prev => prev.filter(g => g !== id))
-      toast.success('Gallery deleted')
+      // Re-thrown so ConfirmDialog keeps the dialog open on failure instead
+      // of closing as if the delete had succeeded.
+      throw new Error(result.error)
     }
-    setDeleteConfirm(null)
-    setIsProcessing(false)
+    setGalleries(prev => prev.filter(g => g.id !== id))
+    setSelectedGalleries(prev => prev.filter(g => g !== id))
+    toast.success('Gallery deleted')
   }
 
   const handleBulkAction = async (action: 'delete' | 'archive' | 'publish') => {
@@ -259,23 +243,38 @@ export function GalleryList({ studioSlug, initialGalleries, isLoading = false }:
     )
   }
 
+  const viewToggleOptions = [
+    { value: 'grid' as const, label: 'Grid view', icon: LayoutGrid },
+    { value: 'table' as const, label: 'Table view', icon: LayoutList },
+  ]
+
   return (
     <div className="space-y-6">
+      <PageHeader
+        title="Galleries"
+        description="Client galleries for proofing, favorites, and downloads"
+        actions={
+          <Link href={`/dashboard/${studioSlug}/galleries/new`}>
+            <Button>
+              <Plus className="h-4 w-4 mr-2" />
+              Create Gallery
+            </Button>
+          </Link>
+        }
+      />
+
       {/* Toolbar */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div className="flex items-center gap-4">
-          <h2 className="text-heading-lg font-semibold">Galleries</h2>
-          {selectedGalleries.length > 0 && (
-            <div className="flex items-center gap-2 px-3 py-1 bg-primary/10 rounded-lg text-primary text-sm font-medium">
-              {selectedGalleries.length} selected
-              <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setSelectedGalleries([])} aria-label="Clear selection">
-                <X className="h-3.5 w-3.5" />
-              </Button>
-            </div>
-          )}
-        </div>
+        {selectedGalleries.length > 0 && (
+          <div className="flex items-center gap-2 px-3 py-1 bg-primary/10 rounded-lg text-primary text-sm font-medium">
+            {selectedGalleries.length} selected
+            <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setSelectedGalleries([])} aria-label="Clear selection">
+              <X className="h-3.5 w-3.5" />
+            </Button>
+          </div>
+        )}
 
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2 sm:ml-auto">
           {/* Search */}
           <div className="relative hidden sm:block">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -319,37 +318,7 @@ export function GalleryList({ studioSlug, initialGalleries, isLoading = false }:
             </Select>
           </div>
 
-          {/* View mode toggle */}
-          <div className="flex bg-muted rounded-md p-1" role="group" aria-label="View mode">
-            <Button
-              variant={viewMode === 'grid' ? 'default' : 'ghost'}
-              size="icon"
-              className="h-8 w-8"
-              onClick={() => setViewMode('grid')}
-              aria-label="Grid view"
-              aria-pressed={viewMode === 'grid'}
-            >
-              <LayoutGrid className="h-4 w-4" strokeWidth={1.5} />
-            </Button>
-            <Button
-              variant={viewMode === 'table' ? 'default' : 'ghost'}
-              size="icon"
-              className="h-8 w-8"
-              onClick={() => setViewMode('table')}
-              aria-label="Table view"
-              aria-pressed={viewMode === 'table'}
-            >
-              <LayoutList className="h-4 w-4" strokeWidth={1.5} />
-            </Button>
-          </div>
-
-          {/* Create gallery button */}
-          <Link href={`/dashboard/${studioSlug}/galleries/new`}>
-            <Button>
-              <Plus className="h-4 w-4 mr-2" />
-              Create Gallery
-            </Button>
-          </Link>
+          <ViewToggle value={viewMode} onValueChange={setViewMode} options={viewToggleOptions} />
         </div>
       </div>
 
@@ -376,22 +345,21 @@ export function GalleryList({ studioSlug, initialGalleries, isLoading = false }:
       {viewMode === 'grid' && (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {filteredGalleries.length === 0 ? (
-            <div className="col-span-full text-center py-12">
-              <ImageIcon className="h-12 w-12 mx-auto text-muted-foreground/50 mb-4" />
-              <h3 className="text-heading text-muted-foreground">No galleries found</h3>
-              <p className="text-body-sm text-muted-foreground mt-1">
-                {searchQuery || statusFilter !== 'all' || typeFilter !== 'all'
-                  ? 'Try adjusting your filters or search query'
-                  : 'Create your first gallery to get started'}
-              </p>
-              {(!searchQuery && statusFilter === 'all' && typeFilter === 'all') && (
-                <Link href={`/dashboard/${studioSlug}/galleries/new`} className="mt-4 inline-block">
-                  <Button>
-                    <Plus className="h-4 w-4 mr-2" />
-                    Create Gallery
-                  </Button>
-                </Link>
-              )}
+            <div className="col-span-full">
+              <EmptyState
+                icon={ImageIcon}
+                title="No galleries found"
+                description={
+                  hasActiveFilters
+                    ? 'Try adjusting your filters or search query.'
+                    : 'Create a gallery to start sharing proofs, favorites, and downloads with a client.'
+                }
+                action={
+                  hasActiveFilters
+                    ? undefined
+                    : { label: 'Create Gallery', href: `/dashboard/${studioSlug}/galleries/new` }
+                }
+              />
             </div>
           ) : (
             filteredGalleries.map(gallery => (
@@ -513,13 +481,22 @@ export function GalleryList({ studioSlug, initialGalleries, isLoading = false }:
             <TableBody>
               {filteredGalleries.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={9} className="text-center py-12">
-                    <ImageIcon className="h-12 w-12 mx-auto text-muted-foreground/50 mb-4" />
-                    <p className="text-body text-muted-foreground">
-                      {searchQuery || statusFilter !== 'all' || typeFilter !== 'all'
-                        ? 'No galleries match your filters'
-                        : 'No galleries yet. Create your first gallery!'}
-                    </p>
+                  <TableCell colSpan={9} className="p-0">
+                    <EmptyState
+                      icon={ImageIcon}
+                      title="No galleries found"
+                      description={
+                        hasActiveFilters
+                          ? 'Try adjusting your filters or search query.'
+                          : 'Create a gallery to start sharing proofs, favorites, and downloads with a client.'
+                      }
+                      action={
+                        hasActiveFilters
+                          ? undefined
+                          : { label: 'Create Gallery', href: `/dashboard/${studioSlug}/galleries/new` }
+                      }
+                      compact
+                    />
                   </TableCell>
                 </TableRow>
               ) : (
@@ -567,10 +544,9 @@ export function GalleryList({ studioSlug, initialGalleries, isLoading = false }:
                       {gallery.viewCount.toLocaleString()}
                     </TableCell>
                     <TableCell>
-                      <span className={cn('inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium', statusColors[gallery.status])}>
-                        {statusIcons[gallery.status as keyof typeof statusIcons]}
-                        {gallery.status.charAt(0).toUpperCase() + gallery.status.slice(1)}
-                        {gallery.passwordProtected && <Lock className="h-3 w-3" />}
+                      <span className="inline-flex items-center gap-1.5">
+                        <StatusBadge status={gallery.status} />
+                        {gallery.passwordProtected && <Lock className="h-3 w-3 text-muted-foreground" aria-label="Password protected" />}
                       </span>
                     </TableCell>
                     <TableCell className="text-right">
@@ -619,22 +595,15 @@ export function GalleryList({ studioSlug, initialGalleries, isLoading = false }:
         </div>
       )}
 
-      {/* Delete confirmation */}
-      <Dialog open={!!deleteConfirm} onOpenChange={(open) => !open && setDeleteConfirm(null)}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>Delete gallery</DialogTitle>
-            <DialogDescription>
-              Are you sure you want to delete &quot;{galleries.find(g => g.id === deleteConfirm)?.name}&quot;?
-              This action cannot be undone.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button variant="outline" disabled={isProcessing} onClick={() => setDeleteConfirm(null)}>Cancel</Button>
-            <Button variant="destructive" disabled={isProcessing} onClick={() => deleteConfirm && confirmDelete(deleteConfirm)}>Delete</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <ConfirmDialog
+        open={deleteConfirm !== null}
+        onOpenChange={(open) => !open && setDeleteConfirm(null)}
+        title="Delete gallery"
+        description={`Are you sure you want to delete "${galleries.find(g => g.id === deleteConfirm)?.name}"? This action cannot be undone.`}
+        confirmLabel="Delete"
+        destructive
+        onConfirm={confirmDelete}
+      />
     </div>
   )
 }
@@ -706,15 +675,13 @@ function GalleryCard({
           <p className="text-sm text-muted-foreground truncate mt-0.5">{gallery.clientName}</p>
         )}
 
-        <div className="mt-3 flex items-center gap-2 label-caption">
-          <span className={cn('inline-flex items-center gap-1 px-1.5 py-0.5 rounded-sm normal-case tracking-normal font-sans text-xs', statusColors[gallery.status])}>
-            {gallery.status}
-          </span>
-          <span className="flex items-center gap-1">
+        <div className="mt-3 flex items-center gap-2">
+          <StatusBadge status={gallery.status} />
+          <span className="flex items-center gap-1 label-caption normal-case tracking-normal font-sans text-xs text-muted-foreground">
             {typeIcons[gallery.type as keyof typeof typeIcons]}
             {gallery.type}
           </span>
-          {isExpired && <span className="text-destructive">Expired</span>}
+          {isExpired && <span className="label-caption normal-case tracking-normal font-sans text-xs text-destructive">Expired</span>}
         </div>
 
         <div className="mt-3 flex items-center gap-4 text-xs text-muted-foreground">
