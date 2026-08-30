@@ -318,7 +318,12 @@ export function WebsiteList({ studioSlug, initialWebsites }: WebsiteListProps) {
                   <SelectItem value="archived">Archived</SelectItem>
                 </SelectContent>
               </Select>
-              <Button variant="outline" size="icon" onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}>
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}
+                aria-label={sortOrder === 'asc' ? 'Sort oldest first (currently newest first)' : 'Sort newest first (currently oldest first)'}
+              >
                 {sortOrder === 'asc' ? <ArrowUpDown className="h-4 w-4" /> : <ArrowUpDown className="h-4 w-4 rotate-180" />}
               </Button>
             </div>
@@ -486,7 +491,7 @@ export function WebsiteList({ studioSlug, initialWebsites }: WebsiteListProps) {
                               </DropdownMenuItem>
                             </DropdownMenuContent>
                           </DropdownMenu>
-                          <Button variant="ghost" size="icon" className="h-8 w-8" asChild>
+                          <Button variant="ghost" size="icon" className="h-8 w-8" asChild title="Edit in editor">
                             <Link href={`/dashboard/${studioSlug}/website/${website.id}/editor`}>
                               <Layout className="h-4 w-4" />
                             </Link>
