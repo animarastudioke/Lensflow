@@ -7,6 +7,7 @@ import { z } from 'zod'
 import { canAddTeamSeat } from '@/lib/entitlements'
 import { createNotification } from '@/lib/actions/notifications'
 import { canManageRole } from '@/lib/auth/permissions'
+import { APP_CONSTANTS } from '@/lib/constants'
 
 // Real assignable roles for a studio's team, matching the user_role enum and
 // the permission map already enforced in checkGalleryPermission
@@ -141,7 +142,7 @@ export async function inviteTeamMember(
     invitedUserId = existingProfile.id
   } else {
     const { data: inviteData, error: inviteError } = await supabaseAdmin.auth.admin.inviteUserByEmail(email, {
-      redirectTo: `${process.env['NEXT_PUBLIC_APP_URL'] ?? 'http://localhost:3000'}/auth/callback`,
+      redirectTo: `${APP_CONSTANTS.URL}/auth/callback`,
     })
     if (inviteError || !inviteData.user) {
       console.error('Supabase invite error:', inviteError)
@@ -198,7 +199,7 @@ export async function resendTeamInvite(
   if (!profile) return { error: 'Could not find their account' }
 
   const { error } = await supabaseAdmin.auth.admin.inviteUserByEmail(profile.email, {
-    redirectTo: `${process.env['NEXT_PUBLIC_APP_URL'] ?? 'http://localhost:3000'}/auth/callback`,
+    redirectTo: `${APP_CONSTANTS.URL}/auth/callback`,
   })
   if (error) {
     console.error('Resend invite error:', error)

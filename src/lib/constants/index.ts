@@ -1,3 +1,16 @@
+// A missing NEXT_PUBLIC_APP_URL in production silently falls through to the
+// localhost dev default below -- every invoice/quote share link, auth invite
+// email, and payment notification link built from this constant would then
+// point real customers at "http://localhost:3000" with no error anywhere
+// (these are plain string reads, not requests, so nothing throws). This is
+// a plain module-level constant used by statically-generated pages too, so
+// it can't safely throw here the way a request-time-only value could --
+// this loud warning is the production-safe equivalent: visible in server
+// logs the moment the process starts, without breaking the build.
+if (process.env['NODE_ENV'] === 'production' && !process.env['NEXT_PUBLIC_APP_URL']) {
+  console.error('NEXT_PUBLIC_APP_URL is not set in production -- links generated from APP_CONSTANTS.URL will incorrectly point to localhost.')
+}
+
 export const APP_CONSTANTS = {
   NAME: 'LensFlow',
   DESCRIPTION: 'Premium SaaS platform for photographers and videographers',

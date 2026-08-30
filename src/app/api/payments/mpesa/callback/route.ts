@@ -33,7 +33,12 @@ export async function POST(request: NextRequest) {
 
   const callback = payload?.Body?.stkCallback
   if (!callback?.CheckoutRequestID) {
-    console.error('M-Pesa callback missing stkCallback/CheckoutRequestID:', JSON.stringify(payload))
+    // Never log the raw payload here: a malformed-but-mostly-valid callback
+    // could still carry a real CallbackMetadata (phone number, amount) even
+    // while missing CheckoutRequestID specifically -- log only the
+    // structural shape, which is enough to diagnose an integration/parsing
+    // problem without risking PII in server logs.
+    console.error('M-Pesa callback missing stkCallback/CheckoutRequestID. Top-level keys:', Object.keys(payload ?? {}))
     return NextResponse.json({ ResultCode: 0, ResultDesc: 'Accepted' })
   }
 

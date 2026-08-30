@@ -7,14 +7,10 @@
 // a payment row *we* created and idempotent processing — see that route for
 // the actual security logic. This file only talks to Safaricom.
 
-/**
- * LensFlow's own plan prices are set in USD (see plans.price_cents), but
- * M-Pesa STK Push only ever settles in KES — there's no multi-currency
- * option on Daraja. This is a fixed, clearly-labelled approximation rather
- * than a live FX rate (no FX-rate provider is integrated), shown to the
- * payer before they confirm so the conversion is never hidden.
- */
-export const USD_TO_KES_RATE = 129
+// USD_TO_KES_RATE moved to lib/currencies.ts -- it's a plain display
+// constant, not part of this server-only Daraja API client, and living here
+// meant any importer (including client components) pulled in this whole
+// module's env-var-reading functions along with it.
 
 function getEnv(name: string): string {
   const value = process.env[name]

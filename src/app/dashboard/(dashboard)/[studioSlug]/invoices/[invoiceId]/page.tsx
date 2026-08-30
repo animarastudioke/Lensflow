@@ -13,6 +13,7 @@ import { Button } from '@/components/ui/button'
 import { Edit, Download } from 'lucide-react'
 import Link from 'next/link'
 import { MpesaPaymentDialog } from '@/components/invoices/MpesaPaymentDialog'
+import { APP_CONSTANTS } from '@/lib/constants'
 
 interface InvoiceDetailPageProps {
   params: Promise<{ studioSlug: string; invoiceId: string }>
@@ -50,7 +51,7 @@ export default async function InvoiceDetailPage({ params }: InvoiceDetailPagePro
 
   const balanceDue = Math.max(invoice.total - invoice.amount_paid, 0)
   const shareUrl = invoice.share_token
-    ? `${process.env['NEXT_PUBLIC_APP_URL'] ?? 'http://localhost:3000'}/invoice/${invoice.share_token}`
+    ? `${APP_CONSTANTS.URL}/invoice/${invoice.share_token}`
     : null
 
   return (

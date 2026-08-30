@@ -1,6 +1,7 @@
 import { supabaseAdmin } from '@/lib/supabase/admin'
 import { sendEmail } from '@/lib/email/resend'
 import { paymentReceiptEmail } from '@/lib/email/templates'
+import { APP_CONSTANTS } from '@/lib/constants'
 
 async function getStudioBranding(studioId: string) {
   const { data: studio } = await supabaseAdmin
@@ -102,7 +103,7 @@ export async function applyMpesaPaymentOutcome(params: {
       const client = invoice.client as unknown as { name: string; email: string } | null
       const studio = client?.email ? await getStudioBranding(payment.studio_id) : null
       if (client?.email && studio) {
-        const appBase = (process.env['NEXT_PUBLIC_APP_URL'] ?? 'http://localhost:3000').replace(/\/$/, '')
+        const appBase = APP_CONSTANTS.URL.replace(/\/$/, '')
         const { subject, html } = paymentReceiptEmail({
           studio,
           clientName: client.name,
@@ -235,7 +236,7 @@ export async function applyMpesaPaymentOutcome(params: {
 
       const studio = order.email ? await getStudioBranding(order.studio_id) : null
       if (order.email && studio) {
-        const appBase = (process.env['NEXT_PUBLIC_APP_URL'] ?? 'http://localhost:3000').replace(/\/$/, '')
+        const appBase = APP_CONSTANTS.URL.replace(/\/$/, '')
         const { subject, html } = paymentReceiptEmail({
           studio,
           clientName: order.email,

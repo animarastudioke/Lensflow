@@ -19,7 +19,7 @@ import {
   initiatePlanSubscriptionPayment,
   pollPlanSubscriptionPaymentStatus,
 } from '@/lib/actions/subscription-payments'
-import { USD_TO_KES_RATE } from '@/lib/payments/mpesa'
+import { USD_TO_KES_RATE } from '@/lib/currencies'
 
 type FlowState = 'form' | 'sending' | 'pending' | 'completed' | 'failed'
 
