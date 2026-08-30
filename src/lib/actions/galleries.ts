@@ -851,28 +851,11 @@ export async function incrementGalleryView(shareToken: string) {
   await supabase.rpc('increment_gallery_view', { token: shareToken })
 }
 
-export async function incrementGalleryDownload(shareToken: string) {
-  const supabase = await createClient()
-
-  await supabase.rpc('increment_gallery_download', { token: shareToken })
-
-  const { data: gallery } = await supabase
-    .from('galleries')
-    .select('studio_id, name, studio:studios(slug)')
-    .eq('share_token', shareToken)
-    .single()
-
-  if (gallery) {
-    const studioSlug = (gallery.studio as unknown as { slug: string } | null)?.slug
-    const { createNotification } = await import('@/lib/actions/notifications')
-    await createNotification(gallery.studio_id, {
-      type: 'gallery_downloaded',
-      title: 'Gallery downloaded',
-      body: `A client downloaded a photo from "${gallery.name}"`,
-      link: studioSlug ? `/dashboard/${studioSlug}/galleries` : undefined,
-    })
-  }
-}
+// incrementGalleryDownload was removed here (Phase 12 Step 12) -- it had
+// zero callers. The real download route (api/g/[token]/download/route.ts)
+// duplicated its RPC increment inline instead of calling it, so its
+// gallery_downloaded notification never actually fired for a real
+// download; that logic now lives directly in the route.
 
 // Share Settings Actions
 /**
