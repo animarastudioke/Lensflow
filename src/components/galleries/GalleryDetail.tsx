@@ -273,6 +273,19 @@ export function GalleryDetail({ studioSlug, initialGallery }: GalleryDetailProps
     setLightboxRotation(0)
   }
 
+  // Grid/masonry tiles were previously plain <div onClick> -- unreachable by
+  // keyboard at all (the "list" view's equivalent action is already
+  // reachable via its DropdownMenu's "View Full Size" item). Each tile
+  // below is now a real tab stop (role="button"/tabIndex=0) wired to this
+  // handler so Enter/Space open the lightbox exactly like a click would,
+  // matching the pattern already fixed on the public gallery in Step 13.
+  const handleImageTileKeyDown = (e: React.KeyboardEvent, index: number) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault()
+      handleImageClick(index)
+    }
+  }
+
   const closeLightbox = () => setIsLightboxOpen(false)
 
   const showPrevImage = React.useCallback(() => {
@@ -821,12 +834,16 @@ export function GalleryDetail({ studioSlug, initialGallery }: GalleryDetailProps
                   filteredImages.map((image, index) => (
                     <div
                       key={image.id}
+                      role="button"
+                      tabIndex={0}
+                      aria-label={`View ${image.filename}`}
                       className={cn(
-                        'relative group aspect-square overflow-hidden rounded-lg bg-muted cursor-pointer transition-all',
+                        'relative group aspect-square overflow-hidden rounded-lg bg-muted cursor-pointer transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
                         selectedImages.includes(image.id) &&
                           'ring-2 ring-primary ring-offset-2 scale-[0.98]'
                       )}
                       onClick={() => handleImageClick(index)}
+                      onKeyDown={(e) => handleImageTileKeyDown(e, index)}
                       onContextMenu={(e) => {
                         e.preventDefault()
                         toggleImageSelect(image.id)
@@ -837,6 +854,7 @@ export function GalleryDetail({ studioSlug, initialGallery }: GalleryDetailProps
                         checked={selectedImages.includes(image.id)}
                         onChange={() => toggleImageSelect(image.id)}
                         onClick={(e) => e.stopPropagation()}
+                        aria-label={`Select ${image.filename}`}
                         className="absolute top-2 left-2 z-10 rounded border-input bg-white/90"
                       />
                       <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -845,6 +863,7 @@ export function GalleryDetail({ studioSlug, initialGallery }: GalleryDetailProps
                             variant="ghost"
                             size="icon"
                             className="h-7 w-7"
+                            aria-label="Remove from favorites"
                             onClick={(e) => {
                               e.stopPropagation()
                               handleToggleFavorite(image.id, false)
@@ -935,7 +954,7 @@ export function GalleryDetail({ studioSlug, initialGallery }: GalleryDetailProps
                         <TableCell>
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
-                              <Button variant="ghost" size="icon" className="h-8 w-8">
+                              <Button variant="ghost" size="icon" className="h-8 w-8" aria-label={`Actions for ${image.filename}`}>
                                 <MoreVertical className="h-4 w-4" />
                               </Button>
                             </DropdownMenuTrigger>
@@ -993,12 +1012,16 @@ export function GalleryDetail({ studioSlug, initialGallery }: GalleryDetailProps
                 {filteredImages.map((image, index) => (
                   <div
                     key={image.id}
+                    role="button"
+                    tabIndex={0}
+                    aria-label={`View ${image.filename}`}
                     className={cn(
-                        'relative break-inside-avoid mb-3 rounded-lg overflow-hidden cursor-pointer transition-all',
+                        'relative break-inside-avoid mb-3 rounded-lg overflow-hidden cursor-pointer transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
                         selectedImages.includes(image.id) &&
                           'ring-2 ring-primary ring-offset-2'
                       )}
                     onClick={() => handleImageClick(index)}
+                    onKeyDown={(e) => handleImageTileKeyDown(e, index)}
                     onContextMenu={(e) => {
                       e.preventDefault()
                       toggleImageSelect(image.id)
@@ -1009,6 +1032,7 @@ export function GalleryDetail({ studioSlug, initialGallery }: GalleryDetailProps
                       checked={selectedImages.includes(image.id)}
                       onChange={() => toggleImageSelect(image.id)}
                       onClick={(e) => e.stopPropagation()}
+                      aria-label={`Select ${image.filename}`}
                       className="absolute top-2 left-2 z-10 rounded border-input bg-white/90"
                     />
                     <Image
@@ -1108,7 +1132,7 @@ export function GalleryDetail({ studioSlug, initialGallery }: GalleryDetailProps
                       </Button>
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="sm" className="flex-1">
+                          <Button variant="ghost" size="sm" className="flex-1" aria-label={`Actions for ${album.name}`}>
                             <MoreHorizontal className="h-3.5 w-3.5" />
                           </Button>
                         </DropdownMenuTrigger>

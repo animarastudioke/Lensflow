@@ -255,7 +255,7 @@ export function WebsiteEditor({ studioSlug, website }: WebsiteEditorProps) {
                         </>
                       )}
                     </Button>
-                    <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive" onClick={() => setPageToDelete(page)}>
+                    <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive" aria-label={`Delete ${page.name}`} onClick={() => setPageToDelete(page)}>
                       <Trash2 className="h-4 w-4" />
                     </Button>
                   </div>
