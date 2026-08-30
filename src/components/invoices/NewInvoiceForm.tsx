@@ -143,13 +143,14 @@ export function NewInvoiceForm({ studioSlug, clients, initialClientId, currency 
                     <SelectItem value="draft">Draft</SelectItem>
                     <SelectItem value="sent">Sent</SelectItem>
                     <SelectItem value="viewed">Viewed</SelectItem>
-                    <SelectItem value="paid">Paid</SelectItem>
-                    <SelectItem value="partial">Partial</SelectItem>
+                    <SelectItem value="paid" disabled>Paid</SelectItem>
+                    <SelectItem value="partial" disabled>Partial</SelectItem>
                     <SelectItem value="overdue">Overdue</SelectItem>
                     <SelectItem value="cancelled">Cancelled</SelectItem>
                     <SelectItem value="refunded">Refunded</SelectItem>
                   </SelectContent>
                 </Select>
+                <p className="text-xs text-muted-foreground">Paid and Partial are set automatically when a payment is recorded.</p>
               </div>
             </div>
 

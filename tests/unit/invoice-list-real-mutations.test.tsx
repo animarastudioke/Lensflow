@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 
 // Phase 11 Step 12 regression coverage: InvoiceList previously fell back to
 // a 102-line hardcoded mockInvoices array (fake clients "Sarah Chen" etc.)
@@ -93,5 +94,49 @@ describe('InvoiceList: bulk delete requires confirmation before calling the Serv
 
     await waitFor(() => expect(bulkDeleteInvoicesMock).toHaveBeenCalledWith(['invoice-1'], 'test-studio'))
     await waitFor(() => expect(screen.queryByText('Real Client')).not.toBeInTheDocument())
+  })
+})
+
+// Phase 11 Step 14: getInvoices() fetches every invoice for the studio
+// unconditionally (no offset/limit) -- these Previous/Next buttons were
+// always rendered disabled and never became interactive under any state,
+// a dead control this step's audit was asked to find and remove.
+describe('InvoiceList: no dead pagination controls', () => {
+  it('does not render Previous/Next buttons since there is no pagination to control', () => {
+    render(<InvoiceList studioSlug="test-studio" initialInvoices={[makeInvoice()]} currency="KES" />)
+    expect(screen.queryByRole('button', { name: 'Previous' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Next' })).not.toBeInTheDocument()
+    expect(screen.getByText('Showing 1 of 1 invoices')).toBeInTheDocument()
+  })
+})
+
+// Phase 11 Step 14: the grid view's card menu only offered "View Details"
+// and "Delete" -- unlike the table view's row menu, there was no way to
+// reach Edit without first opening the detail page. Added for parity.
+describe('InvoiceList: grid view offers the same Edit action as table view', () => {
+  it('the grid card menu includes a real Edit link to the edit route', async () => {
+    const user = userEvent.setup()
+    render(<InvoiceList studioSlug="test-studio" initialInvoices={[makeInvoice()]} currency="KES" />)
+    await user.click(screen.getByRole('button', { name: /grid/i }))
+    await user.click(screen.getByRole('button', { name: 'More actions for INV-001' }))
+
+    const editLink = await screen.findByRole('menuitem', { name: /edit/i })
+    expect(editLink).toHaveAttribute('href', '/dashboard/test-studio/invoices/invoice-1/edit')
+  })
+})
+
+// Phase 11 Step 14: both "more actions" dropdown triggers (table row, grid
+// card) and the sort-order toggle were icon-only buttons with no
+// accessible name at all -- a screen reader announced them as bare
+// "button". Fixed with real, per-row aria-labels.
+describe('InvoiceList: icon-only controls have accessible names', () => {
+  it('the table row\'s more-actions trigger is labeled per invoice', () => {
+    render(<InvoiceList studioSlug="test-studio" initialInvoices={[makeInvoice()]} currency="KES" />)
+    expect(screen.getByRole('button', { name: 'More actions for INV-001' })).toBeInTheDocument()
+  })
+
+  it('the sort-order toggle has an accessible name describing what it does', () => {
+    render(<InvoiceList studioSlug="test-studio" initialInvoices={[makeInvoice()]} currency="KES" />)
+    expect(screen.getByRole('button', { name: /sort (oldest|newest) first/i })).toBeInTheDocument()
   })
 })

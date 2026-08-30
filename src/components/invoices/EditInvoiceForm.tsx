@@ -154,13 +154,18 @@ export function EditInvoiceForm({ studioSlug, clients, currency, initialValues }
                     <SelectItem value="draft">Draft</SelectItem>
                     <SelectItem value="sent">Sent</SelectItem>
                     <SelectItem value="viewed">Viewed</SelectItem>
-                    <SelectItem value="partial">Partial</SelectItem>
-                    <SelectItem value="paid">Paid</SelectItem>
+                    {/* Only selectable if this invoice is already Partial/Paid --
+                        moving INTO either from something else must go through a
+                        real payment (M-Pesa) or the dedicated Mark-as-paid
+                        action, both of which keep amount_paid in sync. */}
+                    <SelectItem value="partial" disabled={initialValues.status !== 'partial'}>Partial</SelectItem>
+                    <SelectItem value="paid" disabled={initialValues.status !== 'paid'}>Paid</SelectItem>
                     <SelectItem value="overdue">Overdue</SelectItem>
                     <SelectItem value="cancelled">Cancelled</SelectItem>
                     <SelectItem value="refunded">Refunded</SelectItem>
                   </SelectContent>
                 </Select>
+                <p className="text-xs text-muted-foreground">Paid and Partial are set automatically when a payment is recorded.</p>
               </div>
             </div>
 

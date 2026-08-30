@@ -170,6 +170,17 @@ export async function initiateMpesaInvoicePaymentPublic(
   if (invoice.status === 'cancelled' || invoice.status === 'refunded') {
     return { error: `This invoice is ${invoice.status} and can't accept new payments.` }
   }
+  // A draft is still being put together by the studio (numbers may not be
+  // final) and hasn't been deliberately sent to this client -- every
+  // invoice gets a real share_token at creation regardless of status (see
+  // migration 022), so this route is reachable for a draft's link even
+  // though the studio never chose to send it. Collecting real money
+  // against unfinished numbers is exactly the kind of data-integrity gap
+  // this check closes; enforced here (not just by hiding the button on the
+  // public page) since that page's own gating is UI-only.
+  if (invoice.status === 'draft') {
+    return { error: 'This invoice has not been sent yet and can\'t accept payments.' }
+  }
 
   const balanceDue = Math.max(invoice.total - invoice.amount_paid, 0)
   if (balanceDue <= 0) {

@@ -11,6 +11,11 @@ async function getStudioBranding(studioId: string) {
   return studio ? { name: studio.name, logoUrl: studio.logo_url, brandColor: studio.brand_color } : null
 }
 
+async function getStudioSlug(studioId: string): Promise<string | null> {
+  const { data: studio } = await supabaseAdmin.from('studios').select('slug').eq('id', studioId).single()
+  return studio?.slug ?? null
+}
+
 /**
  * Applies a resolved M-Pesa result to the matching payment row and, on
  * success, the linked invoice. Called from two places — the Safaricom
@@ -84,12 +89,14 @@ export async function applyMpesaPaymentOutcome(params: {
         .single()
 
       const { createNotification } = await import('@/lib/actions/notifications')
+      const studioSlug = await getStudioSlug(payment.studio_id)
       await createNotification(payment.studio_id, {
         type: 'payment_received',
         title: 'Payment received',
         body: updatedInvoice
           ? `KES ${payment.amount.toLocaleString()} via M-Pesa on ${updatedInvoice.invoice_number}`
           : `KES ${payment.amount.toLocaleString()} via M-Pesa`,
+        link: studioSlug ? `/dashboard/${studioSlug}/invoices/${payment.invoice_id}` : undefined,
       })
 
       const client = invoice.client as unknown as { name: string; email: string } | null

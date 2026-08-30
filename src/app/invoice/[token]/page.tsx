@@ -75,7 +75,7 @@ export default async function PublicInvoicePage({ params }: Props) {
               <Download className="h-4 w-4" />
               Download PDF
             </a>
-            {balanceDue > 0 && invoice.currency === 'KES' && invoice.status !== 'cancelled' && invoice.status !== 'refunded' && (
+            {balanceDue > 0 && invoice.currency === 'KES' && invoice.status !== 'cancelled' && invoice.status !== 'refunded' && invoice.status !== 'draft' && (
               <PublicMpesaPaymentDialog
                 token={token}
                 balanceDue={balanceDue}

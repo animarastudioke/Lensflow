@@ -362,7 +362,12 @@ export function InvoiceList({ studioSlug, initialInvoices, isLoading = false, cu
                   <SelectItem value="refunded">Refunded</SelectItem>
                 </SelectContent>
               </Select>
-              <Button variant="outline" size="icon" onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}>
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}
+                aria-label={sortOrder === 'asc' ? 'Sort oldest first (currently newest first)' : 'Sort newest first (currently oldest first)'}
+              >
                 {sortOrder === 'asc' ? <ArrowUpDown className="h-4 w-4" /> : <ArrowUpDown className="h-4 w-4 rotate-180" />}
               </Button>
             </div>
@@ -498,7 +503,7 @@ export function InvoiceList({ studioSlug, initialInvoices, isLoading = false, cu
                       <TableCell>
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon" className="h-8 w-8">
+                            <Button variant="ghost" size="icon" className="h-8 w-8" aria-label={`More actions for ${invoice.invoiceNumber}`}>
                               <MoreVertical className="h-4 w-4" />
                             </Button>
                           </DropdownMenuTrigger>
@@ -591,7 +596,7 @@ export function InvoiceList({ studioSlug, initialInvoices, isLoading = false, cu
                     </div>
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon" className="h-8 w-8">
+                        <Button variant="ghost" size="icon" className="h-8 w-8" aria-label={`More actions for ${invoice.invoiceNumber}`}>
                           <MoreVertical className="h-4 w-4" />
                         </Button>
                       </DropdownMenuTrigger>
@@ -600,6 +605,12 @@ export function InvoiceList({ studioSlug, initialInvoices, isLoading = false, cu
                           <Link href={`/dashboard/${studioSlug}/invoices/${invoice.id}`}>
                             <Eye className="mr-2 h-4 w-4" />
                             View Details
+                          </Link>
+                        </DropdownMenuItem>
+                        <DropdownMenuItem asChild>
+                          <Link href={`/dashboard/${studioSlug}/invoices/${invoice.id}/edit`}>
+                            <Edit className="mr-2 h-4 w-4" />
+                            Edit
                           </Link>
                         </DropdownMenuItem>
                         <DropdownMenuItem
@@ -648,16 +659,15 @@ export function InvoiceList({ studioSlug, initialInvoices, isLoading = false, cu
         </div>
       )}
 
-      {/* Pagination */}
-      <div className="flex items-center justify-between">
-        <p className="text-sm text-muted-foreground">
-          Showing {filteredInvoices.length} of {invoices.length} invoices
-        </p>
-        <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" disabled>Previous</Button>
-          <Button variant="outline" size="sm" disabled>Next</Button>
-        </div>
-      </div>
+      {/* getInvoices() fetches every invoice for the studio unconditionally
+          (no offset/limit) -- this count is accurate as-is. Previous/Next
+          controls were removed rather than kept as decoration: there is no
+          pagination to control, and always-disabled buttons that never do
+          anything are exactly the dead-control pattern this step's audit
+          was asked to find and remove. */}
+      <p className="text-sm text-muted-foreground">
+        Showing {filteredInvoices.length} of {invoices.length} invoices
+      </p>
 
       <ConfirmDialog
         open={!!deleteConfirm}

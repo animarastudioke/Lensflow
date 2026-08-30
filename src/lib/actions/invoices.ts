@@ -477,6 +477,19 @@ export async function createInvoice(formData: FormData) {
 
   const validated = invoiceCreateSchema.parse(rawData)
 
+  // 'paid'/'partial' are only ever correct when amount_paid genuinely
+  // reflects money collected -- creating an invoice directly in one of
+  // these statuses would insert amount_paid: 0 alongside it (see the
+  // insert below), producing a "Paid" invoice that still shows a full
+  // balance due. The only legitimate paths into these statuses are a real
+  // M-Pesa payment (src/lib/payments/resolve.ts) or the dedicated Mark-as-
+  // paid action (updateInvoiceStatus), both of which set amount_paid
+  // correctly. Enforced here, not just left to the form UI, since a
+  // Server Action must never trust that its own client always agrees.
+  if (validated.status === 'paid' || validated.status === 'partial') {
+    throw new Error('New invoices can\'t be created as Paid or Partial. Create it as Draft or Sent, then record the payment.')
+  }
+
   if (validated.client_id && !(await clientBelongsToStudio(validated.client_id, membership.studioId))) {
     throw new Error('Invalid client')
   }
@@ -562,7 +575,7 @@ export async function updateInvoice(formData: FormData) {
 
   const { data: existing } = await supabase
     .from('invoices')
-    .select('id')
+    .select('id, status')
     .eq('id', id)
     .eq('studio_id', membership.studioId)
     .single()
@@ -592,6 +605,21 @@ export async function updateInvoice(formData: FormData) {
     items,
   })
 
+  // Same rule as createInvoice, but transition-aware: an invoice already
+  // sitting at 'paid'/'partial' can still be re-saved (editing notes, line
+  // items, etc. without touching status), but this form must never be the
+  // thing that MOVES an invoice into 'paid'/'partial' -- that would update
+  // status without ever touching amount_paid, and would bypass the
+  // invoices:manage_payments permission that updateInvoiceStatus correctly
+  // requires for that exact transition. The dedicated Mark-as-paid action
+  // or a real M-Pesa payment are the only paths that keep amount_paid and
+  // status consistent.
+  const enteringPaidOrPartial =
+    validated.status !== existing.status && (validated.status === 'paid' || validated.status === 'partial')
+  if (enteringPaidOrPartial) {
+    throw new Error('Status can\'t be changed to Paid or Partial here. Use "Mark as paid", or record a real payment.')
+  }
+
   if (validated.client_id && !(await clientBelongsToStudio(validated.client_id, membership.studioId))) {
     throw new Error('Invalid client')
   }
@@ -619,6 +647,12 @@ export async function updateInvoice(formData: FormData) {
   if (error) {
     console.error('Update invoice error:', error)
     throw new Error('Failed to update invoice')
+  }
+
+  // Matches createInvoice's existing behavior: only the transition INTO
+  // 'sent' notifies the client, never a re-save of an already-sent invoice.
+  if (validated.status === 'sent' && existing.status !== 'sent') {
+    await sendInvoiceSentEmail(id, membership.studioId)
   }
 
   await supabase.from('invoice_items').delete().eq('invoice_id', id)
