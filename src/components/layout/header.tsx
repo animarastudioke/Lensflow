@@ -157,7 +157,12 @@ export function Header({ studioSlug, studioName = 'Studio', studioLogoUrl }: Hea
                     {n.link ? (
                       <Link href={n.link}>
                         <span className="flex w-full items-center gap-1.5 font-medium">
-                          {!n.readAt && <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-primary" />}
+                          {!n.readAt && (
+                            <>
+                              <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-primary" aria-hidden="true" />
+                              <span className="sr-only">Unread: </span>
+                            </>
+                          )}
                           {n.title}
                         </span>
                         {n.body && <p className="text-xs text-muted-foreground">{n.body}</p>}
@@ -168,7 +173,12 @@ export function Header({ studioSlug, studioName = 'Studio', studioLogoUrl }: Hea
                     ) : (
                       <>
                         <span className="flex w-full items-center gap-1.5 font-medium">
-                          {!n.readAt && <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-primary" />}
+                          {!n.readAt && (
+                            <>
+                              <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-primary" aria-hidden="true" />
+                              <span className="sr-only">Unread: </span>
+                            </>
+                          )}
                           {n.title}
                         </span>
                         {n.body && <p className="text-xs text-muted-foreground">{n.body}</p>}

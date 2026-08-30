@@ -189,12 +189,19 @@ export async function createBooking(formData: FormData) {
     throw new Error('Failed to create booking')
   }
 
+  // Phase 12 Step 13: studioSlug above comes from client-submitted form
+  // data, used only for revalidatePath (low-risk) -- but the notification
+  // link should never be built from it, since a mismatched slug would send
+  // the notification's own studio member to an unrelated URL. Re-derived
+  // here from the already-trusted membership.studioId instead, matching
+  // the server-resolved pattern the other producers already use.
+  const { data: studioRow } = await supabase.from('studios').select('slug').eq('id', membership.studioId).single()
   const { createNotification } = await import('@/lib/actions/notifications')
   await createNotification(membership.studioId, {
     type: 'booking_created',
     title: 'New booking',
     body: validated.session_name,
-    link: `/dashboard/${studioSlug}/bookings`,
+    link: studioRow ? `/dashboard/${studioRow.slug}/bookings` : undefined,
   })
 
   if (validated.client_id) {

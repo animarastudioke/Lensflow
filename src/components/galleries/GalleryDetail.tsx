@@ -97,6 +97,7 @@ import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import { StatusBadge } from '@/components/layout/StatusBadge'
+import { ConfirmDialog } from '@/components/layout/ConfirmDialog'
 import Image from 'next/image'
 
 interface GalleryImage {
@@ -1428,21 +1429,15 @@ export function GalleryDetail({ studioSlug, initialGallery }: GalleryDetailProps
       </Dialog>
 
       {/* Album delete confirmation */}
-      <Dialog open={!!albumDeleteConfirm} onOpenChange={(open) => !open && setAlbumDeleteConfirm(null)}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>Delete album</DialogTitle>
-            <DialogDescription>
-              Are you sure you want to delete &quot;{albumDeleteConfirm?.name}&quot;? Photos in this album will not be
-              deleted, they&apos;ll just be unassigned. This action cannot be undone.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setAlbumDeleteConfirm(null)}>Cancel</Button>
-            <Button variant="destructive" onClick={confirmDeleteAlbum}>Delete</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <ConfirmDialog
+        open={!!albumDeleteConfirm}
+        onOpenChange={(open) => !open && setAlbumDeleteConfirm(null)}
+        title="Delete album"
+        description={`Are you sure you want to delete "${albumDeleteConfirm?.name}"? Photos in this album will not be deleted, they'll just be unassigned. This action cannot be undone.`}
+        confirmLabel="Delete"
+        destructive
+        onConfirm={confirmDeleteAlbum}
+      />
 
       {/* Add to album picker */}
       <Dialog open={addToAlbumOpen} onOpenChange={setAddToAlbumOpen}>
