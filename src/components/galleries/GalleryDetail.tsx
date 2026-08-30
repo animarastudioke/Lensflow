@@ -629,7 +629,7 @@ export function GalleryDetail({ studioSlug, initialGallery }: GalleryDetailProps
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <Button variant="outline" size="sm" asChild>
             <Link href={`/dashboard/${studioSlug}/galleries/${gallery.id}/edit`}>
               <Edit className="h-4 w-4 mr-2" />
@@ -698,7 +698,7 @@ export function GalleryDetail({ studioSlug, initialGallery }: GalleryDetailProps
 
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as typeof activeTab)} className="flex-1 flex flex-col">
-        <TabsList className="mb-4 bg-transparent">
+        <TabsList className="grid grid-cols-2 sm:inline-flex sm:w-auto gap-1 mb-4 bg-transparent">
           <TabsTrigger value="images">
             <LayoutGrid className="h-4 w-4 mr-2" />
             Images ({gallery.images.length})
