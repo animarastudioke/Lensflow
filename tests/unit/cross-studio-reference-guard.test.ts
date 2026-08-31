@@ -26,6 +26,8 @@ const CLIENT_IN_A = '11111111-1111-4111-8111-111111111111'
 const CLIENT_IN_B = '22222222-2222-4222-8222-222222222222'
 const BOOKING_IN_A = '33333333-3333-4333-8333-333333333333'
 const BOOKING_IN_B = '44444444-4444-4444-8444-444444444444'
+const PROJECT_IN_A = '55555555-5555-4555-8555-555555555555'
+const PROJECT_IN_B = '66666666-6666-4666-8666-666666666666'
 
 function makeBuilder(table: string): any {
   const builder: any = {}
@@ -52,8 +54,27 @@ function makeBuilder(table: string): any {
       if (id === BOOKING_IN_B && studioId === STUDIO_B) return { data: { id }, error: null }
       return { data: null, error: null }
     }
-    // Every other table (studios, invoices, invoice_items, projects) --
-    // generic success, irrelevant to what this file is verifying.
+    if (table === 'projects') {
+      const id = eqCalls['id']
+      const studioId = eqCalls['studio_id']
+      if (id === PROJECT_IN_A && studioId === STUDIO_A) return { data: { id }, error: null }
+      if (id === PROJECT_IN_B && studioId === STUDIO_B) return { data: { id }, error: null }
+      // createProject's own .insert({...}).select('id').single() isn't
+      // filtered by id at all (nothing to filter an insert by) -- only
+      // projectBelongsToStudio's lookup ever sets eqCalls['id'].
+      if (id === undefined) return { data: { id: 'generic-id' }, error: null }
+      return { data: null, error: null }
+    }
+    if (table === 'studio_members') {
+      // quotes.ts's own requireMembership() (createQuote/updateQuote don't
+      // use requireStudioPermission) -- every test in this file acts as a
+      // studio A member.
+      return { data: { studio_id: STUDIO_A, role: 'studio_owner' }, error: null }
+    }
+    // Every other table (studios, invoices, invoice_items, projects,
+    // contracts, contract_signers, quotes, quote_items,
+    // questionnaire_templates, questionnaire_responses) -- generic
+    // success, irrelevant to what this file is verifying.
     return { data: { id: 'generic-id' }, error: null }
   }
   builder.then = (resolve: (v: unknown) => void) => resolve({ data: null, error: null, count: 0 })
@@ -61,7 +82,10 @@ function makeBuilder(table: string): any {
 }
 
 vi.mock('@/lib/supabase/server', () => ({
-  createClient: async () => ({ from: (table: string) => makeBuilder(table) }),
+  createClient: async () => ({
+    from: (table: string) => makeBuilder(table),
+    auth: { getUser: async () => ({ data: { user: { id: 'user-1' } } }) },
+  }),
 }))
 
 vi.mock('@/lib/supabase/admin', () => ({
@@ -85,12 +109,18 @@ vi.mock('@/lib/email/resend', () => ({ sendEmail: vi.fn(async () => ({ success: 
 vi.mock('@/lib/email/templates', () => ({
   bookingConfirmationEmail: vi.fn(() => ({ subject: '', html: '' })),
   invoiceSentEmail: vi.fn(() => ({ subject: '', html: '' })),
+  quoteSentEmail: vi.fn(() => ({ subject: '', html: '' })),
 }))
 vi.mock('@/lib/actions/notifications', () => ({ createNotification: vi.fn(async () => {}) }))
 
 const bookingsActions = await import('@/lib/actions/bookings')
 const projectsActions = await import('@/lib/actions/projects')
 const invoicesActions = await import('@/lib/actions/invoices')
+const quotesActions = await import('@/lib/actions/quotes')
+const contractsActions = await import('@/lib/actions/contracts')
+const questionnairesActions = await import('@/lib/actions/questionnaires')
+const expensesActions = await import('@/lib/actions/expenses')
+const tasksActions = await import('@/lib/actions/tasks')
 
 const ALLOWED_A = { userId: 'user-1', studioId: STUDIO_A, role: 'studio_owner' as const }
 
@@ -133,6 +163,41 @@ function invoiceFormData(clientId: string): FormData {
   fd.set('items_json', JSON.stringify([{ description: 'Item', quantity: 1, unit_price: 100 }]))
   fd.set('status', 'draft')
   fd.set('client_id', clientId)
+  return fd
+}
+
+function quoteFormData(clientId: string): FormData {
+  const fd = new FormData()
+  fd.set('id', 'quote-1')
+  fd.set('studio_slug', 'studio-a-slug')
+  fd.set('title', 'Test Quote')
+  fd.set('items_json', JSON.stringify([{ description: 'Item', quantity: 1, unit_price: 100 }]))
+  fd.set('status', 'draft')
+  fd.set('client_id', clientId)
+  return fd
+}
+
+function contractFormData(clientId: string): FormData {
+  const fd = new FormData()
+  fd.set('id', 'contract-1')
+  fd.set('studio_slug', 'studio-a-slug')
+  fd.set('title', 'Test Contract')
+  fd.set('type', 'other')
+  fd.set('client_id', clientId)
+  return fd
+}
+
+function expenseFormData(projectId: string): FormData {
+  const fd = new FormData()
+  fd.set('amount', '100')
+  fd.set('project_id', projectId)
+  return fd
+}
+
+function taskFormData(projectId: string): FormData {
+  const fd = new FormData()
+  fd.set('title', 'Test Task')
+  fd.set('project_id', projectId)
   return fd
 }
 
@@ -191,5 +256,99 @@ describe('invoices: client_id must belong to the caller\'s own studio (confirmed
 
   it('updateInvoice accepts a client_id that genuinely belongs to the caller\'s studio', async () => {
     await expect(invoicesActions.updateInvoice(invoiceFormData(CLIENT_IN_A))).rejects.toThrow('REDIRECT:')
+  })
+})
+
+// Phase 12 Step 15: quotes.ts, contracts.ts, and questionnaires.ts never
+// received the clientBelongsToStudio guard applied to bookings/projects/
+// invoices above -- each accepted a client-supplied client_id and wrote it
+// straight into the row, verified only by studio_id-scoped RLS on the
+// mutation itself (which says nothing about which studio the referenced
+// client belongs to). For quotes this was independently confirmed
+// live-exploitable exactly like the original invoices.ts finding:
+// sendQuoteSentEmail() resolves the linked client via supabaseAdmin
+// (bypassing RLS) to get a name/email to send a real "your quote" email
+// to -- so a quote created with a foreign client_id and status 'sent'
+// would email a third party the acting studio has no relationship with.
+describe('quotes: client_id must belong to the caller\'s own studio (confirmed live-exploitable path)', () => {
+  it('createQuote rejects a client_id from a different studio', async () => {
+    await expect(quotesActions.createQuote(quoteFormData(CLIENT_IN_B))).rejects.toThrow('Invalid client')
+  })
+
+  it('createQuote accepts a client_id that genuinely belongs to the caller\'s studio', async () => {
+    await expect(quotesActions.createQuote(quoteFormData(CLIENT_IN_A))).rejects.toThrow('REDIRECT:')
+  })
+
+  it('updateQuote rejects a client_id from a different studio', async () => {
+    await expect(quotesActions.updateQuote(quoteFormData(CLIENT_IN_B))).rejects.toThrow('Invalid client')
+  })
+
+  it('updateQuote accepts a client_id that genuinely belongs to the caller\'s studio', async () => {
+    await expect(quotesActions.updateQuote(quoteFormData(CLIENT_IN_A))).rejects.toThrow('REDIRECT:')
+  })
+})
+
+describe('contracts: client_id must belong to the caller\'s own studio', () => {
+  it('createContract rejects a client_id from a different studio', async () => {
+    await expect(contractsActions.createContract(contractFormData(CLIENT_IN_B))).rejects.toThrow('Invalid client')
+  })
+
+  it('createContract accepts a client_id that genuinely belongs to the caller\'s studio', async () => {
+    await expect(contractsActions.createContract(contractFormData(CLIENT_IN_A))).rejects.toThrow('REDIRECT:')
+  })
+
+  it('updateContract rejects a client_id from a different studio', async () => {
+    await expect(contractsActions.updateContract(contractFormData(CLIENT_IN_B))).rejects.toThrow('Invalid client')
+  })
+
+  it('updateContract accepts a client_id that genuinely belongs to the caller\'s studio', async () => {
+    await expect(contractsActions.updateContract(contractFormData(CLIENT_IN_A))).rejects.toThrow('REDIRECT:')
+  })
+})
+
+describe('questionnaires: sendQuestionnaire\'s client_id must belong to the caller\'s own studio', () => {
+  it('rejects a client_id from a different studio', async () => {
+    const result = await questionnairesActions.sendQuestionnaire('template-1', 'studio-a-slug', CLIENT_IN_B)
+    expect(result).toEqual({ error: 'Invalid client' })
+  })
+
+  it('accepts a client_id that genuinely belongs to the caller\'s studio', async () => {
+    const result = await questionnairesActions.sendQuestionnaire('template-1', 'studio-a-slug', CLIENT_IN_A)
+    expect('success' in result && result.success).toBe(true)
+  })
+
+  it('accepts no client_id at all (questionnaires can be sent unassigned)', async () => {
+    const result = await questionnairesActions.sendQuestionnaire('template-1', 'studio-a-slug', null)
+    expect('success' in result && result.success).toBe(true)
+  })
+})
+
+// Same class of gap, found while auditing the rest of src/lib/actions/ for
+// the same pattern: expenses.project_id and tasks.project_id were also
+// accepted straight from form input with no verification the referenced
+// project belongs to the caller's own studio. No email-amplification path
+// like sendQuoteSentEmail exists for either, so this is a data-integrity /
+// tenant-boundary gap rather than a confirmed PII leak -- still fixed to
+// match the established clientBelongsToStudio/bookingBelongsToStudio
+// pattern via the new projectBelongsToStudio (projects.ts).
+describe('expenses/tasks: project_id must belong to the caller\'s own studio', () => {
+  it('createExpense rejects a project_id from a different studio', async () => {
+    const result = await expensesActions.createExpense('studio-a-slug', expenseFormData(PROJECT_IN_B))
+    expect(result).toEqual({ error: 'Invalid project' })
+  })
+
+  it('createExpense accepts a project_id that genuinely belongs to the caller\'s studio', async () => {
+    const result = await expensesActions.createExpense('studio-a-slug', expenseFormData(PROJECT_IN_A))
+    expect('success' in result && result.success).toBe(true)
+  })
+
+  it('createTask rejects a project_id from a different studio', async () => {
+    const result = await tasksActions.createTask('studio-a-slug', taskFormData(PROJECT_IN_B))
+    expect(result).toEqual({ error: 'Invalid project' })
+  })
+
+  it('createTask accepts a project_id that genuinely belongs to the caller\'s studio', async () => {
+    const result = await tasksActions.createTask('studio-a-slug', taskFormData(PROJECT_IN_A))
+    expect('success' in result && result.success).toBe(true)
   })
 })

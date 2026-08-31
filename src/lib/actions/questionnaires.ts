@@ -5,6 +5,7 @@ import { supabaseAdmin } from '@/lib/supabase/admin'
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 import { requireStudioPermission } from '@/lib/auth/server'
+import { clientBelongsToStudio } from '@/lib/actions/clients'
 
 export type QuestionnaireFieldType =
   | 'text'
@@ -199,6 +200,10 @@ export async function sendQuestionnaire(
     .single()
 
   if (!template) return { error: 'Template not found' }
+
+  if (clientId && !(await clientBelongsToStudio(clientId, membership.studioId))) {
+    return { error: 'Invalid client' }
+  }
 
   const shareToken = generateShareToken()
   const { error } = await supabase.from('questionnaire_responses').insert({

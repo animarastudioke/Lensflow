@@ -5,6 +5,7 @@ import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 import { getStudioCurrency } from '@/lib/actions/studios'
 import { requireStudioPermission } from '@/lib/auth/server'
+import { projectBelongsToStudio } from '@/lib/actions/projects'
 
 export type ExpenseCategory =
   | 'equipment'
@@ -87,6 +88,10 @@ export async function createExpense(
     project_id: formData.get('project_id') || undefined,
   })
   if (!parsed.success) return { error: parsed.error.errors[0]?.message ?? 'Invalid input' }
+
+  if (parsed.data.project_id && !(await projectBelongsToStudio(parsed.data.project_id, membership.studioId))) {
+    return { error: 'Invalid project' }
+  }
 
   const supabase = await createClient()
   const currency = await getStudioCurrency(studioSlug)

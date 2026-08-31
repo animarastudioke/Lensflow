@@ -9,6 +9,7 @@ import { requireEntitlement } from '@/lib/entitlements'
 import { requireStudioPermission } from '@/lib/auth/server'
 import { sendEmail } from '@/lib/email/resend'
 import { quoteSentEmail } from '@/lib/email/templates'
+import { clientBelongsToStudio } from '@/lib/actions/clients'
 
 export type QuoteStatus = 'draft' | 'sent' | 'viewed' | 'accepted' | 'declined' | 'expired'
 
@@ -177,11 +178,17 @@ async function requireMembership(): Promise<{ error: string } | { studioId: stri
 }
 
 /** Best-effort — see sendInvoiceSentEmail in invoices.ts for the same reasoning. */
+// `.eq('studio_id', studioId)` below is load-bearing, matching
+// sendInvoiceSentEmail's identical guard in invoices.ts: this reads via
+// supabaseAdmin (bypasses RLS), so without it a caller-controlled quoteId
+// from a different studio would happily resolve and email that foreign
+// client using the caller's own studio branding.
 async function sendQuoteSentEmail(quoteId: string, studioId: string): Promise<void> {
   const { data: quote } = await supabaseAdmin
     .from('quotes')
     .select('quote_number, total, share_token, client:clients(name, email)')
     .eq('id', quoteId)
+    .eq('studio_id', studioId)
     .single()
 
   const client = quote?.client as unknown as { name: string; email: string } | null
@@ -318,6 +325,10 @@ export async function createQuote(formData: FormData) {
 
   const validated = quoteCreateSchema.parse(rawData)
 
+  if (validated.client_id && !(await clientBelongsToStudio(validated.client_id, membership.studio_id))) {
+    throw new Error('Invalid client')
+  }
+
   const subtotal = validated.items.reduce((sum, item) => sum + item.quantity * item.unit_price, 0)
   const total = Math.max(subtotal + validated.tax - validated.discount, 0)
 
@@ -428,6 +439,10 @@ export async function updateQuote(formData: FormData) {
     notes: formData.get('notes') || undefined,
     items,
   })
+
+  if (validated.client_id && !(await clientBelongsToStudio(validated.client_id, membership.studioId))) {
+    throw new Error('Invalid client')
+  }
 
   const subtotal = validated.items.reduce((sum, item) => sum + item.quantity * item.unit_price, 0)
   const total = Math.max(subtotal + validated.tax - validated.discount, 0)

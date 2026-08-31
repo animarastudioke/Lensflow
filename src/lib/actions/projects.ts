@@ -138,6 +138,19 @@ export async function getProject(projectId: string, studioSlug: string): Promise
   return (project as unknown as ProjectRow) ?? null
 }
 
+/** Guards expenses.project_id/tasks.project_id the same way clientBelongsToStudio guards client_id -- see that function's doc comment. */
+export async function projectBelongsToStudio(projectId: string, studioId: string): Promise<boolean> {
+  const supabase = await createClient()
+  const { data } = await supabase
+    .from('projects')
+    .select('id')
+    .eq('id', projectId)
+    .eq('studio_id', studioId)
+    .single()
+
+  return !!data
+}
+
 const projectSchema = z.object({
   name: z.string().min(1, 'Project name is required').max(150),
   client_id: z.string().uuid().optional(),
