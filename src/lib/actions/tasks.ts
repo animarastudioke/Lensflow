@@ -3,6 +3,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
+import { projectBelongsToStudio } from '@/lib/actions/projects'
 
 export type TaskStatus = 'todo' | 'in_progress' | 'done'
 export type TaskPriority = 'low' | 'medium' | 'high'
@@ -89,6 +90,10 @@ export async function createTask(
     project_id: formData.get('project_id') || undefined,
   })
   if (!parsed.success) return { error: parsed.error.errors[0]?.message ?? 'Invalid input' }
+
+  if (parsed.data.project_id && !(await projectBelongsToStudio(parsed.data.project_id, membership.studioId))) {
+    return { error: 'Invalid project' }
+  }
 
   const supabase = await createClient()
   const { error } = await supabase.from('tasks').insert({

@@ -20,13 +20,17 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { ArrowLeft, Loader2, Plus, Trash2 } from 'lucide-react'
+import { Loader2, Plus, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { createInvoice } from '@/lib/actions/invoices'
+import { formatCurrency } from '@/lib/currencies'
+import { PageHeader } from '@/components/layout/PageHeader'
 
 interface NewInvoiceFormProps {
   studioSlug: string
   clients: { id: string; name: string }[]
+  initialClientId?: string
+  currency: string
 }
 
 interface LineItem {
@@ -35,11 +39,11 @@ interface LineItem {
   unit_price: number
 }
 
-export function NewInvoiceForm({ studioSlug, clients }: NewInvoiceFormProps) {
+export function NewInvoiceForm({ studioSlug, clients, initialClientId, currency }: NewInvoiceFormProps) {
   const [isSubmitting, setIsSubmitting] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
   const [status, setStatus] = React.useState('draft')
-  const [clientId, setClientId] = React.useState<string>('none')
+  const [clientId, setClientId] = React.useState<string>(initialClientId ?? 'none')
   const [tax, setTax] = React.useState(0)
   const [discount, setDiscount] = React.useState(0)
   const [items, setItems] = React.useState<LineItem[]>([
@@ -98,17 +102,14 @@ export function NewInvoiceForm({ studioSlug, clients }: NewInvoiceFormProps) {
 
   return (
     <div className="max-w-3xl mx-auto space-y-6">
-      <div>
-        <Link
-          href={`/dashboard/${studioSlug}/invoices`}
-          className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground mb-4"
-        >
-          <ArrowLeft className="h-4 w-4" />
-          Back to invoices
-        </Link>
-        <h1 className="text-display-md font-display font-semibold text-foreground">New Invoice</h1>
-        <p className="text-body text-muted-foreground mt-1">Create an invoice for a client</p>
-      </div>
+      <PageHeader
+        title="New Invoice"
+        description="Create an invoice for a client"
+        breadcrumbs={[
+          { label: 'Invoices', href: `/dashboard/${studioSlug}/invoices` },
+          { label: 'New' },
+        ]}
+      />
 
       <form onSubmit={onSubmit}>
         <Card>
@@ -142,13 +143,14 @@ export function NewInvoiceForm({ studioSlug, clients }: NewInvoiceFormProps) {
                     <SelectItem value="draft">Draft</SelectItem>
                     <SelectItem value="sent">Sent</SelectItem>
                     <SelectItem value="viewed">Viewed</SelectItem>
-                    <SelectItem value="paid">Paid</SelectItem>
-                    <SelectItem value="partial">Partial</SelectItem>
+                    <SelectItem value="paid" disabled>Paid</SelectItem>
+                    <SelectItem value="partial" disabled>Partial</SelectItem>
                     <SelectItem value="overdue">Overdue</SelectItem>
                     <SelectItem value="cancelled">Cancelled</SelectItem>
                     <SelectItem value="refunded">Refunded</SelectItem>
                   </SelectContent>
                 </Select>
+                <p className="text-xs text-muted-foreground">Paid and Partial are set automatically when a payment is recorded.</p>
               </div>
             </div>
 
@@ -244,11 +246,11 @@ export function NewInvoiceForm({ studioSlug, clients }: NewInvoiceFormProps) {
               </div>
               <div className="flex items-center justify-between text-sm text-muted-foreground">
                 <span>Subtotal</span>
-                <span className="font-mono tabular-nums">${subtotal.toFixed(2)}</span>
+                <span className="font-mono tabular-nums">{formatCurrency(subtotal, currency)}</span>
               </div>
               <div className="flex items-center justify-between text-base font-medium text-foreground">
                 <span>Total</span>
-                <span className="font-mono tabular-nums">${total.toFixed(2)}</span>
+                <span className="font-mono tabular-nums">{formatCurrency(total, currency)}</span>
               </div>
             </div>
 

@@ -67,7 +67,37 @@ export async function getClients(studioSlug: string, options?: {
     return { clients: [], total: 0 }
   }
 
-  return { clients: clients || [], total: count || 0 }
+  // clients.total_spent/total_orders are dead columns (see the Client Detail
+  // page's comment on the same issue) -- the trigger that once kept them in
+  // sync only exists in supabase/migrations/_archived and was never carried
+  // into the current baseline, so they sit at their NOT NULL DEFAULT 0
+  // forever. Overridden here from the same real invoices Client Detail
+  // already computes totalPaid from, in one studio-scoped aggregate query
+  // (not per-row), so ClientList/Leads stop showing a permanently-stale
+  // "$0 spent" for clients who have real paid invoices.
+  const clientIds = (clients ?? []).map((c) => c.id)
+  const spendByClient = new Map<string, number>()
+  const orderCountByClient = new Map<string, number>()
+  if (clientIds.length > 0) {
+    const { data: invoiceRows } = await supabase
+      .from('invoices')
+      .select('client_id, amount_paid')
+      .eq('studio_id', studio.id)
+      .in('client_id', clientIds)
+    for (const row of invoiceRows ?? []) {
+      if (!row.client_id) continue
+      spendByClient.set(row.client_id, (spendByClient.get(row.client_id) ?? 0) + Number(row.amount_paid))
+      orderCountByClient.set(row.client_id, (orderCountByClient.get(row.client_id) ?? 0) + 1)
+    }
+  }
+
+  const clientsWithRealTotals = (clients ?? []).map((c) => ({
+    ...c,
+    total_spent: spendByClient.get(c.id) ?? 0,
+    total_orders: orderCountByClient.get(c.id) ?? 0,
+  }))
+
+  return { clients: clientsWithRealTotals, total: count || 0 }
 }
 
 export async function getClient(clientId: string, studioSlug: string): Promise<ClientRow | null> {
@@ -88,6 +118,31 @@ export async function getClient(clientId: string, studioSlug: string): Promise<C
     .single()
 
   return client
+}
+
+/**
+ * Guards every create/update that accepts a client_id foreign key
+ * (bookings, projects, invoices, galleries). Without this, a caller could
+ * supply any UUID that happens to be a real clients.id in *any* studio --
+ * the zod schema only checks it's a well-formed UUID, and a foreign key
+ * constraint only requires the referenced row to exist somewhere, not that
+ * it belongs to the caller's studio. Confirmed exploitable: invoices.ts's
+ * sendInvoiceSentEmail() resolves the linked client via the service-role
+ * client (bypassing RLS) to email name/address, so a cross-studio client_id
+ * on an invoice sent to status 'sent' would email a real third party who
+ * has no relationship to the acting studio. Call this before persisting
+ * any client_id accepted from form input.
+ */
+export async function clientBelongsToStudio(clientId: string, studioId: string): Promise<boolean> {
+  const supabase = await createClient()
+  const { data } = await supabase
+    .from('clients')
+    .select('id')
+    .eq('id', clientId)
+    .eq('studio_id', studioId)
+    .single()
+
+  return !!data
 }
 
 const clientSchema = z.object({

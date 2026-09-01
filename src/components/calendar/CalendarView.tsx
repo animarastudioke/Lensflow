@@ -81,11 +81,11 @@ export function CalendarView({ studioSlug }: CalendarViewProps) {
           <p className="text-body text-muted-foreground mt-1">Bookings, invoice due dates, contract expirations, and tasks in one view</p>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="icon" onClick={() => setCursor((c) => new Date(c.getFullYear(), c.getMonth() - 1, 1))}>
+          <Button variant="outline" size="icon" aria-label="Previous month" onClick={() => setCursor((c) => new Date(c.getFullYear(), c.getMonth() - 1, 1))}>
             <ChevronLeft className="h-4 w-4" />
           </Button>
-          <div className="w-40 text-center font-medium">{monthLabel}</div>
-          <Button variant="outline" size="icon" onClick={() => setCursor((c) => new Date(c.getFullYear(), c.getMonth() + 1, 1))}>
+          <div className="w-40 text-center font-medium" aria-live="polite">{monthLabel}</div>
+          <Button variant="outline" size="icon" aria-label="Next month" onClick={() => setCursor((c) => new Date(c.getFullYear(), c.getMonth() + 1, 1))}>
             <ChevronRight className="h-4 w-4" />
           </Button>
           <Button variant="outline" onClick={() => setCursor(new Date(today.getFullYear(), today.getMonth(), 1))}>

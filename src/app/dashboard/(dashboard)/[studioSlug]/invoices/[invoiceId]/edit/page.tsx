@@ -3,6 +3,7 @@ import { notFound, redirect } from 'next/navigation'
 import { getAuthUserServer } from '@/lib/auth'
 import { getInvoice } from '@/lib/actions/invoices'
 import { getClients } from '@/lib/actions/clients'
+import { getStudioCurrency } from '@/lib/actions/studios'
 import { EditInvoiceForm } from '@/components/invoices/EditInvoiceForm'
 
 interface EditInvoicePageProps {
@@ -27,9 +28,10 @@ export default async function EditInvoicePage({ params }: EditInvoicePageProps) 
     redirect('/auth/login')
   }
 
-  const [invoice, { clients }] = await Promise.all([
+  const [invoice, { clients }, currency] = await Promise.all([
     getInvoice(invoiceId, studioSlug),
     getClients(studioSlug),
+    getStudioCurrency(studioSlug),
   ])
 
   if (!invoice) {
@@ -40,6 +42,7 @@ export default async function EditInvoicePage({ params }: EditInvoicePageProps) 
     <EditInvoiceForm
       studioSlug={studioSlug}
       clients={clients.map(c => ({ id: c.id, name: c.name }))}
+      currency={currency}
       initialValues={{
         id: invoice.id,
         status: invoice.status,

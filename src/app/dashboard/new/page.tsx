@@ -12,11 +12,16 @@ export default async function NewStudioPage() {
 
   const supabase = await createClient()
 
+  // Same deterministic ordering as the dashboard root redirect
+  // (src/app/dashboard/page.tsx) -- without it, which studio this bounces an
+  // already-onboarded multi-membership user back to isn't guaranteed
+  // consistent between visits.
   const { data: membership } = await supabase
     .from('studio_members')
     .select('studio:studios(slug)')
     .eq('user_id', user.id)
     .eq('status', 'active')
+    .order('joined_at', { ascending: true })
     .limit(1)
     .maybeSingle()
 

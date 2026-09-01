@@ -16,6 +16,7 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog'
 import { initiateMpesaInvoicePaymentPublic, pollMpesaPaymentStatusPublic } from '@/lib/actions/mpesa-payments'
+import { formatCurrency } from '@/lib/currencies'
 
 type FlowState = 'form' | 'sending' | 'pending' | 'completed' | 'failed'
 
@@ -144,7 +145,7 @@ export function PublicMpesaPaymentDialog({
                 required
               />
               <p className="text-xs text-muted-foreground">
-                Balance due: KES {balanceDue.toLocaleString()} — pay in full or enter a smaller amount as a deposit.
+                Balance due: {formatCurrency(balanceDue, 'KES')} — pay in full or enter a smaller amount as a deposit.
               </p>
             </div>
             {error && <p className="text-sm text-destructive">{error}</p>}

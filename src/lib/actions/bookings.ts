@@ -8,6 +8,7 @@ import { requireEntitlement } from '@/lib/entitlements'
 import { requireStudioPermission } from '@/lib/auth/server'
 import { sendEmail } from '@/lib/email/resend'
 import { bookingConfirmationEmail } from '@/lib/email/templates'
+import { clientBelongsToStudio } from '@/lib/actions/clients'
 
 export type BookingStatus = 'inquiry' | 'confirmed' | 'scheduled' | 'completed' | 'cancelled' | 'no_show'
 
@@ -45,6 +46,7 @@ async function getStudioId(studioSlug: string): Promise<string | null> {
 
 export async function getBookings(studioSlug: string, options?: {
   status?: BookingStatus
+  clientId?: string
 }): Promise<{ bookings: BookingRow[]; total: number }> {
   const supabase = await createClient()
   const studioId = await getStudioId(studioSlug)
@@ -58,6 +60,9 @@ export async function getBookings(studioSlug: string, options?: {
   if (options?.status) {
     query = query.eq('status', options.status)
   }
+  if (options?.clientId) {
+    query = query.eq('client_id', options.clientId)
+  }
 
   query = query.order('session_date', { ascending: false })
 
@@ -69,6 +74,19 @@ export async function getBookings(studioSlug: string, options?: {
   }
 
   return { bookings: (bookings as unknown as BookingRow[]) || [], total: count || 0 }
+}
+
+/** Guards projects.booking_id the same way clientBelongsToStudio guards client_id -- see that function's doc comment. */
+export async function bookingBelongsToStudio(bookingId: string, studioId: string): Promise<boolean> {
+  const supabase = await createClient()
+  const { data } = await supabase
+    .from('bookings')
+    .select('id')
+    .eq('id', bookingId)
+    .eq('studio_id', studioId)
+    .single()
+
+  return !!data
 }
 
 export async function getUpcomingBookings(studioSlug: string, limit = 5): Promise<BookingRow[]> {
@@ -139,6 +157,11 @@ export async function createBooking(formData: FormData) {
   }
 
   const validated = bookingCreateSchema.parse(rawData)
+
+  if (validated.client_id && !(await clientBelongsToStudio(validated.client_id, membership.studioId))) {
+    throw new Error('Invalid client')
+  }
+
   const balanceDue = Math.max(validated.total_price - validated.deposit_amount, 0)
 
   const { error } = await supabase
@@ -166,12 +189,19 @@ export async function createBooking(formData: FormData) {
     throw new Error('Failed to create booking')
   }
 
+  // Phase 12 Step 13: studioSlug above comes from client-submitted form
+  // data, used only for revalidatePath (low-risk) -- but the notification
+  // link should never be built from it, since a mismatched slug would send
+  // the notification's own studio member to an unrelated URL. Re-derived
+  // here from the already-trusted membership.studioId instead, matching
+  // the server-resolved pattern the other producers already use.
+  const { data: studioRow } = await supabase.from('studios').select('slug').eq('id', membership.studioId).single()
   const { createNotification } = await import('@/lib/actions/notifications')
   await createNotification(membership.studioId, {
     type: 'booking_created',
     title: 'New booking',
     body: validated.session_name,
-    link: `/dashboard/${studioSlug}/bookings`,
+    link: studioRow ? `/dashboard/${studioRow.slug}/bookings` : undefined,
   })
 
   if (validated.client_id) {
@@ -194,4 +224,131 @@ export async function createBooking(formData: FormData) {
 
   revalidatePath(`/dashboard/${studioSlug}/bookings`)
   redirect(`/dashboard/${studioSlug}/bookings`)
+}
+
+export async function getBooking(bookingId: string, studioSlug: string): Promise<BookingRow | null> {
+  const supabase = await createClient()
+  const studioId = await getStudioId(studioSlug)
+  if (!studioId) return null
+
+  const { data: booking } = await supabase
+    .from('bookings')
+    .select('*, client:clients(name, email)')
+    .eq('id', bookingId)
+    .eq('studio_id', studioId)
+    .single()
+
+  return (booking as unknown as BookingRow) ?? null
+}
+
+export async function updateBooking(formData: FormData) {
+  const membership = await requireStudioPermission('bookings:update')
+  if ('error' in membership) throw new Error(membership.error)
+
+  const supabase = await createClient()
+
+  const id = formData.get('id') as string
+  const studioSlug = formData.get('studio_slug') as string
+
+  const totalPriceRaw = formData.get('total_price')
+  const depositAmountRaw = formData.get('deposit_amount')
+
+  const rawData = {
+    session_name: formData.get('session_name'),
+    client_id: formData.get('client_id') || undefined,
+    package_name: formData.get('package_name') || undefined,
+    type: formData.get('type'),
+    status: formData.get('status') || 'inquiry',
+    session_date: formData.get('session_date') || undefined,
+    start_time: formData.get('start_time') || undefined,
+    end_time: formData.get('end_time') || undefined,
+    location: formData.get('location') || undefined,
+    total_price: totalPriceRaw ? Number(totalPriceRaw) : 0,
+    deposit_amount: depositAmountRaw ? Number(depositAmountRaw) : 0,
+    notes: formData.get('notes') || undefined,
+  }
+
+  const validated = bookingCreateSchema.parse(rawData)
+
+  if (validated.client_id && !(await clientBelongsToStudio(validated.client_id, membership.studioId))) {
+    throw new Error('Invalid client')
+  }
+
+  const balanceDue = Math.max(validated.total_price - validated.deposit_amount, 0)
+
+  const { error } = await supabase
+    .from('bookings')
+    .update({
+      client_id: validated.client_id ?? null,
+      session_name: validated.session_name,
+      package_name: validated.package_name ?? null,
+      type: validated.type,
+      status: validated.status,
+      session_date: validated.session_date ?? null,
+      start_time: validated.start_time ?? null,
+      end_time: validated.end_time ?? null,
+      location: validated.location ?? null,
+      total_price: validated.total_price,
+      deposit_amount: validated.deposit_amount,
+      balance_due: balanceDue,
+      notes: validated.notes ?? null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', id)
+    .eq('studio_id', membership.studioId)
+
+  if (error) {
+    console.error('Update booking error:', error)
+    throw new Error('Failed to update booking')
+  }
+
+  revalidatePath(`/dashboard/${studioSlug}/bookings`)
+  revalidatePath(`/dashboard/${studioSlug}/bookings/${id}`)
+  redirect(`/dashboard/${studioSlug}/bookings/${id}`)
+}
+
+export async function deleteBooking(bookingId: string, studioSlug: string): Promise<{ error: string } | undefined> {
+  const membership = await requireStudioPermission('bookings:delete')
+  if ('error' in membership) return membership
+
+  const supabase = await createClient()
+
+  const { error } = await supabase
+    .from('bookings')
+    .delete()
+    .eq('id', bookingId)
+    .eq('studio_id', membership.studioId)
+
+  if (error) {
+    console.error('Delete booking error:', error)
+    return { error: 'Failed to delete booking' }
+  }
+
+  revalidatePath(`/dashboard/${studioSlug}/bookings`)
+}
+
+export async function updateBookingStatus(
+  bookingId: string,
+  studioSlug: string,
+  status: BookingStatus
+): Promise<{ success: true } | { error: string }> {
+  const membership = await requireStudioPermission('bookings:update')
+  if ('error' in membership) return membership
+
+  const supabase = await createClient()
+
+  const { error } = await supabase
+    .from('bookings')
+    .update({ status, updated_at: new Date().toISOString() })
+    .eq('id', bookingId)
+    .eq('studio_id', membership.studioId)
+
+  if (error) {
+    console.error('Update booking status error:', error)
+    return { error: 'Failed to update booking status' }
+  }
+
+  revalidatePath(`/dashboard/${studioSlug}/bookings`)
+  revalidatePath(`/dashboard/${studioSlug}/bookings/${bookingId}`)
+  return { success: true }
 }

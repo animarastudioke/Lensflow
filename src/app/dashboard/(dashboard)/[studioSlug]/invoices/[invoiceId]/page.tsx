@@ -1,15 +1,19 @@
 import { Metadata } from 'next'
 import { notFound, redirect } from 'next/navigation'
 import { getAuthUserServer } from '@/lib/auth'
-import { getInvoice } from '@/lib/actions/invoices'
+import { getInvoice, getInvoicePayments } from '@/lib/actions/invoices'
 import { getStudioSettings, getStudioCurrency } from '@/lib/actions/studios'
 import { BillingDocumentView } from '@/components/billing/BillingDocumentView'
 import { CopyShareLinkButton } from '@/components/billing/CopyShareLinkButton'
+import { InvoicePaymentHistory } from '@/components/invoices/InvoicePaymentHistory'
+import { InvoiceDetailActions } from '@/components/invoices/InvoiceDetailActions'
+import { PageHeader } from '@/components/layout/PageHeader'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { ArrowLeft, Edit, Download } from 'lucide-react'
+import { Edit, Download } from 'lucide-react'
 import Link from 'next/link'
 import { MpesaPaymentDialog } from '@/components/invoices/MpesaPaymentDialog'
+import { APP_CONSTANTS } from '@/lib/constants'
 
 interface InvoiceDetailPageProps {
   params: Promise<{ studioSlug: string; invoiceId: string }>
@@ -43,46 +47,48 @@ export default async function InvoiceDetailPage({ params }: InvoiceDetailPagePro
     notFound()
   }
 
+  const payments = await getInvoicePayments(invoice.id, studioSlug)
+
   const balanceDue = Math.max(invoice.total - invoice.amount_paid, 0)
   const shareUrl = invoice.share_token
-    ? `${process.env['NEXT_PUBLIC_APP_URL'] ?? 'http://localhost:3000'}/invoice/${invoice.share_token}`
+    ? `${APP_CONSTANTS.URL}/invoice/${invoice.share_token}`
     : null
 
   return (
     <div className="max-w-2xl mx-auto space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <Link
-            href={`/dashboard/${studioSlug}/invoices`}
-            className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground mb-4"
-          >
-            <ArrowLeft className="h-4 w-4" />
-            Back to invoices
-          </Link>
-        </div>
-        <div className="flex items-center gap-2">
-          {invoice.share_token && (
-            <CopyShareLinkButton token={invoice.share_token} basePath="/invoice" />
-          )}
-          {invoice.share_token && (
+      <PageHeader
+        title={invoice.invoice_number}
+        description={invoice.client?.name ?? 'No client attached'}
+        breadcrumbs={[
+          { label: 'Invoices', href: `/dashboard/${studioSlug}/invoices` },
+          { label: invoice.invoice_number },
+        ]}
+        actions={
+          <div className="flex flex-wrap items-center gap-2">
+            {invoice.share_token && (
+              <CopyShareLinkButton token={invoice.share_token} basePath="/invoice" />
+            )}
+            {invoice.share_token && (
+              <Button variant="outline" asChild>
+                <a href={`/api/invoice/${invoice.share_token}/pdf`}>
+                  <Download className="h-4 w-4 mr-2" />
+                  Download PDF
+                </a>
+              </Button>
+            )}
             <Button variant="outline" asChild>
-              <a href={`/api/invoice/${invoice.share_token}/pdf`}>
-                <Download className="h-4 w-4 mr-2" />
-                Download PDF
-              </a>
+              <Link href={`/dashboard/${studioSlug}/invoices/${invoice.id}/edit`}>
+                <Edit className="h-4 w-4 mr-2" />
+                Edit
+              </Link>
             </Button>
-          )}
-          <Button asChild>
-            <Link href={`/dashboard/${studioSlug}/invoices/${invoice.id}/edit`}>
-              <Edit className="h-4 w-4 mr-2" />
-              Edit
-            </Link>
-          </Button>
-        </div>
-      </div>
+            <InvoiceDetailActions invoiceId={invoice.id} studioSlug={studioSlug} status={invoice.status} />
+          </div>
+        }
+      />
 
       <Card>
-        <CardContent className="pt-6">
+        <CardContent className="pt-6 space-y-6">
           <BillingDocumentView
             kind="Invoice"
             documentNumber={invoice.invoice_number}
@@ -110,8 +116,10 @@ export default async function InvoiceDetailPage({ params }: InvoiceDetailPagePro
             }}
           />
 
+          <InvoicePaymentHistory payments={payments} currency={currency} />
+
           {balanceDue > 0 && currency === 'KES' && (
-            <div className="mt-6 pt-6 border-t border-border">
+            <div className="border-t border-border pt-6">
               <MpesaPaymentDialog
                 invoiceId={invoice.id}
                 studioSlug={studioSlug}

@@ -1,9 +1,9 @@
 import { Metadata } from 'next'
-import Link from 'next/link'
 import { notFound, redirect } from 'next/navigation'
 import { getAuthUserServer } from '@/lib/auth'
 import { getWebsite } from '@/lib/actions/websites'
-import { ArrowLeft, Eye, Users } from 'lucide-react'
+import { Eye, Users } from 'lucide-react'
+import { PageHeader } from '@/components/layout/PageHeader'
 
 interface WebsiteAnalyticsPageProps {
   params: Promise<{ studioSlug: string; websiteId: string }>
@@ -35,17 +35,15 @@ export default async function WebsiteAnalyticsPage({ params }: WebsiteAnalyticsP
 
   return (
     <div className="max-w-2xl mx-auto space-y-6">
-      <div>
-        <Link
-          href={`/dashboard/${studioSlug}/website`}
-          className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground mb-4"
-        >
-          <ArrowLeft className="h-4 w-4" />
-          Back to websites
-        </Link>
-        <h1 className="text-display-md font-display font-semibold text-foreground">{website.name}</h1>
-        <p className="text-body text-muted-foreground mt-1">Analytics</p>
-      </div>
+      <PageHeader
+        title={website.name}
+        description="Analytics"
+        breadcrumbs={[
+          { label: 'Websites', href: `/dashboard/${studioSlug}/website` },
+          { label: website.name, href: `/dashboard/${studioSlug}/website/${websiteId}/editor` },
+          { label: 'Analytics' },
+        ]}
+      />
 
       <div className="grid grid-cols-2 gap-4">
         <div className="border border-border rounded-md px-5 py-5">

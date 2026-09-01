@@ -27,14 +27,15 @@ import { createBooking } from '@/lib/actions/bookings'
 interface NewBookingFormProps {
   studioSlug: string
   clients: { id: string; name: string }[]
+  initialClientId?: string
 }
 
-export function NewBookingForm({ studioSlug, clients }: NewBookingFormProps) {
+export function NewBookingForm({ studioSlug, clients, initialClientId }: NewBookingFormProps) {
   const [isSubmitting, setIsSubmitting] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
   const [type, setType] = React.useState('wedding')
   const [status, setStatus] = React.useState('inquiry')
-  const [clientId, setClientId] = React.useState<string>('none')
+  const [clientId, setClientId] = React.useState<string>(initialClientId ?? 'none')
 
   const onSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()

@@ -160,6 +160,8 @@ export function ClientGalleryContent({
   const [downloadingIds, setDownloadingIds] = React.useState<Set<string>>(new Set())
   const [isDownloadingAll, setIsDownloadingAll] = React.useState(false)
   const lightboxHistoryPushed = React.useRef(false)
+  const lightboxRef = React.useRef<HTMLDivElement>(null)
+  const lastFocusedElementRef = React.useRef<HTMLElement | null>(null)
 
   // Pressing the browser/device back button while the lightbox is open should
   // close the lightbox and return to the grid, not exit the whole gallery page.
@@ -203,6 +205,7 @@ export function ClientGalleryContent({
   }
 
   const openLightbox = (index: number) => {
+    lastFocusedElementRef.current = document.activeElement as HTMLElement | null
     setLightboxIndex(index)
     setShowLightbox(true)
     window.history.pushState({ lightbox: true }, '')
@@ -216,6 +219,66 @@ export function ClientGalleryContent({
       window.history.back()
     }
   }
+
+  const showPrevImage = React.useCallback(() => {
+    setLightboxIndex((prev) => (prev === 0 ? media.length - 1 : prev - 1))
+  }, [media.length])
+
+  const showNextImage = React.useCallback(() => {
+    setLightboxIndex((prev) => (prev === media.length - 1 ? 0 : prev + 1))
+  }, [media.length])
+
+  // Keyboard behavior (Escape/arrow navigation), a focus trap so Tab can't
+  // reach the page behind the overlay, initial focus into the dialog, focus
+  // restoration to whatever opened it, and a background scroll lock -- all
+  // previously missing, leaving the lightbox mouse-only and the client's
+  // page scrollable behind a full-screen overlay.
+  React.useEffect(() => {
+    if (!showLightbox) return
+
+    const container = lightboxRef.current
+    const focusableSelector = 'button:not([disabled]), [href], video, input:not([disabled]), [tabindex]:not([tabindex="-1"])'
+    const focusables = container ? Array.from(container.querySelectorAll<HTMLElement>(focusableSelector)) : []
+    focusables[0]?.focus()
+
+    const previousOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        closeLightbox()
+        return
+      }
+      if (e.key === 'ArrowLeft') {
+        showPrevImage()
+        return
+      }
+      if (e.key === 'ArrowRight') {
+        showNextImage()
+        return
+      }
+      if (e.key === 'Tab' && container) {
+        const current = Array.from(container.querySelectorAll<HTMLElement>(focusableSelector))
+        if (current.length === 0) return
+        const first = current[0]!
+        const last = current[current.length - 1]!
+        if (e.shiftKey && document.activeElement === first) {
+          e.preventDefault()
+          last.focus()
+        } else if (!e.shiftKey && document.activeElement === last) {
+          e.preventDefault()
+          first.focus()
+        }
+      }
+    }
+    document.addEventListener('keydown', onKeyDown)
+
+    return () => {
+      document.removeEventListener('keydown', onKeyDown)
+      document.body.style.overflow = previousOverflow
+      lastFocusedElementRef.current?.focus?.()
+    }
+  }, [showLightbox, showPrevImage, showNextImage])
 
   const downloadSingleImage = async (item: MediaItem) => {
     // Tracking the download count is a side-effect, not a gate — fire it and
@@ -305,10 +368,14 @@ export function ClientGalleryContent({
     setFavorites(prev => wasFavorite ? prev.filter(f => f !== id) : [...prev, id])
 
     try {
+      // Gated, server-authoritative route -- for a password-protected
+      // gallery the password itself is re-verified there, same as the
+      // download routes below.
+      const passwordParam = searchParams.get('password')
       const response = await fetch(`/api/g/${token}/favorite`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ mediaId: id, isFavorite: !wasFavorite }),
+        body: JSON.stringify({ mediaId: id, isFavorite: !wasFavorite, password: passwordParam ?? undefined }),
       })
       if (!response.ok) throw new Error('Request failed')
       toast.success(wasFavorite ? 'Removed from favorites' : 'Added to favorites')
@@ -428,10 +495,15 @@ export function ClientGalleryContent({
         coverImage: gallery.cover_image,
       }
 
+  // The grid item itself (not this button) is the real interactive control --
+  // see role="button"/tabIndex/onKeyDown on each layout's wrapper below. This
+  // is a purely visual hover affordance, so it's excluded from both focus
+  // and the accessibility tree to avoid a redundant, unlabeled stop in the
+  // tab order.
   const renderMediaOverlay = (item: MediaItem) => (
     <>
       <div className="absolute inset-0 bg-black/30 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-        <Button variant="secondary" size="icon" className="h-10 w-10">
+        <Button variant="secondary" size="icon" className="h-10 w-10" tabIndex={-1} aria-hidden="true">
           <Eye className="h-5 w-5" />
         </Button>
       </div>
@@ -458,6 +530,25 @@ export function ClientGalleryContent({
     </>
   )
 
+  // Opening a photo previously only worked via a plain onClick on a <div> --
+  // unreachable by keyboard at all. Each grid item wrapper below is now a
+  // real tab stop (role="button"/tabIndex=0) wired to this handler so Enter
+  // and Space open the lightbox exactly like a click would.
+  const handleGridItemKeyDown = (e: React.KeyboardEvent, index: number) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault()
+      openLightbox(index)
+    }
+  }
+
+  const gridItemInteractiveProps = (item: MediaItem, index: number) => ({
+    role: 'button' as const,
+    tabIndex: 0,
+    'aria-label': `View ${item.filename}`,
+    onClick: () => openLightbox(index),
+    onKeyDown: (e: React.KeyboardEvent) => handleGridItemKeyDown(e, index),
+  })
+
   const renderMediaGrid = () => {
     const filteredMedia = albums.length > 0 && albums.find(a => a.id === searchParams.get('album'))
       ? media.filter(m => m.albumId === searchParams.get('album'))
@@ -482,15 +573,16 @@ export function ClientGalleryContent({
           {filteredMedia.map((item, index) => (
             <div
               key={item.id}
-              className="relative group mb-3 break-inside-avoid overflow-hidden rounded-xl bg-muted transition-all duration-200 cursor-pointer"
-              onClick={() => openLightbox(index)}
+              className="relative group mb-3 break-inside-avoid overflow-hidden rounded-xl bg-muted transition-all duration-200 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+              {...gridItemInteractiveProps(item, index)}
             >
               <img
                 src={item.thumbnailUrl}
                 alt={item.filename}
                 className="w-full h-auto object-cover transition-transform duration-300 group-hover:scale-105"
-                style={item.width && item.height ? { aspectRatio: `${item.width} / ${item.height}` } : undefined}
+                style={{ aspectRatio: item.width && item.height ? `${item.width} / ${item.height}` : '1 / 1' }}
                 loading="lazy"
+                decoding="async"
               />
               {renderMediaOverlay(item)}
             </div>
@@ -507,15 +599,16 @@ export function ClientGalleryContent({
             return (
               <div
                 key={item.id}
-                className="relative group overflow-hidden rounded-xl bg-muted transition-all duration-200 cursor-pointer grow"
+                className="relative group overflow-hidden rounded-xl bg-muted transition-all duration-200 cursor-pointer grow focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                 style={{ height: 220, width: 220 * ratio, flexBasis: 220 * ratio }}
-                onClick={() => openLightbox(index)}
+                {...gridItemInteractiveProps(item, index)}
               >
                 <img
                   src={item.thumbnailUrl}
                   alt={item.filename}
                   className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
                   loading="lazy"
+                  decoding="async"
                 />
                 {renderMediaOverlay(item)}
               </div>
@@ -530,14 +623,15 @@ export function ClientGalleryContent({
         {filteredMedia.map((item, index) => (
           <div
             key={item.id}
-            className="relative group aspect-square overflow-hidden rounded-xl bg-muted transition-all duration-200 cursor-pointer"
-            onClick={() => openLightbox(index)}
+            className="relative group aspect-square overflow-hidden rounded-xl bg-muted transition-all duration-200 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+            {...gridItemInteractiveProps(item, index)}
           >
             <img
               src={item.thumbnailUrl}
               alt={item.filename}
               className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
               loading="lazy"
+              decoding="async"
             />
             {renderMediaOverlay(item)}
           </div>
@@ -664,6 +758,7 @@ export function ClientGalleryContent({
       {/* Lightbox */}
       {showLightbox && media.length > 0 && media[lightboxIndex] && (
         <div
+          ref={lightboxRef}
           className="fixed inset-0 z-50 bg-black/95 flex items-center justify-center p-4"
           onClick={closeLightbox}
           role="dialog"
@@ -674,7 +769,7 @@ export function ClientGalleryContent({
             variant="ghost"
             size="icon"
             className="absolute left-4 top-1/2 -translate-y-1/2 h-12 w-12 bg-white/10 hover:bg-white/20 text-white"
-            onClick={(e) => { e.stopPropagation(); setLightboxIndex(prev => prev === 0 ? media.length - 1 : prev - 1) }}
+            onClick={(e) => { e.stopPropagation(); showPrevImage() }}
             aria-label="Previous"
           >
             <ChevronLeft className="h-6 w-6" />
@@ -711,7 +806,7 @@ export function ClientGalleryContent({
             variant="ghost"
             size="icon"
             className="absolute right-4 top-1/2 -translate-y-1/2 h-12 w-12 bg-white/10 hover:bg-white/20 text-white"
-            onClick={(e) => { e.stopPropagation(); setLightboxIndex(prev => prev === media.length - 1 ? 0 : prev + 1) }}
+            onClick={(e) => { e.stopPropagation(); showNextImage() }}
             aria-label="Next"
           >
             <ChevronRight className="h-6 w-6" />
@@ -741,7 +836,14 @@ export function ClientGalleryContent({
                 : <Download className="h-4 w-4 mr-1" />}
               Download
             </Button>
-            <Button variant="ghost" size="sm" className="text-white hover:bg-white/20" onClick={(e) => { e.stopPropagation(); toggleFavorite(media[lightboxIndex]!.id) }}>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-white hover:bg-white/20"
+              onClick={(e) => { e.stopPropagation(); toggleFavorite(media[lightboxIndex]!.id) }}
+              aria-pressed={favorites.includes(media[lightboxIndex]!.id)}
+              aria-label={favorites.includes(media[lightboxIndex]!.id) ? 'Remove from favorites' : 'Add to favorites'}
+            >
               <Heart className={cn('h-4 w-4 mr-1', favorites.includes(media[lightboxIndex]!.id) ? 'fill-red-500 text-red-500' : '')} />
             </Button>
           </div>

@@ -22,7 +22,6 @@ import {
   Menu,
   Building2,
   Briefcase,
-  Megaphone,
   NotepadText,
   LogOut,
   CalendarDays,
@@ -31,6 +30,7 @@ import {
   ClipboardList,
 } from 'lucide-react'
 import { useAuthUser, type UserRole } from '@/lib/auth/hooks'
+import { hasPermission, type Permission } from '@/lib/auth/permissions'
 import { LogoMark } from '@/components/marketing/home/lib/logo'
 
 interface SidebarProps {
@@ -137,12 +137,6 @@ const navigation = [
     permission: 'website:read',
   },
   {
-    title: 'Marketing',
-    href: (studioSlug: string) => `/dashboard/${studioSlug}/marketing`,
-    icon: Megaphone,
-    permission: 'analytics:read',
-  },
-  {
     title: 'Analytics',
     href: (studioSlug: string) => `/dashboard/${studioSlug}/analytics`,
     icon: BarChart3,
@@ -173,9 +167,7 @@ function hasAccess(userRole: UserRole | undefined, item: typeof navigation[0]): 
 
   // Check permission
   if (item.permission) {
-    // Import hasPermission dynamically to avoid circular dependency
-    const { hasPermission } = require('@/lib/auth/permissions')
-    return hasPermission(userRole, item.permission)
+    return hasPermission(userRole, item.permission as Permission)
   }
 
   return true
@@ -290,6 +282,7 @@ export function Sidebar({ studioSlug, collapsed, onCollapsedChange }: SidebarPro
 
 export function MobileSidebarTrigger({ studioSlug }: { studioSlug: string }) {
   const router = useRouter()
+  const pathname = usePathname()
   const { user, signOut } = useAuthUser()
   const accessibleNavigation = navigation.filter((item) => hasAccess(user?.role, item))
 
@@ -327,12 +320,19 @@ export function MobileSidebarTrigger({ studioSlug }: { studioSlug: string }) {
           <nav className="flex-1 overflow-y-auto p-3" aria-label="Mobile navigation">
             <ul className="space-y-1" role="list">
               {accessibleNavigation.map((item) => {
+                const isActive = pathname === item.href(studioSlug)
                 const Icon = item.icon
                 return (
                   <li key={item.title}>
                     <Link
                       href={item.href(studioSlug)}
-                      className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
+                      className={cn(
+                        'flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors',
+                        isActive
+                          ? 'bg-primary text-primary-foreground'
+                          : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
+                      )}
+                      aria-current={isActive ? 'page' : undefined}
                     >
                       <Icon className="h-5 w-5 flex-shrink-0" aria-hidden="true" />
                       <span>{item.title}</span>

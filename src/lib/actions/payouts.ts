@@ -55,8 +55,8 @@ export async function getStudioPayoutSummary(_studioSlug: string): Promise<Studi
   ])
 
   // Client payments only ever settle in KES today (M-Pesa's only currency —
-  // see USD_TO_KES_RATE in mpesa.ts), so the ledger is scoped to KES
-  // regardless of the studio's own billing currency.
+  // see USD_TO_KES_RATE in lib/currencies.ts), so the ledger is scoped to
+  // KES regardless of the studio's own billing currency.
   const totalCollected = (collectedRows ?? [])
     .filter((p) => p.currency === 'KES')
     .reduce((sum, p) => sum + Number(p.amount), 0)

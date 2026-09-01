@@ -4,6 +4,19 @@ export interface Currency {
   symbol: string
 }
 
+/**
+ * LensFlow's own plan prices are set in USD (see plans.price_cents), but
+ * M-Pesa STK Push only ever settles in KES — there's no multi-currency
+ * option on Daraja. This is a fixed, clearly-labelled approximation rather
+ * than a live FX rate (no FX-rate provider is integrated), shown to the
+ * payer before they confirm so the conversion is never hidden.
+ *
+ * Lives here rather than in lib/payments/mpesa.ts so client components that
+ * only need this display constant (e.g. SubscribeDialog) don't have to
+ * import from the server-only M-Pesa API client module to get it.
+ */
+export const USD_TO_KES_RATE = 129
+
 // ISO 4217 active currencies
 export const CURRENCIES: Currency[] = [
   { code: 'USD', name: 'US Dollar', symbol: '$' },

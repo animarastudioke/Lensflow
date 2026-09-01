@@ -3,7 +3,8 @@
 import { createClient } from '@/lib/supabase/server'
 import { supabaseAdmin } from '@/lib/supabase/admin'
 import { revalidatePath } from 'next/cache'
-import { initiateStkPush, normalizeKenyanPhone, queryStkPushStatus, USD_TO_KES_RATE } from '@/lib/payments/mpesa'
+import { initiateStkPush, normalizeKenyanPhone, queryStkPushStatus } from '@/lib/payments/mpesa'
+import { USD_TO_KES_RATE } from '@/lib/currencies'
 import { applyMpesaPaymentOutcome } from '@/lib/payments/resolve'
 
 async function requireOwnerMembership(): Promise<{ error: string } | { userId: string; studioId: string }> {

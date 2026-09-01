@@ -16,7 +16,8 @@ import { Loader2, Mail, Lock, User, Eye, EyeOff, AlertCircle, CheckCircle } from
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
 import { createBrowserClient } from '@/lib/supabase/client'
-import { LogoMark } from '@/components/marketing/home/lib/logo'
+import { AuthShell } from '@/components/auth/AuthShell'
+import { getAuthErrorMessage } from '@/lib/auth/error-messages'
 
 const signupSchema = z.object({
   firstName: z.string().min(1, 'First name is required').max(50),
@@ -93,8 +94,9 @@ function SignupPageContent() {
       })
 
       if (authError) {
-        setError(authError.message)
-        toast.error(authError.message)
+        const safeMessage = getAuthErrorMessage(authError.message)
+        setError(safeMessage)
+        toast.error(safeMessage)
         return
       }
 
@@ -128,17 +130,8 @@ function SignupPageContent() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-muted/30 px-4 py-12">
-      <div className="w-full max-w-md">
-        {/* Logo */}
-        <div className="flex justify-center mb-8">
-          <Link href="/" className="flex items-center gap-2" aria-label="LensFlow Home">
-            <LogoMark className="h-10 w-10 text-primary" />
-            <span className="font-display italic text-2xl text-foreground">LensFlow</span>
-          </Link>
-        </div>
-
-        <Card>
+    <AuthShell>
+      <Card>
           <CardHeader className="text-center">
             <CardTitle className="text-display-sm">Create your account</CardTitle>
             <CardDescription>
@@ -346,9 +339,8 @@ function SignupPageContent() {
               </Link>
             </p>
           </CardFooter>
-        </Card>
-      </div>
-    </div>
+      </Card>
+    </AuthShell>
   )
 }
 

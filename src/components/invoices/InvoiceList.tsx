@@ -17,14 +17,10 @@ import {
   CardContent,
   CardHeader,
 } from '@/components/ui/card'
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-  DialogFooter,
-} from '@/components/ui/dialog'
+import { PageHeader } from '@/components/layout/PageHeader'
+import { EmptyState } from '@/components/layout/EmptyState'
+import { ConfirmDialog } from '@/components/layout/ConfirmDialog'
+import { StatusBadge } from '@/components/layout/StatusBadge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
@@ -68,7 +64,6 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { Badge } from '@/components/ui/badge'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 
 interface Invoice {
@@ -99,129 +94,15 @@ interface Invoice {
   updatedAt: string
 }
 
-const mockInvoices: Invoice[] = [
-  {
-    id: '1',
-    invoiceNumber: 'INV-001',
-    clientId: '1',
-    clientName: 'Sarah Chen',
-    clientEmail: 'sarah.chen@email.com',
-    status: 'paid',
-    issueDate: '2024-01-15',
-    dueDate: '2024-02-14',
-    paidDate: '2024-01-20',
-    items: [
-      { description: 'Wedding Photography - 8hr coverage', quantity: 1, unitPrice: 3500, total: 3500 },
-      { description: 'Highlight Video (3-5 min)', quantity: 1, unitPrice: 500, total: 500 },
-      { description: 'Premium Album (10x10, 30 pages)', quantity: 1, unitPrice: 500, total: 500 },
-    ],
-    subtotal: 4500,
-    tax: 0,
-    discount: 0,
-    total: 4500,
-    amountPaid: 4500,
-    balanceDue: 0,
-    paymentMethod: 'Credit Card',
-    notes: 'Thank you for your business!',
-    createdAt: '2024-01-15T10:00:00Z',
-    updatedAt: '2024-01-20T14:30:00Z',
-  },
-  {
-    id: '2',
-    invoiceNumber: 'INV-002',
-    clientId: '2',
-    clientName: 'Marcus Johnson',
-    clientEmail: 'marcus.j@email.com',
-    status: 'sent',
-    issueDate: '2024-01-10',
-    dueDate: '2024-02-09',
-    items: [
-      { description: 'Family Portrait Session - 2hr', quantity: 1, unitPrice: 600, total: 600 },
-      { description: '8x10 Premium Album', quantity: 1, unitPrice: 200, total: 200 },
-    ],
-    subtotal: 800,
-    tax: 0,
-    discount: 0,
-    total: 800,
-    amountPaid: 200,
-    balanceDue: 600,
-    notes: 'Deposit paid at booking. Balance due before delivery.',
-    createdAt: '2024-01-10T15:00:00Z',
-    updatedAt: '2024-01-10T15:00:00Z',
-  },
-  {
-    id: '3',
-    invoiceNumber: 'INV-003',
-    clientId: '3',
-    clientName: 'Emily Rodriguez',
-    clientEmail: 'emily.r@email.com',
-    status: 'overdue',
-    issueDate: '2023-12-20',
-    dueDate: '2024-01-19',
-    items: [
-      { description: 'Engagement Session - 2hr', quantity: 1, unitPrice: 500, total: 500 },
-      { description: 'Digital Gallery (1 year hosting)', quantity: 1, unitPrice: 100, total: 100 },
-    ],
-    subtotal: 600,
-    tax: 0,
-    discount: 0,
-    total: 600,
-    amountPaid: 0,
-    balanceDue: 600,
-    notes: 'Payment overdue. Please follow up.',
-    createdAt: '2023-12-20T11:00:00Z',
-    updatedAt: '2024-01-20T09:00:00Z',
-  },
-  {
-    id: '4',
-    invoiceNumber: 'INV-004',
-    clientId: '4',
-    clientName: 'David Park',
-    clientEmail: 'david.park@email.com',
-    status: 'paid',
-    issueDate: '2024-01-05',
-    dueDate: '2024-02-04',
-    paidDate: '2024-01-08',
-    items: [
-      { description: 'Corporate Headshots - 15 employees', quantity: 1, unitPrice: 1200, total: 1200 },
-    ],
-    subtotal: 1200,
-    tax: 0,
-    discount: 0,
-    total: 1200,
-    amountPaid: 1200,
-    balanceDue: 0,
-    paymentMethod: 'Bank Transfer',
-    notes: 'Net 30 terms.',
-    createdAt: '2024-01-05T10:00:00Z',
-    updatedAt: '2024-01-08T13:00:00Z',
-  },
-]
-
-function getStatusBadge(status: Invoice['status']) {
-  const statusConfig = {
-    draft: { label: 'Draft', variant: 'secondary' as const },
-    sent: { label: 'Sent', variant: 'info' as const },
-    viewed: { label: 'Viewed', variant: 'outline' as const },
-    paid: { label: 'Paid', variant: 'success' as const },
-    partial: { label: 'Partial', variant: 'warning' as const },
-    overdue: { label: 'Overdue', variant: 'destructive' as const },
-    cancelled: { label: 'Cancelled', variant: 'secondary' as const },
-    refunded: { label: 'Refunded', variant: 'outline' as const },
-  }
-  const config = statusConfig[status]
-  return <Badge variant={config.variant}>{config.label}</Badge>
-}
-
 interface InvoiceListProps {
   studioSlug: string
-  initialInvoices?: Invoice[]
+  initialInvoices: Invoice[]
   isLoading?: boolean
   currency?: string
 }
 
 export function InvoiceList({ studioSlug, initialInvoices, isLoading = false, currency = 'USD' }: InvoiceListProps) {
-  const [invoices, setInvoices] = React.useState<Invoice[]>(initialInvoices ?? mockInvoices)
+  const [invoices, setInvoices] = React.useState<Invoice[]>(initialInvoices)
   const [searchQuery, setSearchQuery] = React.useState('')
   const [statusFilter, setStatusFilter] = React.useState<string>('all')
   const [sortBy] = React.useState<string>('issueDate')
@@ -269,11 +150,11 @@ export function InvoiceList({ studioSlug, initialInvoices, isLoading = false, cu
     const result = await deleteInvoice(id, studioSlug)
     if (result?.error) {
       toast.error(result.error)
-    } else {
-      setInvoices(prev => prev.filter(i => i.id !== id))
-      setSelectedInvoices(prev => prev.filter(g => g !== id))
-      toast.success('Invoice deleted')
+      throw new Error(result.error)
     }
+    setInvoices(prev => prev.filter(i => i.id !== id))
+    setSelectedInvoices(prev => prev.filter(g => g !== id))
+    toast.success('Invoice deleted')
     setDeleteConfirm(null)
   }
 
@@ -281,12 +162,11 @@ export function InvoiceList({ studioSlug, initialInvoices, isLoading = false, cu
     const result = await bulkDeleteInvoices(selectedInvoices, studioSlug)
     if (result?.error) {
       toast.error(result.error)
-    } else {
-      setInvoices(prev => prev.filter(i => !selectedInvoices.includes(i.id)))
-      toast.success('Invoices deleted')
+      throw new Error(result.error)
     }
+    setInvoices(prev => prev.filter(i => !selectedInvoices.includes(i.id)))
+    toast.success('Invoices deleted')
     setSelectedInvoices([])
-    setBulkDeleteConfirm(false)
   }
 
   const changeStatus = async (id: string, status: InvoiceStatus) => {
@@ -415,19 +295,19 @@ export function InvoiceList({ studioSlug, initialInvoices, isLoading = false, cu
         </div>
       </div>
 
-      {/* Page Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-display-md font-display font-semibold text-foreground">Invoices</h1>
-          <p className="text-body text-muted-foreground mt-1">Track payments, send reminders, manage billing</p>
-        </div>
-        <Link href={`/dashboard/${studioSlug}/invoices/new`}>
-          <Button>
-            <Plus className="h-4 w-4 mr-2" />
-            New Invoice
-          </Button>
-        </Link>
-      </div>
+      <PageHeader
+        title="Invoices"
+        description="Track payments, send reminders, manage billing"
+        breadcrumbs={[{ label: 'Invoices' }]}
+        actions={
+          <Link href={`/dashboard/${studioSlug}/invoices/new`}>
+            <Button>
+              <Plus className="h-4 w-4 mr-2" />
+              New Invoice
+            </Button>
+          </Link>
+        }
+      />
 
       {/* View Toggle & Filters */}
       <Card>
@@ -482,7 +362,12 @@ export function InvoiceList({ studioSlug, initialInvoices, isLoading = false, cu
                   <SelectItem value="refunded">Refunded</SelectItem>
                 </SelectContent>
               </Select>
-              <Button variant="outline" size="icon" onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}>
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}
+                aria-label={sortOrder === 'asc' ? 'Sort oldest first (currently newest first)' : 'Sort newest first (currently oldest first)'}
+              >
                 {sortOrder === 'asc' ? <ArrowUpDown className="h-4 w-4" /> : <ArrowUpDown className="h-4 w-4 rotate-180" />}
               </Button>
             </div>
@@ -545,9 +430,12 @@ export function InvoiceList({ studioSlug, initialInvoices, isLoading = false, cu
               <TableBody>
                 {filteredInvoices.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={8} className="text-center py-12">
-                      <FileText className="h-12 w-12 mx-auto text-muted-foreground/50 mb-3" />
-                      <p className="text-muted-foreground">No invoices found</p>
+                    <TableCell colSpan={8} className="p-0">
+                      <EmptyState
+                        icon={FileText}
+                        title={invoices.length === 0 ? 'No invoices yet' : 'No invoices found'}
+                        description={invoices.length === 0 ? 'Create your first invoice to start billing clients.' : 'Try a different search or filter.'}
+                      />
                     </TableCell>
                   </TableRow>
                 ) : (
@@ -600,7 +488,7 @@ export function InvoiceList({ studioSlug, initialInvoices, isLoading = false, cu
                         </div>
                       </TableCell>
                       <TableCell className="hidden md:table-cell">
-                        {getStatusBadge(invoice.status)}
+                        <StatusBadge status={invoice.status} />
                       </TableCell>
                       <TableCell className="text-right hidden lg:table-cell font-mono tabular-nums">
                         {formatCurrency(invoice.total, currency)}
@@ -615,7 +503,7 @@ export function InvoiceList({ studioSlug, initialInvoices, isLoading = false, cu
                       <TableCell>
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon" className="h-8 w-8">
+                            <Button variant="ghost" size="icon" className="h-8 w-8" aria-label={`More actions for ${invoice.invoiceNumber}`}>
                               <MoreVertical className="h-4 w-4" />
                             </Button>
                           </DropdownMenuTrigger>
@@ -681,9 +569,12 @@ export function InvoiceList({ studioSlug, initialInvoices, isLoading = false, cu
         // Grid View
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {filteredInvoices.length === 0 ? (
-            <div className="col-span-full text-center py-12">
-              <FileText className="h-12 w-12 mx-auto text-muted-foreground/50 mb-3" />
-              <p className="text-muted-foreground">No invoices found</p>
+            <div className="col-span-full">
+              <EmptyState
+                icon={FileText}
+                title={invoices.length === 0 ? 'No invoices yet' : 'No invoices found'}
+                description={invoices.length === 0 ? 'Create your first invoice to start billing clients.' : 'Try a different search or filter.'}
+              />
             </div>
           ) : (
             filteredInvoices.map((invoice) => (
@@ -705,7 +596,7 @@ export function InvoiceList({ studioSlug, initialInvoices, isLoading = false, cu
                     </div>
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon" className="h-8 w-8">
+                        <Button variant="ghost" size="icon" className="h-8 w-8" aria-label={`More actions for ${invoice.invoiceNumber}`}>
                           <MoreVertical className="h-4 w-4" />
                         </Button>
                       </DropdownMenuTrigger>
@@ -714,6 +605,12 @@ export function InvoiceList({ studioSlug, initialInvoices, isLoading = false, cu
                           <Link href={`/dashboard/${studioSlug}/invoices/${invoice.id}`}>
                             <Eye className="mr-2 h-4 w-4" />
                             View Details
+                          </Link>
+                        </DropdownMenuItem>
+                        <DropdownMenuItem asChild>
+                          <Link href={`/dashboard/${studioSlug}/invoices/${invoice.id}/edit`}>
+                            <Edit className="mr-2 h-4 w-4" />
+                            Edit
                           </Link>
                         </DropdownMenuItem>
                         <DropdownMenuItem
@@ -729,7 +626,7 @@ export function InvoiceList({ studioSlug, initialInvoices, isLoading = false, cu
                 </CardHeader>
                 <CardContent className="space-y-3 pb-4">
                   <div className="flex items-center justify-between">
-                    {getStatusBadge(invoice.status)}
+                    <StatusBadge status={invoice.status} />
                     <span className="text-sm text-muted-foreground">
                       Due: {format(new Date(invoice.dueDate), 'MMM d, yyyy')}
                     </span>
@@ -762,48 +659,35 @@ export function InvoiceList({ studioSlug, initialInvoices, isLoading = false, cu
         </div>
       )}
 
-      {/* Pagination */}
-      <div className="flex items-center justify-between">
-        <p className="text-sm text-muted-foreground">
-          Showing {filteredInvoices.length} of {invoices.length} invoices
-        </p>
-        <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" disabled>Previous</Button>
-          <Button variant="outline" size="sm" disabled>Next</Button>
-        </div>
-      </div>
+      {/* getInvoices() fetches every invoice for the studio unconditionally
+          (no offset/limit) -- this count is accurate as-is. Previous/Next
+          controls were removed rather than kept as decoration: there is no
+          pagination to control, and always-disabled buttons that never do
+          anything are exactly the dead-control pattern this step's audit
+          was asked to find and remove. */}
+      <p className="text-sm text-muted-foreground">
+        Showing {filteredInvoices.length} of {invoices.length} invoices
+      </p>
 
-      {/* Delete confirmation */}
-      <Dialog open={!!deleteConfirm} onOpenChange={(open) => !open && setDeleteConfirm(null)}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>Delete invoice</DialogTitle>
-            <DialogDescription>
-              Are you sure you want to delete this invoice? This action cannot be undone.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setDeleteConfirm(null)}>Cancel</Button>
-            <Button variant="destructive" onClick={() => deleteConfirm && confirmDelete(deleteConfirm)}>Delete</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <ConfirmDialog
+        open={!!deleteConfirm}
+        onOpenChange={(open) => !open && setDeleteConfirm(null)}
+        title="Delete invoice"
+        description="Are you sure you want to delete this invoice? This action cannot be undone."
+        confirmLabel="Delete"
+        destructive
+        onConfirm={async () => { if (deleteConfirm) await confirmDelete(deleteConfirm) }}
+      />
 
-      {/* Bulk delete confirmation */}
-      <Dialog open={bulkDeleteConfirm} onOpenChange={setBulkDeleteConfirm}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>Delete {selectedInvoices.length} invoice{selectedInvoices.length !== 1 ? 's' : ''}</DialogTitle>
-            <DialogDescription>
-              This action cannot be undone.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setBulkDeleteConfirm(false)}>Cancel</Button>
-            <Button variant="destructive" onClick={confirmBulkDelete}>Delete</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <ConfirmDialog
+        open={bulkDeleteConfirm}
+        onOpenChange={setBulkDeleteConfirm}
+        title={`Delete ${selectedInvoices.length} invoice${selectedInvoices.length !== 1 ? 's' : ''}`}
+        description="This action cannot be undone."
+        confirmLabel="Delete"
+        destructive
+        onConfirm={confirmBulkDelete}
+      />
     </div>
   )
 }

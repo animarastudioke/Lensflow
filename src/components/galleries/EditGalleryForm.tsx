@@ -52,8 +52,6 @@ export function EditGalleryForm({ studioSlug, clients, initialValues }: EditGall
   const [passwordProtected, setPasswordProtected] = React.useState(initialValues.passwordProtected)
   const [allowDownload, setAllowDownload] = React.useState(initialValues.allowDownload)
   const [allowFavorites, setAllowFavorites] = React.useState(initialValues.allowFavorites)
-  const [allowComments, setAllowComments] = React.useState(initialValues.allowComments)
-  const [watermarkEnabled, setWatermarkEnabled] = React.useState(initialValues.watermarkEnabled)
 
   const onSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
@@ -73,8 +71,11 @@ export function EditGalleryForm({ studioSlug, clients, initialValues }: EditGall
     formData.set('password_protected', String(passwordProtected))
     formData.set('allow_download', String(allowDownload))
     formData.set('allow_favorites', String(allowFavorites))
-    formData.set('allow_comments', String(allowComments))
-    formData.set('watermark_enabled', String(watermarkEnabled))
+    // Not user-editable here (see the "Access & privacy" card below) --
+    // resubmitted unchanged so saving this form never silently resets
+    // whatever these were previously set to.
+    formData.set('allow_comments', String(initialValues.allowComments))
+    formData.set('watermark_enabled', String(initialValues.watermarkEnabled))
 
     try {
       await updateGallery(formData)
@@ -202,14 +203,6 @@ export function EditGalleryForm({ studioSlug, clients, initialValues }: EditGall
             <label className="flex items-center gap-3 text-sm">
               <input type="checkbox" checked={allowFavorites} onChange={(e) => setAllowFavorites(e.target.checked)} className="h-4 w-4 rounded border-input text-primary focus:ring-2 focus:ring-primary" />
               Allow clients to favorite photos
-            </label>
-            <label className="flex items-center gap-3 text-sm">
-              <input type="checkbox" checked={allowComments} onChange={(e) => setAllowComments(e.target.checked)} className="h-4 w-4 rounded border-input text-primary focus:ring-2 focus:ring-primary" />
-              Allow clients to comment on photos
-            </label>
-            <label className="flex items-center gap-3 text-sm">
-              <input type="checkbox" checked={watermarkEnabled} onChange={(e) => setWatermarkEnabled(e.target.checked)} className="h-4 w-4 rounded border-input text-primary focus:ring-2 focus:ring-primary" />
-              Watermark photos
             </label>
           </CardContent>
         </Card>

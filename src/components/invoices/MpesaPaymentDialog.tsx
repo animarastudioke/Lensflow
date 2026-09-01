@@ -16,6 +16,7 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog'
 import { initiateMpesaInvoicePayment, pollMpesaPaymentStatus } from '@/lib/actions/mpesa-payments'
+import { formatCurrency } from '@/lib/currencies'
 
 type FlowState = 'form' | 'sending' | 'pending' | 'completed' | 'failed'
 
@@ -145,7 +146,7 @@ export function MpesaPaymentDialog({
                 disabled={state === 'sending'}
                 required
               />
-              <p className="text-xs text-muted-foreground">Balance due: KES {balanceDue.toLocaleString()}</p>
+              <p className="text-xs text-muted-foreground">Balance due: {formatCurrency(balanceDue, 'KES')}</p>
             </div>
             {error && <p className="text-sm text-destructive">{error}</p>}
             <DialogFooter>

@@ -2,7 +2,11 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
+import { redirect } from 'next/navigation'
+import { z } from 'zod'
 import { requireStudioPermission } from '@/lib/auth/server'
+import { clientBelongsToStudio } from '@/lib/actions/clients'
+import { bookingBelongsToStudio } from '@/lib/actions/bookings'
 
 export type ProjectStatus = 'planning' | 'scheduled' | 'in_progress' | 'editing' | 'review' | 'delivered' | 'archived'
 
@@ -25,6 +29,7 @@ export interface ProjectRow {
 
 export async function getProjects(studioSlug: string, options?: {
   status?: ProjectStatus
+  clientId?: string
 }): Promise<{ projects: ProjectRow[]; total: number }> {
   const supabase = await createClient()
 
@@ -43,6 +48,9 @@ export async function getProjects(studioSlug: string, options?: {
 
   if (options?.status) {
     query = query.eq('status', options.status)
+  }
+  if (options?.clientId) {
+    query = query.eq('client_id', options.clientId)
   }
 
   query = query.order('created_at', { ascending: false })
@@ -108,6 +116,156 @@ export async function getProjectFinancials(studioSlug: string): Promise<Record<s
   return result
 }
 
+
+export async function getProject(projectId: string, studioSlug: string): Promise<ProjectRow | null> {
+  const supabase = await createClient()
+
+  const { data: studio } = await supabase
+    .from('studios')
+    .select('id')
+    .eq('slug', studioSlug)
+    .single()
+
+  if (!studio) return null
+
+  const { data: project } = await supabase
+    .from('projects')
+    .select('*, client:clients(name, email)')
+    .eq('id', projectId)
+    .eq('studio_id', studio.id)
+    .single()
+
+  return (project as unknown as ProjectRow) ?? null
+}
+
+/** Guards expenses.project_id/tasks.project_id the same way clientBelongsToStudio guards client_id -- see that function's doc comment. */
+export async function projectBelongsToStudio(projectId: string, studioId: string): Promise<boolean> {
+  const supabase = await createClient()
+  const { data } = await supabase
+    .from('projects')
+    .select('id')
+    .eq('id', projectId)
+    .eq('studio_id', studioId)
+    .single()
+
+  return !!data
+}
+
+const projectSchema = z.object({
+  name: z.string().min(1, 'Project name is required').max(150),
+  client_id: z.string().uuid().optional(),
+  booking_id: z.string().uuid().optional(),
+  type: z.enum(['wedding', 'portrait', 'engagement', 'family', 'corporate', 'event', 'commercial', 'other']),
+  status: z.enum(['planning', 'scheduled', 'in_progress', 'editing', 'review', 'delivered', 'archived']).default('planning'),
+  location: z.string().max(200).optional(),
+  start_date: z.string().optional(),
+  end_date: z.string().optional(),
+  description: z.string().max(2000).optional(),
+})
+
+function parseProjectFormData(formData: FormData) {
+  return projectSchema.parse({
+    name: formData.get('name'),
+    client_id: formData.get('client_id') || undefined,
+    booking_id: formData.get('booking_id') || undefined,
+    type: formData.get('type'),
+    status: formData.get('status') || 'planning',
+    location: formData.get('location') || undefined,
+    start_date: formData.get('start_date') || undefined,
+    end_date: formData.get('end_date') || undefined,
+    description: formData.get('description') || undefined,
+  })
+}
+
+/**
+ * Guards client_id/booking_id -- see clientBelongsToStudio's doc comment
+ * for why this matters (a caller could otherwise reference another
+ * studio's client or booking; that reference is what Client Detail's
+ * "Related work" relies on being trustworthy).
+ */
+async function verifyProjectReferences(
+  validated: { client_id?: string; booking_id?: string },
+  studioId: string
+): Promise<void> {
+  if (validated.client_id && !(await clientBelongsToStudio(validated.client_id, studioId))) {
+    throw new Error('Invalid client')
+  }
+  if (validated.booking_id && !(await bookingBelongsToStudio(validated.booking_id, studioId))) {
+    throw new Error('Invalid booking')
+  }
+}
+
+export async function createProject(formData: FormData) {
+  const membership = await requireStudioPermission('projects:create')
+  if ('error' in membership) throw new Error(membership.error)
+
+  const supabase = await createClient()
+  const studioSlug = formData.get('studio_slug') as string
+  const validated = parseProjectFormData(formData)
+  await verifyProjectReferences(validated, membership.studioId)
+
+  const { data: inserted, error } = await supabase
+    .from('projects')
+    .insert({
+      studio_id: membership.studioId,
+      client_id: validated.client_id ?? null,
+      booking_id: validated.booking_id ?? null,
+      name: validated.name,
+      type: validated.type,
+      status: validated.status,
+      location: validated.location ?? null,
+      start_date: validated.start_date ?? null,
+      end_date: validated.end_date ?? null,
+      description: validated.description ?? null,
+    })
+    .select('id')
+    .single()
+
+  if (error || !inserted) {
+    console.error('Create project error:', error)
+    throw new Error('Failed to create project')
+  }
+
+  revalidatePath(`/dashboard/${studioSlug}/projects`)
+  redirect(`/dashboard/${studioSlug}/projects/${inserted.id}`)
+}
+
+export async function updateProject(formData: FormData) {
+  const membership = await requireStudioPermission('projects:update')
+  if ('error' in membership) throw new Error(membership.error)
+
+  const supabase = await createClient()
+  const id = formData.get('id') as string
+  const studioSlug = formData.get('studio_slug') as string
+  const validated = parseProjectFormData(formData)
+  await verifyProjectReferences(validated, membership.studioId)
+
+  const { error } = await supabase
+    .from('projects')
+    .update({
+      client_id: validated.client_id ?? null,
+      booking_id: validated.booking_id ?? null,
+      name: validated.name,
+      type: validated.type,
+      status: validated.status,
+      location: validated.location ?? null,
+      start_date: validated.start_date ?? null,
+      end_date: validated.end_date ?? null,
+      description: validated.description ?? null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', id)
+    .eq('studio_id', membership.studioId)
+
+  if (error) {
+    console.error('Update project error:', error)
+    throw new Error('Failed to update project')
+  }
+
+  revalidatePath(`/dashboard/${studioSlug}/projects`)
+  revalidatePath(`/dashboard/${studioSlug}/projects/${id}`)
+  redirect(`/dashboard/${studioSlug}/projects/${id}`)
+}
 
 export async function deleteProject(projectId: string, studioSlug: string): Promise<{ error: string } | undefined> {
   const membership = await requireStudioPermission('projects:delete')

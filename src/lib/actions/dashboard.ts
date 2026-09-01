@@ -60,3 +60,57 @@ export async function getDashboardStats(studioSlug: string): Promise<DashboardSt
     monthlyRevenue,
   }
 }
+
+export interface OverdueInvoiceSummary {
+  id: string
+  invoiceNumber: string
+  clientName: string | null
+  balanceDue: number
+  dueDate: string | null
+}
+
+/**
+ * Powers the dashboard's "needs attention" section. 'overdue' is a real,
+ * stored invoices.status value (not computed client-side) -- the same
+ * status the Invoices list itself already filters/counts on -- so this
+ * is a direct, tenant-scoped read of existing data, not a new business
+ * rule for what counts as overdue.
+ */
+export async function getOverdueInvoices(
+  studioSlug: string,
+  limit = 5
+): Promise<{ invoices: OverdueInvoiceSummary[]; totalCount: number }> {
+  const supabase = await createClient()
+
+  const { data: studio } = await supabase
+    .from('studios')
+    .select('id')
+    .eq('slug', studioSlug)
+    .single()
+
+  if (!studio) return { invoices: [], totalCount: 0 }
+
+  const { data, count } = await supabase
+    .from('invoices')
+    .select('id, invoice_number, total, amount_paid, due_date, client:clients(name)', { count: 'exact' })
+    .eq('studio_id', studio.id)
+    .eq('status', 'overdue')
+    .order('due_date', { ascending: true })
+    .limit(limit)
+
+  if (!data) return { invoices: [], totalCount: 0 }
+
+  const invoices = data.map((invoice) => {
+    const clientRaw = invoice.client as unknown as { name: string } | { name: string }[] | null
+    const client = Array.isArray(clientRaw) ? clientRaw[0] : clientRaw
+    return {
+      id: invoice.id,
+      invoiceNumber: invoice.invoice_number,
+      clientName: client?.name ?? null,
+      balanceDue: invoice.total - invoice.amount_paid,
+      dueDate: invoice.due_date,
+    }
+  })
+
+  return { invoices, totalCount: count ?? invoices.length }
+}

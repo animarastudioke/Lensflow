@@ -110,7 +110,12 @@ const cases: Case[] = [
   { label: 'studios.uploadStudioLogo', permission: 'settings:update', style: 'return', invoke: () => studiosActions.uploadStudioLogo('studio-slug', new FormData()) },
 
   { label: 'bookings.createBooking', permission: 'bookings:create', style: 'throw', invoke: () => bookingsActions.createBooking(new FormData()) },
+  { label: 'bookings.updateBooking', permission: 'bookings:update', style: 'throw', invoke: () => bookingsActions.updateBooking(new FormData()) },
+  { label: 'bookings.deleteBooking', permission: 'bookings:delete', style: 'return', invoke: () => bookingsActions.deleteBooking('booking-1', 'studio-slug') },
+  { label: 'bookings.updateBookingStatus', permission: 'bookings:update', style: 'return', invoke: () => bookingsActions.updateBookingStatus('booking-1', 'studio-slug', 'confirmed') },
 
+  { label: 'projects.createProject', permission: 'projects:create', style: 'throw', invoke: () => projectsActions.createProject(new FormData()) },
+  { label: 'projects.updateProject', permission: 'projects:update', style: 'throw', invoke: () => projectsActions.updateProject(new FormData()) },
   { label: 'projects.deleteProject', permission: 'projects:delete', style: 'return', invoke: () => projectsActions.deleteProject('project-1', 'studio-slug') },
   { label: 'projects.archiveProjects', permission: 'projects:delete', style: 'return', invoke: () => projectsActions.archiveProjects(['project-1'], 'studio-slug') },
 

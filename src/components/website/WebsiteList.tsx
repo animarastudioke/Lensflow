@@ -8,15 +8,8 @@ import {
   CardContent,
   CardHeader,
 } from '@/components/ui/card'
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-  DialogFooter,
-} from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import {
   Select,
@@ -58,8 +51,11 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { Badge } from '@/components/ui/badge'
-import type { WebsiteRow, WebsiteStatus } from '@/lib/actions/websites'
+import { PageHeader } from '@/components/layout/PageHeader'
+import { EmptyState } from '@/components/layout/EmptyState'
+import { ConfirmDialog } from '@/components/layout/ConfirmDialog'
+import { StatusBadge } from '@/components/layout/StatusBadge'
+import type { WebsiteRow } from '@/lib/actions/websites'
 import {
   bulkDeleteWebsites,
   bulkSetWebsiteStatus,
@@ -68,14 +64,22 @@ import {
   setWebsiteStatus,
 } from '@/lib/actions/websites'
 
-function getStatusBadge(status: WebsiteStatus) {
-  const statusConfig = {
-    published: { label: 'Published', variant: 'success' as const },
-    draft: { label: 'Draft', variant: 'secondary' as const },
-    archived: { label: 'Archived', variant: 'secondary' as const },
-  }
-  const config = statusConfig[status]
-  return <Badge variant={config.variant}>{config.label}</Badge>
+function homePagePath(website: WebsiteRow): string | undefined {
+  const pages = website.pages ?? []
+  return pages.find((p) => p.path === '/')?.path ?? pages[0]?.path
+}
+
+function previewHref(studioSlug: string, website: WebsiteRow): string | null {
+  const path = homePagePath(website)
+  if (path === undefined) return null
+  const segments = path.split('/').filter(Boolean)
+  const base = `/dashboard/${studioSlug}/website/${website.id}/preview`
+  return segments.length === 0 ? base : `${base}/${segments.join('/')}`
+}
+
+function publicHref(website: WebsiteRow): string | null {
+  if (website.status !== 'published' || website.password_protected) return null
+  return `/portfolio/${website.subdomain}`
 }
 
 interface WebsiteListProps {
@@ -127,11 +131,11 @@ export function WebsiteList({ studioSlug, initialWebsites }: WebsiteListProps) {
     const result = await deleteWebsite(id, studioSlug)
     if (result?.error) {
       toast.error(result.error)
-    } else {
-      setWebsites(prev => prev.filter(w => w.id !== id))
-      setSelectedWebsites(prev => prev.filter(g => g !== id))
-      toast.success('Website deleted')
+      throw new Error(result.error)
     }
+    setWebsites(prev => prev.filter(w => w.id !== id))
+    setSelectedWebsites(prev => prev.filter(g => g !== id))
+    toast.success('Website deleted')
     setDeleteConfirm(null)
   }
 
@@ -139,12 +143,11 @@ export function WebsiteList({ studioSlug, initialWebsites }: WebsiteListProps) {
     const result = await bulkDeleteWebsites(selectedWebsites, studioSlug)
     if (result?.error) {
       toast.error(result.error)
-    } else {
-      setWebsites(prev => prev.filter(w => !selectedWebsites.includes(w.id)))
-      toast.success('Websites deleted')
+      throw new Error(result.error)
     }
+    setWebsites(prev => prev.filter(w => !selectedWebsites.includes(w.id)))
+    toast.success('Websites deleted')
     setSelectedWebsites([])
-    setBulkDeleteConfirm(false)
   }
 
   const handlePublish = async (id: string) => {
@@ -257,19 +260,19 @@ export function WebsiteList({ studioSlug, initialWebsites }: WebsiteListProps) {
         </div>
       </div>
 
-      {/* Page Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-display-md font-display font-semibold text-foreground">Website Builder</h1>
-          <p className="text-body text-muted-foreground mt-1">Create and manage your portfolio websites</p>
-        </div>
-        <Link href={`/dashboard/${studioSlug}/website/new`}>
-          <Button>
-            <Plus className="h-4 w-4 mr-2" />
-            New Website
-          </Button>
-        </Link>
-      </div>
+      <PageHeader
+        title="Website Builder"
+        description="Create and manage your portfolio websites"
+        breadcrumbs={[{ label: 'Websites' }]}
+        actions={
+          <Link href={`/dashboard/${studioSlug}/website/new`}>
+            <Button>
+              <Plus className="h-4 w-4 mr-2" />
+              New Website
+            </Button>
+          </Link>
+        }
+      />
 
       {/* View Toggle & Filters */}
       <Card>
@@ -315,7 +318,12 @@ export function WebsiteList({ studioSlug, initialWebsites }: WebsiteListProps) {
                   <SelectItem value="archived">Archived</SelectItem>
                 </SelectContent>
               </Select>
-              <Button variant="outline" size="icon" onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}>
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}
+                aria-label={sortOrder === 'asc' ? 'Sort oldest first (currently newest first)' : 'Sort newest first (currently oldest first)'}
+              >
                 {sortOrder === 'asc' ? <ArrowUpDown className="h-4 w-4" /> : <ArrowUpDown className="h-4 w-4 rotate-180" />}
               </Button>
             </div>
@@ -379,9 +387,12 @@ export function WebsiteList({ studioSlug, initialWebsites }: WebsiteListProps) {
               <TableBody>
                 {filteredWebsites.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={9} className="text-center py-12">
-                      <Globe className="h-12 w-12 mx-auto text-muted-foreground/50 mb-3" />
-                      <p className="text-muted-foreground">No websites found</p>
+                    <TableCell colSpan={9} className="p-0">
+                      <EmptyState
+                        icon={Globe}
+                        title={websites.length === 0 ? 'No websites yet' : 'No websites found'}
+                        description={websites.length === 0 ? 'Create your first portfolio website to get started.' : 'Try a different search or filter.'}
+                      />
                     </TableCell>
                   </TableRow>
                 ) : (
@@ -420,7 +431,7 @@ export function WebsiteList({ studioSlug, initialWebsites }: WebsiteListProps) {
                         <Badge variant="outline" className="text-xs">{website.template_name}</Badge>
                       </TableCell>
                       <TableCell className="hidden md:table-cell">
-                        {getStatusBadge(website.status)}
+                        <StatusBadge status={website.status} />
                       </TableCell>
                       <TableCell className="hidden lg:table-cell text-sm text-muted-foreground">
                         {pages.filter(p => p.is_published).length}/{pages.length} published
@@ -435,7 +446,7 @@ export function WebsiteList({ studioSlug, initialWebsites }: WebsiteListProps) {
                         <div className="flex items-center gap-1">
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
-                              <Button variant="ghost" size="icon" className="h-8 w-8">
+                              <Button variant="ghost" size="icon" className="h-8 w-8" aria-label={`Actions for ${website.name}`}>
                                 <MoreVertical className="h-4 w-4" />
                               </Button>
                             </DropdownMenuTrigger>
@@ -480,20 +491,43 @@ export function WebsiteList({ studioSlug, initialWebsites }: WebsiteListProps) {
                               </DropdownMenuItem>
                             </DropdownMenuContent>
                           </DropdownMenu>
-                          <Button variant="ghost" size="icon" className="h-8 w-8" asChild>
+                          <Button variant="ghost" size="icon" className="h-8 w-8" asChild title="Edit in editor">
                             <Link href={`/dashboard/${studioSlug}/website/${website.id}/editor`}>
                               <Layout className="h-4 w-4" />
                             </Link>
                           </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8"
-                            disabled={website.status !== 'published'}
-                            title={website.status === 'published' ? 'Custom domain hosting is not set up yet' : 'Publish this site first'}
-                          >
-                            <ExternalLink className="h-4 w-4" />
-                          </Button>
+                          {previewHref(studioSlug, website) ? (
+                            <Button variant="ghost" size="icon" className="h-8 w-8" asChild title="Preview">
+                              <Link href={previewHref(studioSlug, website)!} target="_blank" rel="noopener noreferrer">
+                                <Eye className="h-4 w-4" />
+                              </Link>
+                            </Button>
+                          ) : (
+                            <Button variant="ghost" size="icon" className="h-8 w-8" disabled title="Add a page to preview this site">
+                              <Eye className="h-4 w-4" />
+                            </Button>
+                          )}
+                          {publicHref(website) ? (
+                            <Button variant="ghost" size="icon" className="h-8 w-8" asChild title="View live site">
+                              <Link href={publicHref(website)!} target="_blank" rel="noopener noreferrer">
+                                <ExternalLink className="h-4 w-4" />
+                              </Link>
+                            </Button>
+                          ) : (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8"
+                              disabled
+                              title={
+                                website.status !== 'published'
+                                  ? 'Publish this site to make it live'
+                                  : 'Password protection is on, so this site is not publicly reachable yet'
+                              }
+                            >
+                              <ExternalLink className="h-4 w-4" />
+                            </Button>
+                          )}
                         </div>
                       </TableCell>
                     </TableRow>
@@ -507,9 +541,12 @@ export function WebsiteList({ studioSlug, initialWebsites }: WebsiteListProps) {
         // Grid View
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {filteredWebsites.length === 0 ? (
-            <div className="col-span-full text-center py-12">
-              <Globe className="h-12 w-12 mx-auto text-muted-foreground/50 mb-3" />
-              <p className="text-muted-foreground">No websites found</p>
+            <div className="col-span-full">
+              <EmptyState
+                icon={Globe}
+                title={websites.length === 0 ? 'No websites yet' : 'No websites found'}
+                description={websites.length === 0 ? 'Create your first portfolio website to get started.' : 'Try a different search or filter.'}
+              />
             </div>
           ) : (
             filteredWebsites.map((website) => {
@@ -529,14 +566,14 @@ export function WebsiteList({ studioSlug, initialWebsites }: WebsiteListProps) {
                       <div className="min-w-0">
                         <h3 className="font-semibold truncate">{website.name}</h3>
                         <div className="flex items-center gap-2 mt-1">
-                          {getStatusBadge(website.status)}
+                          <StatusBadge status={website.status} />
                           <Badge variant="outline" className="text-xs">{website.template_name}</Badge>
                         </div>
                       </div>
                     </div>
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon" className="h-8 w-8">
+                        <Button variant="ghost" size="icon" className="h-8 w-8" aria-label={`Actions for ${website.name}`}>
                           <MoreVertical className="h-4 w-4" />
                         </Button>
                       </DropdownMenuTrigger>
@@ -592,6 +629,14 @@ export function WebsiteList({ studioSlug, initialWebsites }: WebsiteListProps) {
                           Edit
                         </Link>
                       </Button>
+                      {previewHref(studioSlug, website) && (
+                        <Button variant="outline" size="sm" asChild>
+                          <Link href={previewHref(studioSlug, website)!} target="_blank" rel="noopener noreferrer">
+                            <Eye className="h-3.5 w-3.5 mr-1.5" />
+                            Preview
+                          </Link>
+                        </Button>
+                      )}
                       {website.status === 'draft' ? (
                         <Button variant="default" size="sm" onClick={() => handlePublish(website.id)}>
                           <CheckCircle className="h-3.5 w-3.5 mr-1.5" />
@@ -623,37 +668,25 @@ export function WebsiteList({ studioSlug, initialWebsites }: WebsiteListProps) {
         </div>
       </div>
 
-      {/* Delete confirmation */}
-      <Dialog open={!!deleteConfirm} onOpenChange={(open) => !open && setDeleteConfirm(null)}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>Delete website</DialogTitle>
-            <DialogDescription>
-              Are you sure you want to delete this website? This action cannot be undone.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setDeleteConfirm(null)}>Cancel</Button>
-            <Button variant="destructive" onClick={() => deleteConfirm && confirmDelete(deleteConfirm)}>Delete</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <ConfirmDialog
+        open={!!deleteConfirm}
+        onOpenChange={(open) => !open && setDeleteConfirm(null)}
+        title="Delete website"
+        description="Are you sure you want to delete this website? This action cannot be undone."
+        confirmLabel="Delete"
+        destructive
+        onConfirm={async () => { if (deleteConfirm) await confirmDelete(deleteConfirm) }}
+      />
 
-      {/* Bulk delete confirmation */}
-      <Dialog open={bulkDeleteConfirm} onOpenChange={setBulkDeleteConfirm}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>Delete {selectedWebsites.length} website{selectedWebsites.length !== 1 ? 's' : ''}</DialogTitle>
-            <DialogDescription>
-              This action cannot be undone.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setBulkDeleteConfirm(false)}>Cancel</Button>
-            <Button variant="destructive" onClick={confirmBulkDelete}>Delete</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <ConfirmDialog
+        open={bulkDeleteConfirm}
+        onOpenChange={setBulkDeleteConfirm}
+        title={`Delete ${selectedWebsites.length} website${selectedWebsites.length !== 1 ? 's' : ''}`}
+        description="This action cannot be undone."
+        confirmLabel="Delete"
+        destructive
+        onConfirm={confirmBulkDelete}
+      />
     </div>
   )
 }

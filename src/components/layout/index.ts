@@ -1,3 +1,8 @@
 export { Sidebar, MobileSidebarTrigger } from './sidebar'
 export { Header } from './header'
 export { DashboardLayout } from './dashboard-layout'
+export { PageHeader, type PageHeaderProps, type PageHeaderBreadcrumb } from './PageHeader'
+export { EmptyState, type EmptyStateProps, type EmptyStateAction } from './EmptyState'
+export { ConfirmDialog, type ConfirmDialogProps } from './ConfirmDialog'
+export { ViewToggle, type ViewToggleProps, type ViewToggleOption } from './ViewToggle'
+export { StatusBadge, STATUS_VARIANT_MAP, type StatusBadgeProps } from './StatusBadge'

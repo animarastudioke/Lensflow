@@ -5,12 +5,12 @@ import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { CheckCircle, Mail, Clock, Shield, ArrowRight } from 'lucide-react'
+import { AuthShell } from '@/components/auth/AuthShell'
 
 export default function ConfirmedPage() {
   return (
-    <div className="min-h-screen flex items-center justify-center bg-muted/30 px-4 py-12">
-      <div className="w-full max-w-md">
-        <Card>
+    <AuthShell>
+      <Card>
           <CardHeader className="text-center">
             <div className="flex justify-center mb-6">
               <div className="h-16 w-16 rounded-full bg-success/10 flex items-center justify-center">
@@ -109,8 +109,7 @@ export default function ConfirmedPage() {
               </div>
             </div>
           </CardContent>
-        </Card>
-      </div>
-    </div>
+      </Card>
+    </AuthShell>
   )
 }

@@ -2,7 +2,7 @@
 
 import * as React from 'react'
 import { cn } from '@/lib/utils'
-import { Sidebar, MobileSidebarTrigger } from './sidebar'
+import { Sidebar } from './sidebar'
 import { Header } from './header'
 
 const SIDEBAR_COLLAPSED_KEY = 'lensflow:sidebar-collapsed'
@@ -31,10 +31,7 @@ export function DashboardLayout({ children, studioSlug, studioName, studioLogoUr
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Mobile sidebar trigger */}
-      <MobileSidebarTrigger studioSlug={studioSlug} />
-
-      {/* Desktop sidebar */}
+      {/* Sidebar (renders its own mobile trigger) */}
       <Sidebar studioSlug={studioSlug} collapsed={sidebarCollapsed} onCollapsedChange={handleCollapsedChange} />
 
       {/* Main content */}

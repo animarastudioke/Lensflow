@@ -6,6 +6,7 @@ import { redirect } from 'next/navigation'
 import { z } from 'zod'
 import { requireEntitlement } from '@/lib/entitlements'
 import { requireStudioPermission } from '@/lib/auth/server'
+import { clientBelongsToStudio } from '@/lib/actions/clients'
 
 export type ContractStatus = 'draft' | 'sent' | 'viewed' | 'signed' | 'completed' | 'expired' | 'declined' | 'cancelled'
 export type SignerStatus = 'pending' | 'signed' | 'declined'
@@ -116,6 +117,10 @@ export async function createContract(formData: FormData) {
     expires_at: formData.get('expires_at') || undefined,
   })
 
+  if (clientId && !(await clientBelongsToStudio(clientId, membership.studioId))) {
+    throw new Error('Invalid client')
+  }
+
   const supabase = await createClient()
 
   const { data: contract, error } = await supabase
@@ -179,6 +184,10 @@ export async function updateContract(formData: FormData) {
     notes: formData.get('notes') || undefined,
     expires_at: formData.get('expires_at') || undefined,
   })
+
+  if (clientId && !(await clientBelongsToStudio(clientId, membership.studioId))) {
+    throw new Error('Invalid client')
+  }
 
   const supabase = await createClient()
   const { error } = await supabase

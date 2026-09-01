@@ -1,6 +1,7 @@
 import { supabaseAdmin } from '@/lib/supabase/admin'
 import { sendEmail } from '@/lib/email/resend'
 import { paymentReceiptEmail } from '@/lib/email/templates'
+import { APP_CONSTANTS } from '@/lib/constants'
 
 async function getStudioBranding(studioId: string) {
   const { data: studio } = await supabaseAdmin
@@ -9,6 +10,11 @@ async function getStudioBranding(studioId: string) {
     .eq('id', studioId)
     .single()
   return studio ? { name: studio.name, logoUrl: studio.logo_url, brandColor: studio.brand_color } : null
+}
+
+async function getStudioSlug(studioId: string): Promise<string | null> {
+  const { data: studio } = await supabaseAdmin.from('studios').select('slug').eq('id', studioId).single()
+  return studio?.slug ?? null
 }
 
 /**
@@ -84,18 +90,20 @@ export async function applyMpesaPaymentOutcome(params: {
         .single()
 
       const { createNotification } = await import('@/lib/actions/notifications')
+      const studioSlug = await getStudioSlug(payment.studio_id)
       await createNotification(payment.studio_id, {
         type: 'payment_received',
         title: 'Payment received',
         body: updatedInvoice
           ? `KES ${payment.amount.toLocaleString()} via M-Pesa on ${updatedInvoice.invoice_number}`
           : `KES ${payment.amount.toLocaleString()} via M-Pesa`,
+        link: studioSlug ? `/dashboard/${studioSlug}/invoices/${payment.invoice_id}` : undefined,
       })
 
       const client = invoice.client as unknown as { name: string; email: string } | null
       const studio = client?.email ? await getStudioBranding(payment.studio_id) : null
       if (client?.email && studio) {
-        const appBase = (process.env['NEXT_PUBLIC_APP_URL'] ?? 'http://localhost:3000').replace(/\/$/, '')
+        const appBase = APP_CONSTANTS.URL.replace(/\/$/, '')
         const { subject, html } = paymentReceiptEmail({
           studio,
           clientName: client.name,
@@ -228,7 +236,7 @@ export async function applyMpesaPaymentOutcome(params: {
 
       const studio = order.email ? await getStudioBranding(order.studio_id) : null
       if (order.email && studio) {
-        const appBase = (process.env['NEXT_PUBLIC_APP_URL'] ?? 'http://localhost:3000').replace(/\/$/, '')
+        const appBase = APP_CONSTANTS.URL.replace(/\/$/, '')
         const { subject, html } = paymentReceiptEmail({
           studio,
           clientName: order.email,

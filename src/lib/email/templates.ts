@@ -1,4 +1,5 @@
 import { formatCurrency } from '@/lib/currencies'
+import { APP_CONSTANTS } from '@/lib/constants'
 
 // Shared branded shell + a handful of transactional templates. Kept as plain
 // string-building rather than a templating engine — five short emails don't
@@ -20,8 +21,7 @@ function escapeHtml(input: string): string {
 }
 
 function appUrl(path: string): string {
-  const base = process.env['NEXT_PUBLIC_APP_URL'] ?? 'http://localhost:3000'
-  return `${base.replace(/\/$/, '')}${path}`
+  return `${APP_CONSTANTS.URL.replace(/\/$/, '')}${path}`
 }
 
 function button(url: string, label: string, color: string): string {

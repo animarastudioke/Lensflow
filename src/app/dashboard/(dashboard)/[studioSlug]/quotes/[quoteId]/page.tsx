@@ -9,6 +9,7 @@ import { CopyShareLinkButton } from '@/components/billing/CopyShareLinkButton'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { ArrowLeft, Edit, Download } from 'lucide-react'
+import { APP_CONSTANTS } from '@/lib/constants'
 
 interface QuoteDetailPageProps {
   params: Promise<{ studioSlug: string; quoteId: string }>
@@ -43,7 +44,7 @@ export default async function QuoteDetailPage({ params }: QuoteDetailPageProps) 
   }
 
   const shareUrl = quote.share_token
-    ? `${process.env['NEXT_PUBLIC_APP_URL'] ?? 'http://localhost:3000'}/quote/${quote.share_token}`
+    ? `${APP_CONSTANTS.URL}/quote/${quote.share_token}`
     : null
 
   return (

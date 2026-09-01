@@ -9,6 +9,13 @@ import type { BillingDocumentProps } from '@/components/billing/BillingDocumentV
 // rather than by shared code, and both are simple enough that drift is easy
 // to catch on review if the layout ever changes.
 
+// react-pdf has no CSS-variable/HSL support, so these are the same
+// --destructive/--success tokens (light-mode values, since a PDF page is
+// always printed on white) from src/app/globals.css, converted to hex by
+// hand rather than picked arbitrarily.
+const DESTRUCTIVE_HEX = '#cd3b1d'
+const SUCCESS_HEX = '#246042'
+
 const styles = StyleSheet.create({
   page: { padding: 40, fontSize: 10, fontFamily: 'Helvetica', color: '#111827' },
   headerRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 24 },
@@ -39,6 +46,15 @@ const styles = StyleSheet.create({
     textTransform: 'capitalize',
   },
   metaRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 20 },
+  balanceDueBox: {
+    borderWidth: 1,
+    borderRadius: 6,
+    padding: 14,
+    marginBottom: 20,
+  },
+  balanceDueLabel: { fontSize: 8, textTransform: 'uppercase', letterSpacing: 1, color: '#6b7280', marginBottom: 4 },
+  balanceDueAmount: { fontSize: 20, fontFamily: 'Courier', fontWeight: 700 },
+  balanceDueMeta: { marginTop: 4, fontSize: 9 },
   sectionLabel: { fontSize: 8, textTransform: 'uppercase', letterSpacing: 1, color: '#6b7280', marginBottom: 4 },
   table: { borderTopWidth: 1, borderTopColor: '#e5e7eb', paddingTop: 8 },
   tableHeaderRow: { flexDirection: 'row', marginBottom: 6 },
@@ -108,6 +124,27 @@ export function BillingDocumentPdf(doc: BillingDocumentProps) {
           </View>
         </View>
 
+        {doc.balanceDue !== undefined && (
+          <View
+            style={[
+              styles.balanceDueBox,
+              { borderColor: doc.balanceDue > 0 ? DESTRUCTIVE_HEX : SUCCESS_HEX },
+            ]}
+          >
+            <Text style={styles.balanceDueLabel}>Balance due</Text>
+            <Text style={[styles.balanceDueAmount, { color: doc.balanceDue > 0 ? DESTRUCTIVE_HEX : SUCCESS_HEX }]}>
+              {formatCurrency(doc.balanceDue, doc.currency)}
+            </Text>
+            {doc.balanceDue > 0 && doc.secondaryDate ? (
+              <Text style={[styles.balanceDueMeta, styles.muted]}>
+                {doc.secondaryDateLabel} {format(new Date(doc.secondaryDate), 'MMM d, yyyy')}
+              </Text>
+            ) : doc.balanceDue === 0 ? (
+              <Text style={[styles.balanceDueMeta, { color: SUCCESS_HEX }]}>Paid in full</Text>
+            ) : null}
+          </View>
+        )}
+
         <View style={styles.table}>
           <View style={styles.tableHeaderRow}>
             <Text style={[styles.colDescription, styles.headerCellText]}>Description</Text>
@@ -146,16 +183,10 @@ export function BillingDocumentPdf(doc: BillingDocumentProps) {
             <Text>Total</Text>
             <Text>{formatCurrency(doc.total, doc.currency)}</Text>
           </View>
-          {doc.amountPaid !== undefined && (
+          {doc.amountPaid !== undefined && doc.amountPaid > 0 && (
             <View style={styles.totalsRow}>
               <Text style={styles.muted}>Paid</Text>
               <Text>{formatCurrency(doc.amountPaid, doc.currency)}</Text>
-            </View>
-          )}
-          {doc.balanceDue !== undefined && (
-            <View style={[styles.totalsRow, { fontWeight: 700 }]}>
-              <Text>Balance due</Text>
-              <Text>{formatCurrency(doc.balanceDue, doc.currency)}</Text>
             </View>
           )}
         </View>

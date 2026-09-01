@@ -8,14 +8,6 @@ import {
   CardContent,
   CardHeader,
 } from '@/components/ui/card'
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-  DialogFooter,
-} from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
@@ -38,7 +30,6 @@ import {
   ArrowUpDown,
   LayoutList,
   LayoutGrid,
-  Video,
 } from 'lucide-react'
 import {
   DropdownMenu,
@@ -57,10 +48,14 @@ import {
 } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
-import { Progress } from '@/components/ui/progress'
 import { toast } from 'sonner'
 import { formatCurrency } from '@/lib/currencies'
-import { deleteProject, archiveProjects } from '@/lib/actions/projects'
+import { deleteProject, archiveProjects, type ProjectStatus as ServerProjectStatus } from '@/lib/actions/projects'
+import { PageHeader } from '@/components/layout/PageHeader'
+import { EmptyState } from '@/components/layout/EmptyState'
+import { ConfirmDialog } from '@/components/layout/ConfirmDialog'
+import { ViewToggle } from '@/components/layout/ViewToggle'
+import { StatusBadge } from '@/components/layout/StatusBadge'
 
 interface Project {
   id: string
@@ -69,37 +64,16 @@ interface Project {
   clientEmail: string
   title: string
   type: 'wedding' | 'portrait' | 'engagement' | 'family' | 'corporate' | 'event' | 'commercial' | 'other'
-  status: 'planning' | 'scheduled' | 'in-progress' | 'editing' | 'review' | 'delivered' | 'archived'
+  status: ServerProjectStatus
   startDate: string
   endDate?: string
   location: string
-  progress: number
-  deliverables: {
-    photos: number
-    videos: number
-    albums: number
-  }
   totalValue: number
   paidAmount: number
   balanceDue: number
-  tags: string[]
   notes?: string
   createdAt: string
   updatedAt: string
-}
-
-function getStatusBadge(status: Project['status']) {
-  const statusConfig = {
-    planning: { label: 'Planning', variant: 'secondary' as const },
-    scheduled: { label: 'Scheduled', variant: 'info' as const },
-    'in-progress': { label: 'In Progress', variant: 'default' as const },
-    editing: { label: 'Editing', variant: 'warning' as const },
-    review: { label: 'Client Review', variant: 'outline' as const },
-    delivered: { label: 'Delivered', variant: 'success' as const },
-    archived: { label: 'Archived', variant: 'secondary' as const },
-  }
-  const config = statusConfig[status]
-  return <Badge variant={config.variant}>{config.label}</Badge>
 }
 
 function getTypeLabel(type: Project['type']) {
@@ -115,6 +89,11 @@ function getTypeLabel(type: Project['type']) {
   }
   return typeLabels[type]
 }
+
+const VIEW_OPTIONS = [
+  { value: 'table' as const, label: 'List', icon: LayoutList },
+  { value: 'grid' as const, label: 'Grid', icon: LayoutGrid },
+]
 
 interface ProjectListProps {
   studioSlug: string
@@ -132,6 +111,7 @@ export function ProjectList({ studioSlug, initialProjects, isLoading = false, cu
   const [sortOrder, setSortOrder] = React.useState<'asc' | 'desc'>('asc')
   const [viewMode, setViewMode] = React.useState<'table' | 'grid'>('table')
   const [selectedProjects, setSelectedProjects] = React.useState<string[]>([])
+  const [isBulkPending, setIsBulkPending] = React.useState(false)
 
   // Filter and sort projects
   const filteredProjects = React.useMemo(() => {
@@ -169,6 +149,7 @@ export function ProjectList({ studioSlug, initialProjects, isLoading = false, cu
 
   const [deleteConfirm, setDeleteConfirm] = React.useState<string | null>(null)
   const [bulkDeleteConfirm, setBulkDeleteConfirm] = React.useState(false)
+  const hasFilters = searchQuery !== '' || statusFilter !== 'all' || typeFilter !== 'all'
 
   const handleDelete = (id: string) => {
     setDeleteConfirm(id)
@@ -178,22 +159,23 @@ export function ProjectList({ studioSlug, initialProjects, isLoading = false, cu
     const result = await deleteProject(id, studioSlug)
     if (result?.error) {
       toast.error(result.error)
-      return
+      throw new Error(result.error)
     }
     setProjects(prev => prev.filter(p => p.id !== id))
     setSelectedProjects(prev => prev.filter(g => g !== id))
-    setDeleteConfirm(null)
   }
 
   const confirmBulkDelete = async () => {
     const ids = selectedProjects
-    const results = await Promise.all(ids.map(id => deleteProject(id, studioSlug)))
-    if (results.some(r => r?.error)) {
-      toast.error('Some projects could not be deleted')
+    const results = await Promise.all(ids.map(async (id) => ({ id, result: await deleteProject(id, studioSlug) })))
+    const succeededIds = results.filter(r => !r.result?.error).map(r => r.id)
+    const failedCount = results.length - succeededIds.length
+    setProjects(prev => prev.filter(p => !succeededIds.includes(p.id)))
+    setSelectedProjects(prev => prev.filter(id => !succeededIds.includes(id)))
+    if (failedCount > 0) {
+      toast.error(`${failedCount} project${failedCount !== 1 ? 's' : ''} could not be deleted`)
+      throw new Error('partial bulk delete failure')
     }
-    setProjects(prev => prev.filter(p => !ids.includes(p.id)))
-    setSelectedProjects([])
-    setBulkDeleteConfirm(false)
   }
 
   const handleBulkAction = async (action: 'delete' | 'archive') => {
@@ -205,7 +187,9 @@ export function ProjectList({ studioSlug, initialProjects, isLoading = false, cu
     }
 
     const ids = selectedProjects
+    setIsBulkPending(true)
     const result = await archiveProjects(ids, studioSlug)
+    setIsBulkPending(false)
     if (result?.error) {
       toast.error(result.error)
       return
@@ -249,43 +233,24 @@ export function ProjectList({ studioSlug, initialProjects, isLoading = false, cu
 
   return (
     <div className="space-y-6">
-      {/* Page Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-display-md font-display font-semibold text-foreground">Projects</h1>
-          <p className="text-body text-muted-foreground mt-1">Track shoots, deliverables, and progress</p>
-        </div>
-        <Link href={`/dashboard/${studioSlug}/projects/new`}>
-          <Button>
-            <Plus className="h-4 w-4 mr-2" />
-            New Project
-          </Button>
-        </Link>
-      </div>
+      <PageHeader
+        title="Projects"
+        description="Track shoots, deliverables, and progress"
+        actions={
+          <Link href={`/dashboard/${studioSlug}/projects/new`}>
+            <Button>
+              <Plus className="h-4 w-4 mr-2" />
+              New Project
+            </Button>
+          </Link>
+        }
+      />
 
       {/* View Toggle & Filters */}
       <Card>
         <CardContent className="pt-4">
           <div className="flex flex-col sm:flex-row gap-4">
-            {/* View Toggle */}
-            <div className="flex items-center gap-2">
-              <Button
-                variant={viewMode === 'table' ? 'default' : 'outline'}
-                size="sm"
-                onClick={() => setViewMode('table')}
-              >
-                <LayoutList className="h-4 w-4 mr-2" />
-                List
-              </Button>
-              <Button
-                variant={viewMode === 'grid' ? 'default' : 'outline'}
-                size="sm"
-                onClick={() => setViewMode('grid')}
-              >
-                <LayoutGrid className="h-4 w-4 mr-2" />
-                Grid
-              </Button>
-            </div>
+            <ViewToggle value={viewMode} onValueChange={setViewMode} options={VIEW_OPTIONS} />
 
             <div className="flex-1" />
 
@@ -308,7 +273,7 @@ export function ProjectList({ studioSlug, initialProjects, isLoading = false, cu
                   <SelectItem value="all">All Statuses</SelectItem>
                   <SelectItem value="planning">Planning</SelectItem>
                   <SelectItem value="scheduled">Scheduled</SelectItem>
-                  <SelectItem value="in-progress">In Progress</SelectItem>
+                  <SelectItem value="in_progress">In Progress</SelectItem>
                   <SelectItem value="editing">Editing</SelectItem>
                   <SelectItem value="review">Client Review</SelectItem>
                   <SelectItem value="delivered">Delivered</SelectItem>
@@ -331,7 +296,7 @@ export function ProjectList({ studioSlug, initialProjects, isLoading = false, cu
                   <SelectItem value="other">Other</SelectItem>
                 </SelectContent>
               </Select>
-              <Button variant="outline" size="icon" onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}>
+              <Button variant="outline" size="icon" onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')} aria-label={sortOrder === 'asc' ? 'Sort descending' : 'Sort ascending'}>
                 {sortOrder === 'asc' ? <ArrowUpDown className="h-4 w-4" /> : <ArrowUpDown className="h-4 w-4 rotate-180" />}
               </Button>
             </div>
@@ -348,10 +313,10 @@ export function ProjectList({ studioSlug, initialProjects, isLoading = false, cu
                 {selectedProjects.length} project{selectedProjects.length !== 1 ? 's' : ''} selected
               </span>
               <div className="flex items-center gap-2">
-                <Button variant="outline" size="sm" onClick={() => handleBulkAction('archive')}>
+                <Button variant="outline" size="sm" disabled={isBulkPending} onClick={() => handleBulkAction('archive')}>
                   Archive
                 </Button>
-                <Button variant="destructive" size="sm" onClick={() => handleBulkAction('delete')}>
+                <Button variant="destructive" size="sm" disabled={isBulkPending} onClick={() => handleBulkAction('delete')}>
                   <Trash2 className="h-3.5 w-3.5 mr-1.5" />
                   Delete
                 </Button>
@@ -362,7 +327,23 @@ export function ProjectList({ studioSlug, initialProjects, isLoading = false, cu
       )}
 
       {/* Project Content */}
-      {viewMode === 'table' ? (
+      {filteredProjects.length === 0 ? (
+        <Card>
+          <CardContent className="p-0">
+            <EmptyState
+              icon={Briefcase}
+              title={projects.length === 0 ? 'No projects yet' : 'No projects match your filters'}
+              description={
+                projects.length === 0
+                  ? 'Create your first project to start tracking shoots and deliverables.'
+                  : 'Try adjusting your search or filters.'
+              }
+              action={projects.length === 0 ? { label: 'New Project', href: `/dashboard/${studioSlug}/projects/new` } : undefined}
+              secondaryAction={hasFilters ? { label: 'Clear filters', onClick: () => { setSearchQuery(''); setStatusFilter('all'); setTypeFilter('all') } } : undefined}
+            />
+          </CardContent>
+        </Card>
+      ) : viewMode === 'table' ? (
         <Card>
           <CardContent className="p-0">
             <Table>
@@ -382,143 +363,14 @@ export function ProjectList({ studioSlug, initialProjects, isLoading = false, cu
                   <TableHead className="hidden md:table-cell">Dates</TableHead>
                   <TableHead className="hidden md:table-cell">Type</TableHead>
                   <TableHead className="hidden lg:table-cell">Status</TableHead>
-                  <TableHead className="hidden xl:table-cell">Progress</TableHead>
                   <TableHead className="text-right hidden xl:table-cell">Value</TableHead>
                   <TableHead className="w-48">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredProjects.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={9} className="text-center py-12">
-                      <Briefcase className="h-12 w-12 mx-auto text-muted-foreground/50 mb-3" />
-                      <p className="text-muted-foreground">No projects found</p>
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  filteredProjects.map((project) => (
-                    <TableRow key={project.id} className="hover:bg-muted/50">
-                      <TableCell>
-                        <input
-                          type="checkbox"
-                          checked={selectedProjects.includes(project.id)}
-                          onChange={() => toggleSelect(project.id)}
-                          aria-label={`Select ${project.title}`}
-                          className="h-4 w-4 rounded border-input text-primary focus:ring-2 focus:ring-primary"
-                        />
-                      </TableCell>
-                      <TableCell>
-                        <p className="font-medium">{project.title}</p>
-                        <p className="text-sm text-muted-foreground">{project.location}</p>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          <Avatar className="h-8 w-8">
-                            <AvatarImage src="" alt={project.clientName} />
-                            <AvatarFallback className="text-xs">
-                              {project.clientName.split(' ').map(n => n[0]).join('')}
-                            </AvatarFallback>
-                          </Avatar>
-                          <div>
-                            <p className="font-medium text-sm">{project.clientName}</p>
-                            <p className="text-xs text-muted-foreground">{project.clientEmail}</p>
-                          </div>
-                        </div>
-                      </TableCell>
-                      <TableCell className="hidden md:table-cell">
-                        <div className="space-y-1 text-sm">
-                          <div className="flex items-center gap-1">
-                            <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
-                            <span>{format(new Date(project.startDate), 'MMM d, yyyy')}</span>
-                          </div>
-                          {project.endDate && (
-                            <div className="flex items-center gap-1 text-muted-foreground">
-                              <Calendar className="h-3.5 w-3.5" />
-                              <span>to {format(new Date(project.endDate), 'MMM d, yyyy')}</span>
-                            </div>
-                          )}
-                        </div>
-                      </TableCell>
-                      <TableCell className="hidden md:table-cell">
-                        <Badge variant="outline" className="text-xs">{getTypeLabel(project.type)}</Badge>
-                      </TableCell>
-                      <TableCell className="hidden lg:table-cell">
-                        {getStatusBadge(project.status)}
-                      </TableCell>
-                      <TableCell className="hidden xl:table-cell">
-                        <div className="w-32">
-                          <Progress value={project.progress} className="h-2" />
-                          <p className="text-xs text-muted-foreground mt-1">{project.progress}% complete</p>
-                        </div>
-                      </TableCell>
-                      <TableCell className="text-right hidden xl:table-cell font-mono tabular-nums">
-                        {project.balanceDue > 0 ? (
-                          <span className="text-destructive">{formatCurrency(project.balanceDue, currency)} due</span>
-                        ) : project.totalValue > 0 ? (
-                          <span className="text-success font-sans">Paid in full</span>
-                        ) : (
-                          <span className="text-muted-foreground font-sans">Not yet billed</span>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon" className="h-8 w-8">
-                              <MoreVertical className="h-4 w-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem asChild>
-                              <Link href={`/dashboard/${studioSlug}/projects/${project.id}`}>
-                                <Eye className="mr-2 h-4 w-4" />
-                                View Details
-                              </Link>
-                            </DropdownMenuItem>
-                            <DropdownMenuItem asChild>
-                              <Link href={`/dashboard/${studioSlug}/projects/${project.id}/edit`}>
-                                <Edit className="mr-2 h-4 w-4" />
-                                Edit
-                              </Link>
-                            </DropdownMenuItem>
-                            <DropdownMenuSeparator />
-                            <DropdownMenuItem asChild>
-                              <Link href={`/dashboard/${studioSlug}/galleries/new?project=${project.id}`}>
-                                <Image className="mr-2 h-4 w-4" />
-                                Create Gallery
-                              </Link>
-                            </DropdownMenuItem>
-                            <DropdownMenuSeparator />
-                            <DropdownMenuItem
-                              onClick={() => handleDelete(project.id)}
-                              className="text-destructive focus:text-destructive"
-                            >
-                              <Trash2 className="mr-2 h-4 w-4" />
-                              Delete
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </TableCell>
-                    </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
-      ) : (
-        // Grid View
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-          {filteredProjects.length === 0 ? (
-            <div className="col-span-full text-center py-12">
-              <Briefcase className="h-12 w-12 mx-auto text-muted-foreground/50 mb-3" />
-              <p className="text-muted-foreground">No projects found</p>
-            </div>
-          ) : (
-            filteredProjects.map((project) => (
-              <Card key={project.id} className="card-hover">
-                <CardHeader className="pb-2">
-                  <div className="flex items-start justify-between">
-                    <div className="flex items-center gap-3">
+                {filteredProjects.map((project) => (
+                  <TableRow key={project.id} className="hover:bg-muted/50">
+                    <TableCell>
                       <input
                         type="checkbox"
                         checked={selectedProjects.includes(project.id)}
@@ -526,95 +378,184 @@ export function ProjectList({ studioSlug, initialProjects, isLoading = false, cu
                         aria-label={`Select ${project.title}`}
                         className="h-4 w-4 rounded border-input text-primary focus:ring-2 focus:ring-primary"
                       />
-                      <div className="min-w-0">
-                        <h3 className="font-medium truncate">{project.title}</h3>
-                        <div className="flex items-center gap-2 mt-1">
-                          {getStatusBadge(project.status)}
-                          <Badge variant="outline" className="text-xs">{getTypeLabel(project.type)}</Badge>
+                    </TableCell>
+                    <TableCell>
+                      <p className="font-medium">{project.title}</p>
+                      <p className="text-sm text-muted-foreground">{project.location}</p>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-2">
+                        <Avatar className="h-8 w-8">
+                          <AvatarImage src="" alt={project.clientName} />
+                          <AvatarFallback className="text-xs">
+                            {project.clientName.split(' ').map(n => n[0]).join('')}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div>
+                          <p className="font-medium text-sm">{project.clientName}</p>
+                          <p className="text-xs text-muted-foreground">{project.clientEmail}</p>
                         </div>
                       </div>
+                    </TableCell>
+                    <TableCell className="hidden md:table-cell">
+                      <div className="space-y-1 text-sm">
+                        <div className="flex items-center gap-1">
+                          <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
+                          <span>{format(new Date(project.startDate), 'MMM d, yyyy')}</span>
+                        </div>
+                        {project.endDate && (
+                          <div className="flex items-center gap-1 text-muted-foreground">
+                            <Calendar className="h-3.5 w-3.5" />
+                            <span>to {format(new Date(project.endDate), 'MMM d, yyyy')}</span>
+                          </div>
+                        )}
+                      </div>
+                    </TableCell>
+                    <TableCell className="hidden md:table-cell">
+                      <Badge variant="outline" className="text-xs">{getTypeLabel(project.type)}</Badge>
+                    </TableCell>
+                    <TableCell className="hidden lg:table-cell">
+                      <StatusBadge status={project.status} />
+                    </TableCell>
+                    <TableCell className="text-right hidden xl:table-cell font-mono tabular-nums">
+                      {project.balanceDue > 0 ? (
+                        <span className="text-destructive">{formatCurrency(project.balanceDue, currency)} due</span>
+                      ) : project.totalValue > 0 ? (
+                        <span className="text-success font-sans">Paid in full</span>
+                      ) : (
+                        <span className="text-muted-foreground font-sans">Not yet billed</span>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="icon" className="h-8 w-8" aria-label={`Actions for ${project.title}`}>
+                            <MoreVertical className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem asChild>
+                            <Link href={`/dashboard/${studioSlug}/projects/${project.id}`}>
+                              <Eye className="mr-2 h-4 w-4" />
+                              View Details
+                            </Link>
+                          </DropdownMenuItem>
+                          <DropdownMenuItem asChild>
+                            <Link href={`/dashboard/${studioSlug}/projects/${project.id}/edit`}>
+                              <Edit className="mr-2 h-4 w-4" />
+                              Edit
+                            </Link>
+                          </DropdownMenuItem>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem asChild>
+                            <Link href={`/dashboard/${studioSlug}/galleries/new?project=${project.id}`}>
+                              <Image className="mr-2 h-4 w-4" />
+                              Create Gallery
+                            </Link>
+                          </DropdownMenuItem>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem
+                            onClick={() => handleDelete(project.id)}
+                            className="text-destructive focus:text-destructive"
+                          >
+                            <Trash2 className="mr-2 h-4 w-4" />
+                            Delete
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+      ) : (
+        // Grid View
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          {filteredProjects.map((project) => (
+            <Card key={project.id} className="card-hover">
+              <CardHeader className="pb-2">
+                <div className="flex items-start justify-between">
+                  <div className="flex items-center gap-3">
+                    <input
+                      type="checkbox"
+                      checked={selectedProjects.includes(project.id)}
+                      onChange={() => toggleSelect(project.id)}
+                      aria-label={`Select ${project.title}`}
+                      className="h-4 w-4 rounded border-input text-primary focus:ring-2 focus:ring-primary"
+                    />
+                    <div className="min-w-0">
+                      <h3 className="font-medium truncate">{project.title}</h3>
+                      <div className="flex items-center gap-2 mt-1">
+                        <StatusBadge status={project.status} />
+                        <Badge variant="outline" className="text-xs">{getTypeLabel(project.type)}</Badge>
+                      </div>
                     </div>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon" className="h-8 w-8">
-                          <MoreVertical className="h-4 w-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem asChild>
-                          <Link href={`/dashboard/${studioSlug}/projects/${project.id}`}>
-                            <Eye className="mr-2 h-4 w-4" />
-                            View Details
-                          </Link>
-                        </DropdownMenuItem>
-                        <DropdownMenuItem asChild>
-                          <Link href={`/dashboard/${studioSlug}/projects/${project.id}/edit`}>
-                            <Edit className="mr-2 h-4 w-4" />
-                            Edit
-                          </Link>
-                        </DropdownMenuItem>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem
-                          onClick={() => handleDelete(project.id)}
-                          className="text-destructive focus:text-destructive"
-                        >
-                          <Trash2 className="mr-2 h-4 w-4" />
-                          Delete
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
                   </div>
-                </CardHeader>
-                <CardContent className="space-y-3 pb-4">
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                    <Calendar className="h-3.5 w-3.5" />
-                    <span>{format(new Date(project.startDate), 'MMM d, yyyy')}</span>
-                    {project.endDate && (
-                      <>
-                        <span>→</span>
-                        <span>{format(new Date(project.endDate), 'MMM d, yyyy')}</span>
-                      </>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                    <Image className="h-3.5 w-3.5" />
-                    <span>{project.deliverables.photos} photos</span>
-                    {project.deliverables.videos > 0 && (
-                      <>
-                        <Video className="h-3.5 w-3.5" />
-                        <span>{project.deliverables.videos} videos</span>
-                      </>
-                    )}
-                    {project.deliverables.albums > 0 && (
-                      <>
-                        <LayoutGrid className="h-3.5 w-3.5" />
-                        <span>{project.deliverables.albums} albums</span>
-                      </>
-                    )}
-                  </div>
-                  <Progress value={project.progress} className="h-2" />
-                  <div className="flex items-center justify-between text-sm">
-                    <div className="text-muted-foreground font-mono tabular-nums">
-                      {formatCurrency(project.paidAmount, currency)} / {formatCurrency(project.totalValue, currency)}
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Button variant="outline" size="sm" asChild>
-                        <Link href={`/dashboard/${studioSlug}/galleries/new?project=${project.id}`}>
-                          <Image className="h-3.5 w-3.5 mr-1.5" />
-                          Gallery
-                        </Link>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="ghost" size="icon" className="h-8 w-8" aria-label={`Actions for ${project.title}`}>
+                        <MoreVertical className="h-4 w-4" />
                       </Button>
-                      <Button variant="ghost" size="sm" asChild>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem asChild>
                         <Link href={`/dashboard/${studioSlug}/projects/${project.id}`}>
-                          View
+                          <Eye className="mr-2 h-4 w-4" />
+                          View Details
                         </Link>
-                      </Button>
-                    </div>
+                      </DropdownMenuItem>
+                      <DropdownMenuItem asChild>
+                        <Link href={`/dashboard/${studioSlug}/projects/${project.id}/edit`}>
+                          <Edit className="mr-2 h-4 w-4" />
+                          Edit
+                        </Link>
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem
+                        onClick={() => handleDelete(project.id)}
+                        className="text-destructive focus:text-destructive"
+                      >
+                        <Trash2 className="mr-2 h-4 w-4" />
+                        Delete
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-3 pb-4">
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <Calendar className="h-3.5 w-3.5" />
+                  <span>{format(new Date(project.startDate), 'MMM d, yyyy')}</span>
+                  {project.endDate && (
+                    <>
+                      <span>→</span>
+                      <span>{format(new Date(project.endDate), 'MMM d, yyyy')}</span>
+                    </>
+                  )}
+                </div>
+                <div className="flex items-center justify-between text-sm">
+                  <div className="text-muted-foreground font-mono tabular-nums">
+                    {formatCurrency(project.paidAmount, currency)} / {formatCurrency(project.totalValue, currency)}
                   </div>
-                </CardContent>
-              </Card>
-            ))
-          )}
+                  <div className="flex items-center gap-2">
+                    <Button variant="outline" size="sm" asChild>
+                      <Link href={`/dashboard/${studioSlug}/galleries/new?project=${project.id}`}>
+                        <Image className="h-3.5 w-3.5 mr-1.5" />
+                        Gallery
+                      </Link>
+                    </Button>
+                    <Button variant="ghost" size="sm" asChild>
+                      <Link href={`/dashboard/${studioSlug}/projects/${project.id}`}>
+                        View
+                      </Link>
+                    </Button>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
         </div>
       )}
 
@@ -629,37 +570,25 @@ export function ProjectList({ studioSlug, initialProjects, isLoading = false, cu
         </div>
       </div>
 
-      {/* Delete confirmation */}
-      <Dialog open={!!deleteConfirm} onOpenChange={(open) => !open && setDeleteConfirm(null)}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>Delete project</DialogTitle>
-            <DialogDescription>
-              Are you sure you want to delete this project? This action cannot be undone.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setDeleteConfirm(null)}>Cancel</Button>
-            <Button variant="destructive" onClick={() => deleteConfirm && confirmDelete(deleteConfirm)}>Delete</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <ConfirmDialog
+        open={!!deleteConfirm}
+        onOpenChange={(open) => !open && setDeleteConfirm(null)}
+        title="Delete project"
+        description="Are you sure you want to delete this project? This action cannot be undone."
+        confirmLabel="Delete"
+        destructive
+        onConfirm={async () => { if (deleteConfirm) await confirmDelete(deleteConfirm) }}
+      />
 
-      {/* Bulk delete confirmation */}
-      <Dialog open={bulkDeleteConfirm} onOpenChange={setBulkDeleteConfirm}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>Delete {selectedProjects.length} project{selectedProjects.length !== 1 ? 's' : ''}</DialogTitle>
-            <DialogDescription>
-              This action cannot be undone.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setBulkDeleteConfirm(false)}>Cancel</Button>
-            <Button variant="destructive" onClick={confirmBulkDelete}>Delete</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <ConfirmDialog
+        open={bulkDeleteConfirm}
+        onOpenChange={setBulkDeleteConfirm}
+        title={`Delete ${selectedProjects.length} project${selectedProjects.length !== 1 ? 's' : ''}`}
+        description="This action cannot be undone."
+        confirmLabel="Delete"
+        destructive
+        onConfirm={confirmBulkDelete}
+      />
     </div>
   )
 }

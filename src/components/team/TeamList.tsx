@@ -56,6 +56,8 @@ import {
   DialogDescription,
   DialogFooter,
 } from '@/components/ui/dialog'
+import { PageHeader } from '@/components/layout/PageHeader'
+import { ConfirmDialog } from '@/components/layout/ConfirmDialog'
 import { toast } from 'sonner'
 import {
   inviteTeamMember,
@@ -188,11 +190,10 @@ export function TeamList({ studioSlug, initialMembers, canManage }: TeamListProp
     const result = await removeTeamMember(memberId, studioSlug)
     if ('error' in result) {
       toast.error(result.error)
-    } else {
-      setMembers((prev) => prev.filter((m) => m.id !== memberId))
-      toast.success('Team member removed')
+      throw new Error(result.error)
     }
-    setRemoveConfirm(null)
+    setMembers((prev) => prev.filter((m) => m.id !== memberId))
+    toast.success('Team member removed')
   }
 
   const activeCount = members.filter((m) => m.status === 'active').length
@@ -232,18 +233,18 @@ export function TeamList({ studioSlug, initialMembers, canManage }: TeamListProp
         </div>
       </div>
 
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-display-sm font-display font-semibold text-foreground">Team Members</h1>
-          <p className="text-body text-muted-foreground mt-1">Manage studio team and permissions</p>
-        </div>
-        {canManage && (
-          <Button onClick={() => setIsInviteDialogOpen(true)}>
-            <Invite className="h-4 w-4 mr-2" />
-            Invite Member
-          </Button>
-        )}
-      </div>
+      <PageHeader
+        title="Team Members"
+        description="Manage studio team and permissions"
+        actions={
+          canManage ? (
+            <Button onClick={() => setIsInviteDialogOpen(true)}>
+              <Invite className="h-4 w-4 mr-2" />
+              Invite Member
+            </Button>
+          ) : undefined
+        }
+      />
 
       <Card>
         <CardContent className="pt-4">
@@ -452,20 +453,15 @@ export function TeamList({ studioSlug, initialMembers, canManage }: TeamListProp
         </DialogContent>
       </Dialog>
 
-      <Dialog open={!!removeConfirm} onOpenChange={(open) => !open && setRemoveConfirm(null)}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>Remove team member</DialogTitle>
-            <DialogDescription>
-              They&apos;ll lose access to this studio immediately. This doesn&apos;t delete their LensFlow account.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setRemoveConfirm(null)}>Cancel</Button>
-            <Button variant="destructive" onClick={() => removeConfirm && confirmRemove(removeConfirm)}>Remove</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <ConfirmDialog
+        open={!!removeConfirm}
+        onOpenChange={(open) => !open && setRemoveConfirm(null)}
+        title="Remove team member"
+        description="They'll lose access to this studio immediately. This doesn't delete their LensFlow account."
+        confirmLabel="Remove"
+        destructive
+        onConfirm={async () => { if (removeConfirm) await confirmRemove(removeConfirm) }}
+      />
     </div>
   )
 }

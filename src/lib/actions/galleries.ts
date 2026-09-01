@@ -25,6 +25,7 @@ import { galleryPublishedEmail } from '@/lib/email/templates'
 import { mapWithConcurrency } from '@/lib/utils/concurrency'
 import { hashGalleryPassword, verifyGalleryPasswordHash } from '@/lib/security/gallery-password'
 import { checkGalleryPasswordRateLimit, hashIpForRateLimit, resetGalleryPasswordRateLimit } from '@/lib/security/gallery-password-rate-limit'
+import { clientBelongsToStudio } from '@/lib/actions/clients'
 
 // Types
 export type GalleryType = 'wedding' | 'portrait' | 'commercial' | 'event' | 'other'
@@ -271,6 +272,10 @@ export async function createGallery(formData: FormData) {
 
   const validated = galleryCreateSchema.parse(rawData)
 
+  if (validated.client_id && !(await clientBelongsToStudio(validated.client_id, membership.studio_id))) {
+    throw new Error('Invalid client')
+  }
+
   // Check permission
   const hasPermission = await checkGalleryPermission(membership.studio_id, user.id, 'galleries.create')
   if (!hasPermission) {
@@ -408,6 +413,10 @@ export async function updateGallery(formData: FormData) {
   }
 
   const validated = galleryUpdateSchema.parse(rawData)
+
+  if (validated.client_id && !(await clientBelongsToStudio(validated.client_id, studio.id))) {
+    throw new Error('Invalid client')
+  }
 
   // Hash password if provided and changed
   let passwordHash = existing.password_hash
@@ -842,28 +851,11 @@ export async function incrementGalleryView(shareToken: string) {
   await supabase.rpc('increment_gallery_view', { token: shareToken })
 }
 
-export async function incrementGalleryDownload(shareToken: string) {
-  const supabase = await createClient()
-
-  await supabase.rpc('increment_gallery_download', { token: shareToken })
-
-  const { data: gallery } = await supabase
-    .from('galleries')
-    .select('studio_id, name, studio:studios(slug)')
-    .eq('share_token', shareToken)
-    .single()
-
-  if (gallery) {
-    const studioSlug = (gallery.studio as unknown as { slug: string } | null)?.slug
-    const { createNotification } = await import('@/lib/actions/notifications')
-    await createNotification(gallery.studio_id, {
-      type: 'gallery_downloaded',
-      title: 'Gallery downloaded',
-      body: `A client downloaded a photo from "${gallery.name}"`,
-      link: studioSlug ? `/dashboard/${studioSlug}/galleries` : undefined,
-    })
-  }
-}
+// incrementGalleryDownload was removed here (Phase 12 Step 12) -- it had
+// zero callers. The real download route (api/g/[token]/download/route.ts)
+// duplicated its RPC increment inline instead of calling it, so its
+// gallery_downloaded notification never actually fired for a real
+// download; that logic now lives directly in the route.
 
 // Share Settings Actions
 /**
@@ -1096,6 +1088,7 @@ export async function getGalleries(studioSlug: string, options?: {
   type?: GalleryType
   sortBy?: string
   sortOrder?: 'asc' | 'desc'
+  clientId?: string
 }) {
   const supabase = await createClient()
 
@@ -1116,7 +1109,16 @@ export async function getGalleries(studioSlug: string, options?: {
     .from('galleries')
     .select('*, client:clients(name)', { count: 'exact' })
     .eq('studio_id', studio.id)
-    .neq('status', 'archived')
+
+  // The general gallery list hides archived galleries by default; a
+  // client-scoped lookup (Client Detail's "Related work") is a CRM history
+  // view and should show the client's full gallery history, archived
+  // included, rather than silently drop past work.
+  if (options?.clientId) {
+    query = query.eq('client_id', options.clientId)
+  } else {
+    query = query.neq('status', 'archived')
+  }
 
   if (options?.search) {
     query = query.ilike('name', `%${options.search}%`)
