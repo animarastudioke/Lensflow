@@ -150,6 +150,10 @@ export function BuyProductDialog({
               />
             </div>
             {error && <p className="text-sm text-destructive">{error}</p>}
+            <p className="text-xs text-muted-foreground">
+              You&apos;ll get a payment prompt from Animara Studio — that&apos;s Lensflow&apos;s registered business
+              name.
+            </p>
             <DialogFooter>
               <Button type="submit" disabled={state === 'sending'} className="gap-2">
                 {state === 'sending' && <Loader2 className="h-4 w-4 animate-spin" />}
@@ -173,6 +177,10 @@ export function BuyProductDialog({
             <CheckCircle2 className="h-8 w-8 text-success" />
             <p className="text-sm font-medium text-foreground">Payment received</p>
             <p className="text-sm text-muted-foreground">Taking you to your download…</p>
+            <p className="text-xs text-muted-foreground">
+              Your M-Pesa confirmation SMS will show Animara Studio — that&apos;s Lensflow&apos;s registered business
+              name.
+            </p>
           </div>
         )}
 

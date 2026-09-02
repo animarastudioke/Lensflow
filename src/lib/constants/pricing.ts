@@ -86,6 +86,11 @@ export const PRICING_FAQ = [
     answer: 'M-Pesa, for both your subscription and the payments you collect from clients. Support for card payments is on the roadmap.',
   },
   {
+    question: 'Why does my M-PESA message say Animara Studio?',
+    answer:
+      'Animara Studio is LensFlow\'s parent business — it\'s the registered name behind our M-Pesa PayBill, so it\'s what shows up in the STK push prompt and confirmation SMS. Your payment is still going to LensFlow.',
+  },
+  {
     question: 'What happens if I go over my storage limit?',
     answer: 'We\'ll let you know before you hit your limit so you can upgrade or free up space — we won\'t delete your galleries.',
   },
