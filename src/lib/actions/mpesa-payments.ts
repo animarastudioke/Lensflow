@@ -96,7 +96,6 @@ export async function initiateMpesaInvoicePayment(
     stkResult = await initiateStkPush({
       phoneNumber,
       amount: chargeAmount,
-      accountReference: invoice.invoice_number,
       transactionDesc: 'Invoice payment',
     })
   } catch (err) {
@@ -214,7 +213,6 @@ export async function initiateMpesaInvoicePaymentPublic(
     stkResult = await initiateStkPush({
       phoneNumber,
       amount: chargeAmount,
-      accountReference: invoice.invoice_number,
       transactionDesc: 'Invoice payment',
     })
   } catch (err) {

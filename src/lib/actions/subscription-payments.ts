@@ -73,7 +73,6 @@ export async function initiatePlanSubscriptionPayment(
     stkResult = await initiateStkPush({
       phoneNumber,
       amount: amountKes,
-      accountReference: `LensFlow ${plan.name}`,
       transactionDesc: 'Subscription',
     })
   } catch (err) {

@@ -23,6 +23,16 @@ function getBaseUrl(): string {
   return env === 'production' ? 'https://api.safaricom.co.ke' : 'https://sandbox.safaricom.co.ke'
 }
 
+// Daraja's AccountReference is customer-facing (shown in the STK prompt and
+// the confirmation SMS's "Account No" field) and plays no role in our own
+// payment matching -- the callback route matches a payment back to its
+// invoice/subscription/order exclusively via CheckoutRequestID (see
+// applyMpesaPaymentOutcome in resolve.ts), never this field. Fixed to the
+// product name rather than a per-transaction value (invoice/order number,
+// plan name) so it consistently reads "LENSFLOW" regardless of what's being
+// paid for. Must stay <=12 chars, Daraja's hard limit for this field.
+const MPESA_ACCOUNT_REFERENCE = 'LENSFLOW'
+
 /**
  * Normalizes common Kenyan phone number formats (07XXXXXXXX, +2547XXXXXXXX,
  * 2547XXXXXXXX, 01XXXXXXXX) to the 2547XXXXXXXX / 2541XXXXXXXX format Daraja
@@ -99,7 +109,6 @@ export interface StkPushResult {
 export async function initiateStkPush(params: {
   phoneNumber: string
   amount: number
-  accountReference: string
   transactionDesc: string
 }): Promise<StkPushResult> {
   const token = await getAccessToken()
@@ -124,7 +133,7 @@ export async function initiateStkPush(params: {
       PartyB: shortcode,
       PhoneNumber: params.phoneNumber,
       CallBackURL: getEnv('MPESA_CALLBACK_URL'),
-      AccountReference: params.accountReference.slice(0, 12),
+      AccountReference: MPESA_ACCOUNT_REFERENCE,
       TransactionDesc: params.transactionDesc.slice(0, 13),
     }),
   })

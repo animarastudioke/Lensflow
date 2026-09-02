@@ -111,6 +111,9 @@ export function paymentReceiptEmail(params: {
     <p style="font-size:15px;color:#4b5563;line-height:1.6;margin:0 0 20px;">
       Thanks — we've received your payment of <strong>${formatCurrency(params.amountKes, 'KES')}</strong> for ${escapeHtml(params.referenceNumber)} via M-Pesa${params.receiptNumber ? ` (receipt ${escapeHtml(params.receiptNumber)})` : ''}.
     </p>
+    <p style="font-size:13px;color:#9ca3af;line-height:1.6;margin:0 0 20px;">
+      Your M-Pesa confirmation SMS showed Animara Studio — that's Lensflow's registered business name.
+    </p>
     ${params.documentUrl ? `<div style="text-align:center;">${button(params.documentUrl, 'View receipt', color)}</div>` : ''}
   `)
   return { subject: `Payment received — ${params.referenceNumber}`, html }

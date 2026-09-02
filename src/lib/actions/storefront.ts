@@ -178,7 +178,6 @@ export async function initiateProductPurchase(
     stkResult = await initiateStkPush({
       phoneNumber,
       amount,
-      accountReference: orderNumber,
       transactionDesc: 'Store purchase',
     })
   } catch (err) {
