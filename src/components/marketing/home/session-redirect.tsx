@@ -4,9 +4,11 @@ import * as React from 'react'
 import { useRouter } from 'next/navigation'
 
 /**
- * OAuth sign-in redirects here instead of /auth/callback whenever
- * Supabase's Site URL is used as a fallback (e.g. the callback URL isn't
- * yet on the project's redirect allow-list). When that happens, the
+ * OAuth sign-in, magic links, and email confirmation/recovery links all
+ * redirect here instead of their intended destination (/auth/callback,
+ * /auth/reset-password) whenever Supabase's Site URL is used as a fallback
+ * — e.g. the actual redirectTo URL isn't on the project's redirect
+ * allow-list for the domain the visitor is on. When that happens, the
  * session tokens land in the URL hash (e.g. `#access_token=...`).
  *
  * This can't rely on the Supabase browser client's own automatic hash
@@ -34,6 +36,7 @@ export function HomeSessionRedirect() {
     const hashParams = new URLSearchParams(window.location.hash.slice(1))
     const accessToken = hashParams.get('access_token')
     const refreshToken = hashParams.get('refresh_token')
+    const type = hashParams.get('type')
     if (!accessToken || !refreshToken) return
 
     let cancelled = false
@@ -52,7 +55,13 @@ export function HomeSessionRedirect() {
       // refresh or copy-pasted link never re-processes a stale/used hash.
       window.history.replaceState(null, '', window.location.pathname + window.location.search)
 
-      if (session) router.replace('/dashboard')
+      if (!session) return
+
+      // A password-recovery session still has to go through "set a new
+      // password" -- landing it straight on the dashboard would silently
+      // sign the visitor in without ever letting them change the password
+      // they clicked "forgot password" to replace.
+      router.replace(type === 'recovery' ? '/auth/reset-password' : '/dashboard')
     })
 
     return () => {

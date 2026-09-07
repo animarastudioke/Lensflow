@@ -1,7 +1,7 @@
 'use client'
 
 import * as React from 'react'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -45,12 +45,11 @@ const passwordRequirements = [
 
 function ResetPasswordPageContent() {
   const router = useRouter()
-  const searchParams = useSearchParams()
   const [showPassword, setShowPassword] = React.useState(false)
   const [isLoading, setIsLoading] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
   const [password, setPassword] = React.useState('')
-  const [isValidToken, setIsValidToken] = React.useState(true)
+  const [isValidToken, setIsValidToken] = React.useState<boolean | null>(null)
 
   const {
     register,
@@ -66,22 +65,49 @@ function ResetPasswordPageContent() {
     setPassword(watchedPassword ?? '')
   }, [watchedPassword])
 
-  // Validate token on mount
+  // Establish the session from the recovery link on mount. Supabase always
+  // delivers the recovery tokens as a URL hash (`#access_token=...&type=
+  // recovery`), never as query params -- and our client (createBrowserClient
+  // from @supabase/ssr) hardcodes flowType: 'pkce', which makes its own
+  // automatic hash detection reject this implicit-style hash outright and
+  // silently report no session. So the hash has to be parsed and applied
+  // via setSession() directly rather than relying on getSession() to have
+  // already picked it up.
+  //
+  // If Supabase's redirect fell back to the Site URL (e.g. this exact path
+  // isn't allow-listed for the domain the visitor is on), the recovery
+  // session gets established on the homepage instead (see
+  // HomeSessionRedirect) and this page is reached by a plain client-side
+  // navigation with no hash at all -- in that case fall back to checking
+  // for the session HomeSessionRedirect already set up, rather than
+  // treating "no hash here" as "no valid link".
   React.useEffect(() => {
-    const accessToken = searchParams.get('access_token')
-    const type = searchParams.get('type')
+    let cancelled = false
 
-    // Check if we have a valid recovery token
-    if (!accessToken || type !== 'recovery') {
-      // Try to get session anyway - Supabase might have already processed the token
-      const supabase = createBrowserClient()
+    const hashParams = new URLSearchParams(window.location.hash.slice(1))
+    const accessToken = hashParams.get('access_token')
+    const refreshToken = hashParams.get('refresh_token')
+
+    const supabase = createBrowserClient()
+
+    if (!accessToken || !refreshToken) {
       supabase.auth.getSession().then(({ data: { session } }) => {
-        if (!session) {
-          setIsValidToken(false)
-        }
+        if (cancelled) return
+        setIsValidToken(!!session)
       })
+      return
     }
-  }, [searchParams])
+
+    supabase.auth.setSession({ access_token: accessToken, refresh_token: refreshToken }).then(({ data: { session } }) => {
+      if (cancelled) return
+      window.history.replaceState(null, '', window.location.pathname + window.location.search)
+      setIsValidToken(!!session)
+    })
+
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   const onSubmit = async (data: ResetPasswordForm) => {
     if (!isValidToken) return
@@ -92,18 +118,8 @@ function ResetPasswordPageContent() {
     try {
       const supabase = createBrowserClient()
 
-      // First, try to verify the session exists
-      const { data: { session } } = await supabase.auth.getSession()
-
-      if (!session) {
-        // Try to get session from the URL fragment (Supabase uses fragment for tokens)
-        // This is handled by the callback page, but we'll try to refresh
-        const { error: refreshError } = await supabase.auth.refreshSession()
-        if (refreshError) {
-          throw new Error('Invalid or expired reset link. Please request a new one.')
-        }
-      }
-
+      // The recovery session was already established by setSession() in
+      // the mount effect above -- updateUser() applies against it directly.
       const { error: updateError } = await supabase.auth.updateUser({
         password: data.password,
       })
@@ -125,6 +141,21 @@ function ResetPasswordPageContent() {
     } finally {
       setIsLoading(false)
     }
+  }
+
+  if (isValidToken === null) {
+    return (
+      <AuthShell>
+        <Card>
+          <CardHeader className="text-center">
+            <div className="flex justify-center mb-4">
+              <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            </div>
+            <CardTitle className="text-display-sm">Verifying your reset link…</CardTitle>
+          </CardHeader>
+        </Card>
+      </AuthShell>
+    )
   }
 
   if (!isValidToken) {
