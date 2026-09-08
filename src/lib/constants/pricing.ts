@@ -1,7 +1,23 @@
 export interface PricingTier {
   id: string
   name: string
-  price: number
+  /**
+   * The price actually billed (matches plans.price_cents in the DB) — kept
+   * as the secondary, smaller "≈ $X" figure since M-Pesa only ever settles
+   * in KES.
+   */
+  priceUsd: number
+  /**
+   * Primary displayed price. A fixed literal, not computed at render time —
+   * this is Kenya's primary market and KES is the currency actually charged,
+   * so it's the number that should read as "the price." Set once per tier as
+   * priceUsd * USD_TO_KES_RATE (see src/lib/currencies.ts) at the time this
+   * was written; USD_TO_KES_RATE is itself a fixed approximation, not a live
+   * feed, so revisit both of these together periodically (e.g. quarterly, or
+   * whenever the real rate drifts noticeably) rather than expecting either
+   * to auto-update.
+   */
+  priceKes: number
   storage: string
   description: string
   features: string[]
@@ -13,7 +29,8 @@ export const PRICING_TIERS: PricingTier[] = [
   {
     id: 'free',
     name: 'Free',
-    price: 0,
+    priceUsd: 0,
+    priceKes: 0,
     storage: '3 GB storage',
     description: 'Try the gallery experience with no commitment.',
     features: [
@@ -27,7 +44,8 @@ export const PRICING_TIERS: PricingTier[] = [
   {
     id: 'starter',
     name: 'Starter',
-    price: 12,
+    priceUsd: 12,
+    priceKes: 1548,
     storage: '100 GB storage',
     description: 'Everything a solo photographer needs to run their business.',
     features: [
@@ -44,7 +62,8 @@ export const PRICING_TIERS: PricingTier[] = [
   {
     id: 'studio',
     name: 'Studio',
-    price: 29,
+    priceUsd: 29,
+    priceKes: 3741,
     storage: '500 GB storage',
     description: 'For studios ready to sell more and build their brand.',
     features: [
@@ -59,7 +78,8 @@ export const PRICING_TIERS: PricingTier[] = [
   {
     id: 'team',
     name: 'Team',
-    price: 59,
+    priceUsd: 59,
+    priceKes: 7611,
     storage: '1 TB storage',
     description: 'For growing studios with more than one photographer.',
     features: [
@@ -84,6 +104,11 @@ export const PRICING_FAQ = [
   {
     question: 'What payment methods do you accept?',
     answer: 'M-Pesa, for both your subscription and the payments you collect from clients. Support for card payments is on the roadmap.',
+  },
+  {
+    question: 'Why does my M-PESA message say Animara Studio?',
+    answer:
+      'Animara Studio is LensFlow\'s parent business — it\'s the registered name behind our M-Pesa PayBill, so it\'s what shows up in the STK push prompt and confirmation SMS. Your payment is still going to LensFlow.',
   },
   {
     question: 'What happens if I go over my storage limit?',

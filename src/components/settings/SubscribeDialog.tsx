@@ -19,7 +19,6 @@ import {
   initiatePlanSubscriptionPayment,
   pollPlanSubscriptionPaymentStatus,
 } from '@/lib/actions/subscription-payments'
-import { USD_TO_KES_RATE } from '@/lib/currencies'
 
 type FlowState = 'form' | 'sending' | 'pending' | 'completed' | 'failed'
 
@@ -31,12 +30,14 @@ export function SubscribeDialog({
   planSlug,
   planName,
   priceUsd,
+  priceKes,
   trigger,
 }: {
   studioSlug: string
   planSlug: 'starter' | 'studio' | 'team'
   planName: string
   priceUsd: number
+  priceKes: number
   trigger: React.ReactNode
 }) {
   const [open, setOpen] = useState(false)
@@ -45,8 +46,6 @@ export function SubscribeDialog({
   const [error, setError] = useState<string | null>(null)
   const pollHandle = useRef<ReturnType<typeof setInterval> | null>(null)
   const pollDeadline = useRef<number>(0)
-
-  const approxKes = Math.round(priceUsd * USD_TO_KES_RATE)
 
   function stopPolling() {
     if (pollHandle.current) {
@@ -126,14 +125,14 @@ export function SubscribeDialog({
             <div className="rounded-lg border border-border bg-muted/40 p-3 text-sm">
               <div className="flex items-center justify-between">
                 <span className="text-muted-foreground">{planName} plan</span>
-                <span className="font-medium">${priceUsd}/month</span>
+                <span className="font-medium">KES {priceKes.toLocaleString()}/month</span>
               </div>
               <div className="flex items-center justify-between mt-1 text-xs text-muted-foreground">
-                <span>Charged via M-Pesa (KES)</span>
-                <span>≈ KES {approxKes.toLocaleString()}</span>
+                <span>Billed via M-Pesa</span>
+                <span>≈ ${priceUsd} USD</span>
               </div>
               <p className="mt-2 text-xs text-muted-foreground">
-                Approximate conversion at $1 ≈ KES {USD_TO_KES_RATE}. The exact KES amount is confirmed by M-Pesa before you approve.
+                The exact KES amount is confirmed by M-Pesa before you approve.
               </p>
             </div>
             <div className="space-y-1.5">
@@ -148,6 +147,10 @@ export function SubscribeDialog({
               />
             </div>
             {error && <p className="text-sm text-destructive">{error}</p>}
+            <p className="text-xs text-muted-foreground">
+              You&apos;ll get a payment prompt from Animara Studio — that&apos;s Lensflow&apos;s registered business
+              name.
+            </p>
             <DialogFooter>
               <Button type="submit" disabled={state === 'sending'} className="gap-2">
                 {state === 'sending' && <Loader2 className="h-4 w-4 animate-spin" />}
@@ -170,6 +173,10 @@ export function SubscribeDialog({
           <div className="flex flex-col items-center gap-3 py-6 text-center">
             <CheckCircle2 className="h-8 w-8 text-success" />
             <p className="text-sm font-medium text-foreground">You&apos;re on the {planName} plan</p>
+            <p className="text-xs text-muted-foreground">
+              Your M-Pesa confirmation SMS will show Animara Studio — that&apos;s Lensflow&apos;s registered business
+              name.
+            </p>
             <Button onClick={resetAndClose}>Done</Button>
           </div>
         )}

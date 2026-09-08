@@ -44,11 +44,14 @@ export default function PricingPage() {
                 <h3 className="font-display text-heading-xl text-foreground">{tier.name}</h3>
                 <p className="mt-1 text-body-sm text-muted-foreground">{tier.description}</p>
 
-                <div className="mt-5 flex items-baseline gap-1">
-                  <span className="font-mono text-3xl font-medium tabular-nums text-foreground">
-                    ${tier.price}
-                  </span>
-                  <span className="text-body-sm text-muted-foreground">/month</span>
+                <div className="mt-5">
+                  <div className="flex items-baseline gap-1">
+                    <span className="font-mono text-3xl font-medium tabular-nums text-foreground">
+                      KES {tier.priceKes.toLocaleString()}
+                    </span>
+                    <span className="text-body-sm text-muted-foreground">/month</span>
+                  </div>
+                  <p className="text-xs text-muted-foreground">≈ ${tier.priceUsd} USD</p>
                 </div>
                 <p className="label-caption mt-1">{tier.storage}</p>
 

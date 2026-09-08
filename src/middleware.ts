@@ -47,11 +47,17 @@ const PUBLIC_PATHS = [
   '/dpa',
 ]
 
+// /auth/reset-password is deliberately excluded: a password-recovery link
+// establishes a real, authenticated session (via setSession() -- see
+// HomeSessionRedirect and that page's own hash handling) before the visitor
+// has actually set a new password. Treating that as "already logged in,
+// bounce away from auth pages" would redirect them straight to the
+// dashboard without ever letting them complete the reset they clicked the
+// email link for.
 const AUTH_PATHS = [
   '/auth/login',
   '/auth/signup',
   '/auth/forgot-password',
-  '/auth/reset-password',
 ]
 
 export async function middleware(request: NextRequest) {

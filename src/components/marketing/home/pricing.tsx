@@ -48,11 +48,14 @@ export function Pricing() {
 
                 <h3 className="font-display text-heading-lg text-foreground">{tier.name}</h3>
 
-                <div className="mt-3 flex items-baseline gap-1">
-                  <span className="font-mono text-2xl font-medium tabular-nums text-foreground">
-                    ${tier.price}
-                  </span>
-                  <span className="text-body-sm text-muted-foreground">/month</span>
+                <div className="mt-3">
+                  <div className="flex items-baseline gap-1">
+                    <span className="font-mono text-2xl font-medium tabular-nums text-foreground">
+                      KES {tier.priceKes.toLocaleString()}
+                    </span>
+                    <span className="text-body-sm text-muted-foreground">/month</span>
+                  </div>
+                  <p className="text-xs text-muted-foreground">≈ ${tier.priceUsd} USD</p>
                 </div>
                 <p className="label-caption mt-1">{tier.storage}</p>
 
