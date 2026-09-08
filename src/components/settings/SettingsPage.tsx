@@ -763,8 +763,9 @@ export function SettingsPage({ studioSlug, studioName, isOwner, settings, billin
                           <div key={tier.id} className={`rounded-lg border p-3 ${isCurrent ? 'border-primary bg-primary/5' : 'border-border'}`}>
                             <div className="flex items-center justify-between">
                               <span className="text-sm font-medium">{tier.name}</span>
-                              <span className="text-sm text-muted-foreground">${tier.price}/mo</span>
+                              <span className="text-sm text-muted-foreground">KES {tier.priceKes.toLocaleString()}/mo</span>
                             </div>
+                            <div className="text-right text-xs text-muted-foreground">≈ ${tier.priceUsd} USD</div>
                             {isCurrent ? (
                               <Badge variant="outline" className="mt-2">Current plan</Badge>
                             ) : (
@@ -772,7 +773,8 @@ export function SettingsPage({ studioSlug, studioName, isOwner, settings, billin
                                 studioSlug={studioSlug}
                                 planSlug={tier.id as 'starter' | 'studio' | 'team'}
                                 planName={tier.name}
-                                priceUsd={tier.price}
+                                priceUsd={tier.priceUsd}
+                                priceKes={tier.priceKes}
                                 trigger={
                                   <Button variant="outline" size="sm" className="mt-2 w-full">
                                     {billing.plan.slug === 'free' ? 'Subscribe' : 'Switch plan'}
