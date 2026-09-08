@@ -8,14 +8,15 @@ export interface PricingTier {
    */
   priceUsd: number
   /**
-   * Primary displayed price. A fixed literal, not computed at render time —
-   * this is Kenya's primary market and KES is the currency actually charged,
-   * so it's the number that should read as "the price." Set once per tier as
-   * priceUsd * USD_TO_KES_RATE (see src/lib/currencies.ts) at the time this
-   * was written; USD_TO_KES_RATE is itself a fixed approximation, not a live
-   * feed, so revisit both of these together periodically (e.g. quarterly, or
-   * whenever the real rate drifts noticeably) rather than expecting either
-   * to auto-update.
+   * Primary displayed price. A deliberately chosen, rounded marketing
+   * figure — not priceUsd * USD_TO_KES_RATE (see src/lib/currencies.ts)
+   * left unrounded. An unrounded FX output (e.g. "KES 1,548") reads as a
+   * currency-converter number, not a price a Kenyan business actually
+   * set; each figure here is picked close to that conversion and then
+   * rounded to a clean anchor (nearest 100). Revisit these periodically
+   * (e.g. quarterly, or whenever the real rate drifts enough that a tier
+   * no longer reads as "close to" its USD price) rather than expecting
+   * them to auto-update.
    */
   priceKes: number
   storage: string
@@ -45,7 +46,7 @@ export const PRICING_TIERS: PricingTier[] = [
     id: 'starter',
     name: 'Starter',
     priceUsd: 12,
-    priceKes: 1548,
+    priceKes: 1500,
     storage: '100 GB storage',
     description: 'Everything a solo photographer needs to run their business.',
     features: [
@@ -63,7 +64,7 @@ export const PRICING_TIERS: PricingTier[] = [
     id: 'studio',
     name: 'Studio',
     priceUsd: 29,
-    priceKes: 3741,
+    priceKes: 3800,
     storage: '500 GB storage',
     description: 'For studios ready to sell more and build their brand.',
     features: [
@@ -79,7 +80,7 @@ export const PRICING_TIERS: PricingTier[] = [
     id: 'team',
     name: 'Team',
     priceUsd: 59,
-    priceKes: 7611,
+    priceKes: 7600,
     storage: '1 TB storage',
     description: 'For growing studios with more than one photographer.',
     features: [
