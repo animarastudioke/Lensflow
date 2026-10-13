@@ -162,6 +162,74 @@
   }
 }
 
+/* Public client gallery: a "dim viewing room" scoped to the gallery page only.
+   Re-pointing the existing semantic tokens (rather than inventing a parallel
+   palette) means shadcn Buttons/Skeletons inside it pick up the dark values for
+   free, and nothing outside .gallery-viewer is affected. --gv-accent is the one
+   warm highlight (favorites, selected filter); the studio's own brand color is
+   applied separately and only as a hairline. */
+@layer base {
+  .gallery-viewer {
+    --background: 220 16% 6%;
+    --foreground: 40 18% 93%;
+    --card: 220 14% 9%;
+    --card-foreground: 40 18% 93%;
+    --muted: 220 12% 12%;
+    --muted-foreground: 220 8% 64%;
+    --secondary: 220 12% 14%;
+    --secondary-foreground: 40 18% 93%;
+    --accent: 220 12% 16%;
+    --accent-foreground: 40 18% 93%;
+    --border: 220 10% 16%;
+    --input: 220 10% 20%;
+    --ring: 38 42% 70%;
+    --radius: 0.25rem;
+    --gv-accent: 38 42% 70%;
+    --gv-ease: cubic-bezier(0.22, 0.61, 0.36, 1);
+    --gv-duration: 240ms;
+    background-color: hsl(var(--background));
+    color: hsl(var(--foreground));
+  }
+
+  @keyframes gv-fade-up {
+    from {
+      opacity: 0;
+      transform: translateY(8px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  @keyframes gv-fade {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+
+  .gv-fade-up {
+    animation: gv-fade-up 480ms var(--gv-ease) both;
+  }
+
+  .gv-fade {
+    animation: gv-fade 220ms var(--gv-ease) both;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .gallery-viewer *,
+    .gallery-viewer *::before,
+    .gallery-viewer *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+}
+
 @layer utilities {
   .animate-in {
     animation: animate-in 0.2s ease-out forwards;

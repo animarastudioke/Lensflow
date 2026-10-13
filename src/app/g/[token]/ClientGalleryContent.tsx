@@ -3,99 +3,20 @@
 import * as React from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
-import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { Loader2, Eye, Download, Heart, Share2, ChevronLeft, ChevronRight, X, Grid, Info, Lock, Calendar, PlayCircle } from 'lucide-react'
+import { Loader2, Info, Lock } from 'lucide-react'
 import { format } from 'date-fns'
 import { toast } from 'sonner'
-import { GalleryCoverPreview, type CoverTemplate, type HeadingFont } from '@/components/galleries/GalleryCoverPreview'
-
-interface MediaItem {
-  id: string
-  filename: string
-  url: string
-  thumbnailUrl: string
-  type: 'image' | 'video'
-  /** Presigned inline-playback URL — only set for video items. */
-  videoPlaybackUrl?: string
-  size: number
-  width: number
-  height: number
-  metadata?: {
-    camera?: string
-    lens?: string
-    iso?: number
-    aperture?: string
-    shutterSpeed?: string
-    focalLength?: string
-    tags?: string[]
-  }
-  isFavorite: boolean
-  commentCount: number
-  createdAt: string
-  albumId?: string
-}
-
-interface Album {
-  id: string
-  name: string
-  description?: string
-  coverImage?: string
-  mediaCount: number
-  order: number
-  createdAt: string
-}
-
-interface GalleryData {
-  id: string
-  studio_id: string
-  name: string
-  description?: string
-  cover_image?: string
-  type: 'event' | 'portrait' | 'wedding' | 'commercial' | 'other'
-  client_name?: string
-  shoot_date?: string
-  media_count: number
-  allow_download: boolean
-  allow_comments: boolean
-  allow_favorites: boolean
-  watermark_enabled: boolean
-  password_protected: boolean
-  share_token: string
-  layout_type: 'grid' | 'masonry' | 'justified'
-  cover_template: CoverTemplate
-  heading_font?: HeadingFont
-  studio?: {
-    name: string
-    slug: string
-    logo_url?: string
-    brand_color?: string
-  }
-  share_settings?: {
-    custom_branding: boolean
-    brand_name?: string
-    brand_logo?: string
-    brand_color?: string
-    cover_image?: string
-    allow_embed: boolean
-    embed_width: number
-    embed_height: number
-    require_email: boolean
-    collect_email: boolean
-  }
-  client?: { id: string; name: string; email: string }
-  albums?: Album[]
-  media?: MediaItem[]
-  entitlements?: {
-    canDownloadOriginals: boolean
-    canBulkDownload: boolean
-    showPoweredByBadge: boolean
-  }
-}
+import { GalleryNav } from '@/components/galleries/viewer/GalleryNav'
+import { GalleryHero } from '@/components/galleries/viewer/GalleryHero'
+import { GalleryFilters } from '@/components/galleries/viewer/GalleryFilters'
+import { EditorialGallery } from '@/components/galleries/viewer/EditorialGallery'
+import { GalleryLightbox } from '@/components/galleries/viewer/GalleryLightbox'
+import type { Album, GalleryBranding, GalleryData, GalleryViewMode, MediaItem } from '@/components/galleries/viewer/types'
 
 interface ClientGalleryContentProps {
   gallery: GalleryData | null
@@ -141,6 +62,14 @@ function transformAlbums(dbAlbums: any[]): Album[] {
   }))
 }
 
+const GALLERY_TYPE_LABEL: Record<GalleryData['type'], string> = {
+  event: 'Event',
+  portrait: 'Portrait',
+  wedding: 'Wedding',
+  commercial: 'Commercial',
+  other: 'Gallery',
+}
+
 export function ClientGalleryContent({
   gallery,
   token,
@@ -159,9 +88,9 @@ export function ClientGalleryContent({
   const [favorites, setFavorites] = React.useState<string[]>([])
   const [downloadingIds, setDownloadingIds] = React.useState<Set<string>>(new Set())
   const [isDownloadingAll, setIsDownloadingAll] = React.useState(false)
+  const [viewMode, setViewMode] = React.useState<GalleryViewMode>('editorial')
+  const [activeAlbumId, setActiveAlbumId] = React.useState<string | null>(searchParams.get('album'))
   const lightboxHistoryPushed = React.useRef(false)
-  const lightboxRef = React.useRef<HTMLDivElement>(null)
-  const lastFocusedElementRef = React.useRef<HTMLElement | null>(null)
 
   // Pressing the browser/device back button while the lightbox is open should
   // close the lightbox and return to the grid, not exit the whole gallery page.
@@ -180,10 +109,23 @@ export function ClientGalleryContent({
   const media = React.useMemo(() => gallery ? transformMedia(gallery.media || []) : [], [gallery])
   const albums = React.useMemo(() => gallery ? transformAlbums(gallery.albums || []) : [], [gallery])
 
+  // An ?album= value that doesn't match a real album (stale link, typo) falls
+  // back to "All" instead of showing an empty gallery.
+  const selectedAlbumId = activeAlbumId && albums.some(a => a.id === activeAlbumId) ? activeAlbumId : null
+
+  // The lightbox navigates exactly what the grid shows. It previously walked the
+  // full `media` list while the grid was album-filtered, so opening a photo in an
+  // album could display a different photo.
+  const visibleMedia = React.useMemo(
+    () => (selectedAlbumId ? media.filter(m => m.albumId === selectedAlbumId) : media),
+    [media, selectedAlbumId],
+  )
+
   // Seed local favorites from whatever's already saved for this gallery
   React.useEffect(() => {
     setFavorites(media.filter(m => m.isFavorite).map(m => m.id))
   }, [media])
+  const favoriteSet = React.useMemo(() => new Set(favorites), [favorites])
 
   const brandColor = (gallery?.share_settings?.custom_branding
     ? gallery.share_settings.brand_color || gallery.studio?.brand_color
@@ -204,8 +146,20 @@ export function ClientGalleryContent({
     router.push(`?${params.toString()}`)
   }
 
+  // Album switching is purely a client-side filter. It used to router.push(),
+  // which re-ran the server page: another full gallery fetch and another view
+  // counted for what is just a tab change. The URL is still kept in sync so a
+  // filtered view stays linkable.
+  const selectAlbum = (albumId: string | null) => {
+    setActiveAlbumId(albumId)
+    const params = new URLSearchParams(window.location.search)
+    if (albumId) params.set('album', albumId)
+    else params.delete('album')
+    const query = params.toString()
+    window.history.replaceState(window.history.state, '', `${window.location.pathname}${query ? `?${query}` : ''}`)
+  }
+
   const openLightbox = (index: number) => {
-    lastFocusedElementRef.current = document.activeElement as HTMLElement | null
     setLightboxIndex(index)
     setShowLightbox(true)
     window.history.pushState({ lightbox: true }, '')
@@ -219,66 +173,6 @@ export function ClientGalleryContent({
       window.history.back()
     }
   }
-
-  const showPrevImage = React.useCallback(() => {
-    setLightboxIndex((prev) => (prev === 0 ? media.length - 1 : prev - 1))
-  }, [media.length])
-
-  const showNextImage = React.useCallback(() => {
-    setLightboxIndex((prev) => (prev === media.length - 1 ? 0 : prev + 1))
-  }, [media.length])
-
-  // Keyboard behavior (Escape/arrow navigation), a focus trap so Tab can't
-  // reach the page behind the overlay, initial focus into the dialog, focus
-  // restoration to whatever opened it, and a background scroll lock -- all
-  // previously missing, leaving the lightbox mouse-only and the client's
-  // page scrollable behind a full-screen overlay.
-  React.useEffect(() => {
-    if (!showLightbox) return
-
-    const container = lightboxRef.current
-    const focusableSelector = 'button:not([disabled]), [href], video, input:not([disabled]), [tabindex]:not([tabindex="-1"])'
-    const focusables = container ? Array.from(container.querySelectorAll<HTMLElement>(focusableSelector)) : []
-    focusables[0]?.focus()
-
-    const previousOverflow = document.body.style.overflow
-    document.body.style.overflow = 'hidden'
-
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        closeLightbox()
-        return
-      }
-      if (e.key === 'ArrowLeft') {
-        showPrevImage()
-        return
-      }
-      if (e.key === 'ArrowRight') {
-        showNextImage()
-        return
-      }
-      if (e.key === 'Tab' && container) {
-        const current = Array.from(container.querySelectorAll<HTMLElement>(focusableSelector))
-        if (current.length === 0) return
-        const first = current[0]!
-        const last = current[current.length - 1]!
-        if (e.shiftKey && document.activeElement === first) {
-          e.preventDefault()
-          last.focus()
-        } else if (!e.shiftKey && document.activeElement === last) {
-          e.preventDefault()
-          first.focus()
-        }
-      }
-    }
-    document.addEventListener('keydown', onKeyDown)
-
-    return () => {
-      document.removeEventListener('keydown', onKeyDown)
-      document.body.style.overflow = previousOverflow
-      lastFocusedElementRef.current?.focus?.()
-    }
-  }, [showLightbox, showPrevImage, showNextImage])
 
   const downloadSingleImage = async (item: MediaItem) => {
     // Tracking the download count is a side-effect, not a gate — fire it and
@@ -481,373 +375,102 @@ export function ClientGalleryContent({
   }
 
   // Get branding from share settings or studio
-  const branding = gallery.share_settings?.custom_branding
+  const branding: GalleryBranding = gallery.share_settings?.custom_branding
     ? {
-        name: gallery.share_settings.brand_name || gallery.studio?.name,
+        name: gallery.share_settings.brand_name || gallery.studio?.name || 'LensFlow',
         logo: gallery.share_settings.brand_logo || gallery.studio?.logo_url,
-        color: gallery.share_settings.brand_color || gallery.studio?.brand_color,
+        color: gallery.share_settings.brand_color || gallery.studio?.brand_color || '#3b82f6',
         coverImage: gallery.share_settings.cover_image || gallery.cover_image,
       }
     : {
         name: gallery.studio?.name || 'LensFlow',
         logo: gallery.studio?.logo_url,
-        color: gallery.studio?.brand_color,
+        color: gallery.studio?.brand_color || '#3b82f6',
         coverImage: gallery.cover_image,
       }
 
-  // The grid item itself (not this button) is the real interactive control --
-  // see role="button"/tabIndex/onKeyDown on each layout's wrapper below. This
-  // is a purely visual hover affordance, so it's excluded from both focus
-  // and the accessibility tree to avoid a redundant, unlabeled stop in the
-  // tab order.
-  const renderMediaOverlay = (item: MediaItem) => (
-    <>
-      <div className="absolute inset-0 bg-black/30 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-        <Button variant="secondary" size="icon" className="h-10 w-10" tabIndex={-1} aria-hidden="true">
-          <Eye className="h-5 w-5" />
-        </Button>
-      </div>
-
-      {item.isFavorite && (
-        <div className="absolute top-1 right-1">
-          <Heart className="h-5 w-5 text-red-500 fill-current drop-shadow" />
-        </div>
-      )}
-
-      {item.type === 'video' && (
-        <div className="absolute bottom-1 right-1 bg-black/50 text-white px-2 py-1 rounded text-xs flex items-center gap-1">
-          <PlayCircle className="h-3 w-3" />
-          Video
-        </div>
-      )}
-
-      {item.commentCount > 0 && (
-        <div className="absolute bottom-1 left-1 bg-black/50 text-white px-2 py-1 rounded text-xs flex items-center gap-1">
-          <Share2 className="h-3 w-3" />
-          {item.commentCount}
-        </div>
-      )}
-    </>
-  )
-
-  // Opening a photo previously only worked via a plain onClick on a <div> --
-  // unreachable by keyboard at all. Each grid item wrapper below is now a
-  // real tab stop (role="button"/tabIndex=0) wired to this handler so Enter
-  // and Space open the lightbox exactly like a click would.
-  const handleGridItemKeyDown = (e: React.KeyboardEvent, index: number) => {
-    if (e.key === 'Enter' || e.key === ' ') {
-      e.preventDefault()
-      openLightbox(index)
-    }
-  }
-
-  const gridItemInteractiveProps = (item: MediaItem, index: number) => ({
-    role: 'button' as const,
-    tabIndex: 0,
-    'aria-label': `View ${item.filename}`,
-    onClick: () => openLightbox(index),
-    onKeyDown: (e: React.KeyboardEvent) => handleGridItemKeyDown(e, index),
-  })
-
-  const renderMediaGrid = () => {
-    const filteredMedia = albums.length > 0 && albums.find(a => a.id === searchParams.get('album'))
-      ? media.filter(m => m.albumId === searchParams.get('album'))
-      : media
-
-    if (filteredMedia.length === 0) {
-      return (
-        <div className="text-center py-12">
-          <div className="h-12 w-12 mx-auto text-muted-foreground/50 mb-4">
-            <Grid className="h-12 w-12" />
-          </div>
-          <h3 className="text-heading text-muted-foreground">No photos in this album</h3>
-        </div>
-      )
-    }
-
-    const layoutType = gallery?.layout_type || 'grid'
-
-    if (layoutType === 'masonry') {
-      return (
-        <div className="columns-2 sm:columns-3 md:columns-4 lg:columns-5 gap-3 px-4">
-          {filteredMedia.map((item, index) => (
-            <div
-              key={item.id}
-              className="relative group mb-3 break-inside-avoid overflow-hidden rounded-xl bg-muted transition-all duration-200 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-              {...gridItemInteractiveProps(item, index)}
-            >
-              <img
-                src={item.thumbnailUrl}
-                alt={item.filename}
-                className="w-full h-auto object-cover transition-transform duration-300 group-hover:scale-105"
-                style={{ aspectRatio: item.width && item.height ? `${item.width} / ${item.height}` : '1 / 1' }}
-                loading="lazy"
-                decoding="async"
-              />
-              {renderMediaOverlay(item)}
-            </div>
-          ))}
-        </div>
-      )
-    }
-
-    if (layoutType === 'justified') {
-      return (
-        <div className="flex flex-wrap gap-3 px-4">
-          {filteredMedia.map((item, index) => {
-            const ratio = item.width && item.height ? item.width / item.height : 1
-            return (
-              <div
-                key={item.id}
-                className="relative group overflow-hidden rounded-xl bg-muted transition-all duration-200 cursor-pointer grow focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                style={{ height: 220, width: 220 * ratio, flexBasis: 220 * ratio }}
-                {...gridItemInteractiveProps(item, index)}
-              >
-                <img
-                  src={item.thumbnailUrl}
-                  alt={item.filename}
-                  className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
-                  loading="lazy"
-                  decoding="async"
-                />
-                {renderMediaOverlay(item)}
-              </div>
-            )
-          })}
-        </div>
-      )
-    }
-
-    return (
-      <div className="grid gap-3 px-4 grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
-        {filteredMedia.map((item, index) => (
-          <div
-            key={item.id}
-            className="relative group aspect-square overflow-hidden rounded-xl bg-muted transition-all duration-200 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-            {...gridItemInteractiveProps(item, index)}
-          >
-            <img
-              src={item.thumbnailUrl}
-              alt={item.filename}
-              className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
-              loading="lazy"
-              decoding="async"
-            />
-            {renderMediaOverlay(item)}
-          </div>
-        ))}
-      </div>
-    )
-  }
-
-  const renderAlbums = () => {
-    if (!albums.length && !embed) {
-      return null
-    }
-    return (
-      <div className="mb-6">
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="text-heading font-semibold text-foreground">Albums</h2>
-        </div>
-        <div className="flex gap-2 overflow-x-auto pb-2">
-          <button
-            onClick={() => {
-              const params = new URLSearchParams(searchParams.toString())
-              params.delete('album')
-              router.push(`?${params.toString()}`)
-            }}
-            className={cn(
-              'px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-colors',
-              !searchParams.get('album')
-                ? 'bg-primary text-primary-foreground'
-                : 'bg-muted hover:bg-muted/80'
-            )}
-          >
-            All Photos
-          </button>
-          {albums.map(album => (
-            <button
-              key={album.id}
-              onClick={() => {
-                const params = new URLSearchParams(searchParams.toString())
-                params.set('album', album.id)
-                router.push(`?${params.toString()}`)
-              }}
-              className={cn(
-                'px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-colors',
-                searchParams.get('album') === album.id
-                  ? 'bg-primary text-primary-foreground'
-                  : 'bg-muted hover:bg-muted/80'
-              )}
-            >
-              {album.name} ({album.mediaCount})
-            </button>
-          ))}
-        </div>
-      </div>
-    )
-  }
-
-  const renderHeader = () => (
-    <header className="relative h-[420px] md:h-[480px] border-b border-border">
-      <GalleryCoverPreview
-        template={gallery.cover_template || 'novel'}
-        data={{
-          name: gallery.name,
-          description: gallery.description,
-          clientName: gallery.client_name,
-          dateLabel: gallery.shoot_date ? format(new Date(gallery.shoot_date), 'MMM d, yyyy') : undefined,
-          coverImageUrl: branding.coverImage,
-          secondaryImageUrl: media[1]?.thumbnailUrl,
-          logoUrl: branding.logo,
-          brandName: branding.name || 'LensFlow',
-          brandColor: branding.color || '#3b82f6',
-          headingFont: gallery.heading_font,
-        }}
-      />
-      <div className="absolute top-4 right-4 flex items-center gap-2">
-        <Button variant="secondary" size="icon" className="bg-white/90 hover:bg-white shadow-sm" onClick={shareGallery} aria-label="Share gallery">
-          <Share2 className="h-4 w-4" />
-        </Button>
-        {gallery.allow_download && (
-          <Button variant="secondary" size="icon" className="bg-white/90 hover:bg-white shadow-sm" onClick={downloadAllImages} disabled={isDownloadingAll} aria-label="Download all">
-            {isDownloadingAll ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
-          </Button>
-        )}
-      </div>
-      {gallery.entitlements?.showPoweredByBadge && (
-        <a
-          href="https://lensflow.co.ke"
-          target="_blank"
-          rel="noreferrer"
-          className="absolute bottom-4 left-4 rounded-full bg-white/90 px-3 py-1 text-xs font-medium text-foreground shadow-sm hover:bg-white"
-        >
-          Powered by LensFlow
-        </a>
-      )}
-    </header>
-  )
+  const canFavorite = gallery.allow_favorites
+  const canDownload = gallery.allow_download
 
   return (
-    <div className="space-y-6" style={style as React.CSSProperties}>
-      {/* Branding Header */}
-      {!embed && renderHeader()}
-
-      {/* Gallery Info */}
+    <div className="gallery-viewer min-h-screen" style={style as React.CSSProperties}>
       {!embed && (
-        <div className="flex flex-wrap items-center gap-4 text-sm text-muted-foreground px-4">
-          {gallery.shoot_date && (
-            <span className="flex items-center gap-1">
-              <Calendar className="h-4 w-4" />
-              {format(new Date(gallery.shoot_date), 'MMM d, yyyy')}
-            </span>
-          )}
-          <span className="flex items-center gap-1">
-            <Grid className="h-4 w-4" />
-            {gallery.media_count} photos
-          </span>
-        </div>
+        <GalleryNav
+          branding={branding}
+          studioSlug={gallery.studio?.slug}
+          headingFont={gallery.heading_font}
+          onShare={shareGallery}
+          onDownloadAll={canDownload ? downloadAllImages : undefined}
+          isDownloadingAll={isDownloadingAll}
+        />
       )}
 
-      {/* Albums */}
-      {!embed && renderAlbums()}
+      <main>
+        {!embed && (
+          <GalleryHero
+            title={gallery.name}
+            eyebrow={GALLERY_TYPE_LABEL[gallery.type] === 'Gallery' ? 'Gallery' : `${GALLERY_TYPE_LABEL[gallery.type]} gallery`}
+            description={gallery.description}
+            clientName={gallery.client_name}
+            dateLabel={gallery.shoot_date ? format(new Date(gallery.shoot_date), 'MMM d, yyyy') : undefined}
+            photoCount={gallery.media_count ?? media.length}
+            // Falls back to the first photo so a gallery with no explicit cover
+            // still gets a hero instead of an empty text block.
+            coverImageUrl={branding.coverImage || media[0]?.thumbnailUrl}
+            headingFont={gallery.heading_font}
+          />
+        )}
 
-      {/* Media Grid */}
-      {renderMediaGrid()}
+        {!embed && (
+          <GalleryFilters
+            albums={albums}
+            activeAlbumId={selectedAlbumId}
+            onSelectAlbum={selectAlbum}
+            totalCount={media.length}
+            viewMode={viewMode}
+            onViewModeChange={setViewMode}
+          />
+        )}
 
-      {/* Lightbox */}
-      {showLightbox && media.length > 0 && media[lightboxIndex] && (
-        <div
-          ref={lightboxRef}
-          className="fixed inset-0 z-50 bg-black/95 flex items-center justify-center p-4"
-          onClick={closeLightbox}
-          role="dialog"
-          aria-modal="true"
-          aria-label="Image preview"
-        >
-          <Button
-            variant="ghost"
-            size="icon"
-            className="absolute left-4 top-1/2 -translate-y-1/2 h-12 w-12 bg-white/10 hover:bg-white/20 text-white"
-            onClick={(e) => { e.stopPropagation(); showPrevImage() }}
-            aria-label="Previous"
-          >
-            <ChevronLeft className="h-6 w-6" />
-          </Button>
-
-          <div className="relative max-w-[90vw] max-h-[90vh]">
-            {media[lightboxIndex]!.type === 'video' ? (
-              media[lightboxIndex]!.videoPlaybackUrl ? (
-                <video
-                  key={media[lightboxIndex]!.id}
-                  src={media[lightboxIndex]!.videoPlaybackUrl}
-                  poster={media[lightboxIndex]!.url}
-                  controls
-                  autoPlay
-                  className="max-w-[90vw] max-h-[90vh]"
-                  onClick={e => e.stopPropagation()}
-                />
-              ) : (
-                <div className="flex items-center justify-center text-white text-sm p-12" onClick={e => e.stopPropagation()}>
-                  This video isn&apos;t available right now.
-                </div>
-              )
-            ) : (
-              <img
-                src={media[lightboxIndex]!.url}
-                alt={media[lightboxIndex]!.filename}
-                className="max-w-[90vw] max-h-[90vh] object-contain"
-                onClick={e => e.stopPropagation()}
-              />
-            )}
-          </div>
-
-          <Button
-            variant="ghost"
-            size="icon"
-            className="absolute right-4 top-1/2 -translate-y-1/2 h-12 w-12 bg-white/10 hover:bg-white/20 text-white"
-            onClick={(e) => { e.stopPropagation(); showNextImage() }}
-            aria-label="Next"
-          >
-            <ChevronRight className="h-6 w-6" />
-          </Button>
-
-          <Button
-            variant="ghost"
-            size="icon"
-            className="absolute right-4 top-4 h-10 w-10 bg-white/10 hover:bg-white/20 text-white"
-            onClick={closeLightbox}
-            aria-label="Close"
-          >
-            <X className="h-5 w-5" />
-          </Button>
-
-          <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-2 text-white text-sm">
-            <span>{lightboxIndex + 1} / {media.length}</span>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="text-white hover:bg-white/20"
-              disabled={downloadingIds.has(media[lightboxIndex]!.id)}
-              onClick={(e) => { e.stopPropagation(); downloadImage(media[lightboxIndex]!) }}
-            >
-              {downloadingIds.has(media[lightboxIndex]!.id)
-                ? <Loader2 className="h-4 w-4 mr-1 animate-spin" />
-                : <Download className="h-4 w-4 mr-1" />}
-              Download
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="text-white hover:bg-white/20"
-              onClick={(e) => { e.stopPropagation(); toggleFavorite(media[lightboxIndex]!.id) }}
-              aria-pressed={favorites.includes(media[lightboxIndex]!.id)}
-              aria-label={favorites.includes(media[lightboxIndex]!.id) ? 'Remove from favorites' : 'Add to favorites'}
-            >
-              <Heart className={cn('h-4 w-4 mr-1', favorites.includes(media[lightboxIndex]!.id) ? 'fill-red-500 text-red-500' : '')} />
-            </Button>
-          </div>
+        <div className={embed ? 'pt-4' : undefined}>
+          <EditorialGallery
+            key={selectedAlbumId ?? 'all'}
+            items={visibleMedia}
+            viewMode={viewMode}
+            favorites={favoriteSet}
+            canFavorite={canFavorite}
+            onOpen={openLightbox}
+            onToggleFavorite={toggleFavorite}
+          />
         </div>
+      </main>
+
+      {!embed && gallery.entitlements?.showPoweredByBadge && (
+        <footer className="border-t border-border py-8 text-center">
+          <a
+            href="https://lensflow.co.ke"
+            target="_blank"
+            rel="noreferrer"
+            className="label-caption rounded-sm transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            Powered by LensFlow
+          </a>
+        </footer>
+      )}
+
+      {showLightbox && visibleMedia.length > 0 && (
+        <GalleryLightbox
+          items={visibleMedia}
+          index={Math.min(lightboxIndex, visibleMedia.length - 1)}
+          onIndexChange={setLightboxIndex}
+          onClose={closeLightbox}
+          canDownload={canDownload}
+          onDownload={downloadImage}
+          downloadingIds={downloadingIds}
+          canFavorite={canFavorite}
+          favorites={favoriteSet}
+          onToggleFavorite={toggleFavorite}
+        />
       )}
     </div>
   )
