@@ -22,6 +22,16 @@ export const APP_CONSTANTS = {
   PRIVACY_URL: 'https://lensflow.co.ke/privacy',
 } as const
 
+// The legal entity behind LensFlow. Safaricom's PayBill review matches the
+// merchant named on the public site against the registered business, so every
+// place that names the operator reads from here rather than repeating the text.
+// Deliberately excludes the owner's personal phone number and email address.
+export const LEGAL_ENTITY = {
+  NAME: 'Animara Studio',
+  REGISTRATION_NUMBER: 'BN-8DSKWYPY',
+  POSTAL_ADDRESS: 'P.O. Box 98963-80100, Mombasa, Kenya',
+} as const
+
 export const AUTH_CONSTANTS = {
   SESSION_COOKIE_NAME: 'lensflow-session',
   REFRESH_COOKIE_NAME: 'lensflow-refresh',
