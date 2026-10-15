@@ -1,6 +1,7 @@
 import { MarketingShell } from '@/components/marketing/MarketingShell'
 import { MarketingPageHeader } from '@/components/marketing/MarketingPageHeader'
 import { MarketingCTA } from '@/components/marketing/MarketingCTA'
+import { OperatorAddress, OperatorStatement } from '@/components/marketing/OperatorInfo'
 
 export const metadata = {
   title: 'About',
@@ -25,6 +26,12 @@ export default function AboutPage() {
             <p>
               We&apos;re a small team building LensFlow one real studio workflow at a time, and we&apos;re
               still early. If something feels missing or broken, we want to hear about it.
+            </p>
+            <p>
+              <OperatorStatement />
+            </p>
+            <p className="text-body-sm">
+              <OperatorAddress />
             </p>
           </div>
         </div>

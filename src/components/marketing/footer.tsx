@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { Logo } from './home/lib/logo'
 import { FOOTER_LINK_GROUPS, SOCIAL_LINKS } from '@/lib/constants/navigation'
+import { LEGAL_ENTITY } from '@/lib/constants'
 
 /**
  * The one marketing-site footer, shared by the homepage and every other
@@ -55,9 +56,15 @@ export function Footer() {
         </div>
 
         <div className="flex flex-col items-center justify-between gap-4 border-t border-border pt-8 sm:flex-row">
-          <p className="text-sm text-muted-foreground">
-            © {new Date().getFullYear()} LensFlow. All rights reserved.
-          </p>
+          <div className="space-y-1">
+            <p className="text-sm text-muted-foreground">
+              © {new Date().getFullYear()} LensFlow, a product of {LEGAL_ENTITY.NAME} (
+              <span className="whitespace-nowrap">{LEGAL_ENTITY.REGISTRATION_NUMBER}</span>). All rights reserved.
+            </p>
+            <p className="text-xs text-muted-foreground">
+              {LEGAL_ENTITY.NAME} · {LEGAL_ENTITY.POSTAL_ADDRESS}
+            </p>
+          </div>
           <p className="text-sm text-muted-foreground">Made with care for photographers worldwide.</p>
         </div>
       </div>

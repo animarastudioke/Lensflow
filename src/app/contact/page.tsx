@@ -1,6 +1,7 @@
 import { Mail } from 'lucide-react'
 import { MarketingShell } from '@/components/marketing/MarketingShell'
 import { MarketingPageHeader } from '@/components/marketing/MarketingPageHeader'
+import { OperatorAddress, OperatorStatement } from '@/components/marketing/OperatorInfo'
 import { APP_CONSTANTS } from '@/lib/constants'
 
 export const metadata = {
@@ -26,6 +27,12 @@ export default function ContactPage() {
               <Mail className="h-5 w-5" strokeWidth={1.5} />
               {APP_CONSTANTS.SUPPORT_EMAIL}
             </a>
+            <p className="mt-8 text-body-sm text-muted-foreground">
+              <OperatorStatement />
+            </p>
+            <p className="mt-2 text-body-sm text-muted-foreground">
+              <OperatorAddress />
+            </p>
           </div>
         </div>
       </section>

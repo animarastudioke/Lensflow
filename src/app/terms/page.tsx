@@ -1,7 +1,8 @@
 import { MarketingShell } from '@/components/marketing/MarketingShell'
 import { MarketingPageHeader } from '@/components/marketing/MarketingPageHeader'
 import { LegalDocument, LegalSection } from '@/components/marketing/LegalDocument'
-import { APP_CONSTANTS } from '@/lib/constants'
+import { OperatorStatement } from '@/components/marketing/OperatorInfo'
+import { APP_CONSTANTS, LEGAL_ENTITY } from '@/lib/constants'
 
 export const metadata = {
   title: 'Terms of Service',
@@ -12,7 +13,13 @@ export default function TermsPage() {
   return (
     <MarketingShell>
       <MarketingPageHeader label="Legal" title="Terms of Service" />
-      <LegalDocument lastUpdated="August 11, 2026">
+      <LegalDocument lastUpdated="October 15, 2026">
+        <LegalSection heading="Who we are">
+          <p>
+            <OperatorStatement /> In these terms, &ldquo;we&rdquo; and &ldquo;us&rdquo; mean {LEGAL_ENTITY.NAME}.
+          </p>
+        </LegalSection>
+
         <LegalSection heading="Acceptance of terms">
           <p>
             By creating a LensFlow account or using the platform, you agree to these terms. If you don&apos;t

@@ -1,7 +1,8 @@
 import { MarketingShell } from '@/components/marketing/MarketingShell'
 import { MarketingPageHeader } from '@/components/marketing/MarketingPageHeader'
 import { LegalDocument, LegalSection } from '@/components/marketing/LegalDocument'
-import { APP_CONSTANTS } from '@/lib/constants'
+import { OperatorStatement } from '@/components/marketing/OperatorInfo'
+import { APP_CONSTANTS, LEGAL_ENTITY } from '@/lib/constants'
 
 export const metadata = {
   title: 'Privacy Policy',
@@ -13,6 +14,13 @@ export default function PrivacyPage() {
     <MarketingShell>
       <MarketingPageHeader label="Legal" title="Privacy Policy" />
       <LegalDocument lastUpdated="August 11, 2026">
+        <LegalSection heading="Who we are">
+          <p>
+            <OperatorStatement /> {LEGAL_ENTITY.NAME} is the operator of LensFlow and the data controller for
+            the personal information processed through it.
+          </p>
+        </LegalSection>
+
         <LegalSection heading="Overview">
           <p>
             This policy describes how LensFlow collects, uses, and protects information when you use our
