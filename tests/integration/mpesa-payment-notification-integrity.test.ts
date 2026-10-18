@@ -64,6 +64,7 @@ describe('applyMpesaPaymentOutcome: one real payment outcome, exactly one notifi
       resultCode: 0,
       resultDesc: 'The service request is processed successfully.',
       receiptNumber: `${RUN_TAG}-RECEIPT`,
+      corroborated: true,
     })
     expect(outcome.handled).toBe(true)
     expect(outcome.status).toBe('completed')
@@ -90,6 +91,7 @@ describe('applyMpesaPaymentOutcome: one real payment outcome, exactly one notifi
       resultCode: 0,
       resultDesc: 'The service request is processed successfully.',
       receiptNumber: `${RUN_TAG}-RECEIPT`,
+      corroborated: true,
     })
     // The row is no longer 'pending', so the UPDATE's WHERE clause matches
     // nothing -- this is the documented safe no-op, not a second success.
