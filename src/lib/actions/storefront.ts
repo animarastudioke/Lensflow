@@ -8,7 +8,7 @@
 
 import { supabaseAdmin } from '@/lib/supabase/admin'
 import { hasEntitlement } from '@/lib/entitlements'
-import { initiateStkPush, normalizeKenyanPhone, queryStkPushStatus } from '@/lib/payments/mpesa'
+import { initiateStkPush, normalizeKenyanPhone, queryStkPushStatus, stkQueryToOutcome } from '@/lib/payments/mpesa'
 import { applyMpesaPaymentOutcome } from '@/lib/payments/resolve'
 
 export interface PublicStoreProduct {
@@ -264,14 +264,17 @@ export async function pollProductPurchaseStatus(paymentId: string): Promise<Prod
     return { status: 'pending' as const, resultDesc: '' }
   })
 
-  if (queryResult.status === 'pending') {
+  // Only a definitive Daraja result may move the row; in-progress, unknown,
+  // timeout and malformed query results leave it pending.
+  const final = stkQueryToOutcome(queryResult)
+  if (!final) {
     return { status: 'pending', failureReason: null, orderShareToken: null }
   }
 
   const outcome = await applyMpesaPaymentOutcome({
     checkoutRequestId: payment.provider_checkout_id,
-    resultCode: queryResult.status === 'completed' ? 0 : 1,
-    resultDesc: queryResult.resultDesc,
+    resultCode: final.resultCode,
+    resultDesc: final.resultDesc,
   })
 
   return {

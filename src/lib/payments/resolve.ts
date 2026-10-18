@@ -25,11 +25,22 @@ async function getStudioSlug(studioId: string): Promise<string | null> {
  * localhost) — so the logic lives here once rather than being duplicated.
  *
  * Race-safe by construction: the UPDATE's WHERE clause only matches a row
- * that is still 'pending', and returns the row only if it actually matched.
- * If the webhook and a poll both resolve the same payment at once, exactly
- * one of them gets the row back; the other sees no match and no-ops. This
- * is what makes it safe to call from two independent triggers without a
- * separate lock.
+ * in a state this outcome is allowed to leave, and returns the row only if
+ * it actually matched. If the webhook and a poll both resolve the same
+ * payment at once, exactly one of them gets the row back; the other sees no
+ * match and no-ops. This is what makes it safe to call from two independent
+ * triggers without a separate lock.
+ *
+ * Allowed transitions (a deliberate decision, not an accident):
+ *   - failure: pending -> failed only. A failure never overwrites 'failed'
+ *     (no-op) or 'completed' (money was taken; a stale/duplicate failure must
+ *     not erase it).
+ *   - success: pending -> completed AND failed -> completed. Daraja callbacks
+ *     can arrive out of order, and a poll or an earlier failure callback can
+ *     precede the real success; the customer was charged, so a success
+ *     (callers corroborate it with Safaricom first) must win. The conditional
+ *     UPDATE still matches at most once, so effects are applied exactly once;
+ *     a repeat success finds 'completed' and no-ops.
  */
 export async function applyMpesaPaymentOutcome(params: {
   checkoutRequestId: string
@@ -41,6 +52,8 @@ export async function applyMpesaPaymentOutcome(params: {
   const success = params.resultCode === 0
   const newStatus: 'completed' | 'failed' = success ? 'completed' : 'failed'
 
+  const claimable: ('pending' | 'failed')[] = success ? ['pending', 'failed'] : ['pending']
+
   const { data: payment, error } = await supabaseAdmin
     .from('payments')
     .update({
@@ -51,7 +64,7 @@ export async function applyMpesaPaymentOutcome(params: {
       updated_at: new Date().toISOString(),
     })
     .eq('provider_checkout_id', params.checkoutRequestId)
-    .eq('status', 'pending')
+    .in('status', claimable)
     .select('id, invoice_id, plan_id, order_id, amount, studio_id')
     .maybeSingle()
 
@@ -60,8 +73,9 @@ export async function applyMpesaPaymentOutcome(params: {
     return { handled: false, status: 'unknown' }
   }
 
-  // No row matched: either an unrecognized checkout ID, or this outcome was
-  // already applied by a concurrent call — both are safe no-ops here.
+  // No row matched: an unrecognized checkout ID, an outcome already applied
+  // by a concurrent/duplicate call, or a failure arriving for a row that is
+  // already resolved — all safe no-ops here.
   if (!payment) {
     return { handled: false, status: 'unknown' }
   }

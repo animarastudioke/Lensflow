@@ -3,7 +3,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { supabaseAdmin } from '@/lib/supabase/admin'
 import { revalidatePath } from 'next/cache'
-import { initiateStkPush, normalizeKenyanPhone, queryStkPushStatus } from '@/lib/payments/mpesa'
+import { initiateStkPush, normalizeKenyanPhone, queryStkPushStatus, stkQueryToOutcome } from '@/lib/payments/mpesa'
 import { USD_TO_KES_RATE } from '@/lib/currencies'
 import { applyMpesaPaymentOutcome } from '@/lib/payments/resolve'
 
@@ -214,14 +214,17 @@ export async function pollPlanSubscriptionPaymentStatus(
     return { status: 'pending' as const, resultDesc: '' }
   })
 
-  if (queryResult.status === 'pending') {
+  // Only a definitive Daraja result may move the row; in-progress, unknown,
+  // timeout and malformed query results leave it pending.
+  const final = stkQueryToOutcome(queryResult)
+  if (!final) {
     return { status: 'pending', failureReason: null }
   }
 
   const outcome = await applyMpesaPaymentOutcome({
     checkoutRequestId: payment.provider_checkout_id,
-    resultCode: queryResult.status === 'completed' ? 0 : 1,
-    resultDesc: queryResult.resultDesc,
+    resultCode: final.resultCode,
+    resultDesc: final.resultDesc,
   })
 
   revalidatePath(`/dashboard/${studioSlug}/settings`)

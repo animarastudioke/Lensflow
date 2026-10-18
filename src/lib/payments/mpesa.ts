@@ -155,10 +155,65 @@ export async function initiateStkPush(params: {
 
 export type StkPushQueryStatus = 'pending' | 'completed' | 'failed'
 
-export async function queryStkPushStatus(checkoutRequestId: string): Promise<{
+export interface StkPushQueryResult {
   status: StkPushQueryStatus
   resultDesc: string
-}> {
+  /** Present only when Daraja returned a real numeric ResultCode (status is then 'completed' or 'failed'). */
+  resultCode?: number
+}
+
+/**
+ * Pure interpretation of a Daraja STK Push Query response. Only a response
+ * that Daraja itself accepted (HTTP ok, no errorCode, ResponseCode '0' when
+ * present) AND that carries a numeric ResultCode is treated as a final
+ * outcome: 0 = paid, any other number = a definitive customer/network
+ * failure (1 insufficient funds, 1032 cancelled, 1037 prompt timed out,
+ * 2001 wrong PIN, ...). Everything else - Daraja's "transaction is being
+ * processed" error (errorCode 500.001.1001, HTTP 500), other HTTP errors,
+ * a missing/malformed ResultCode - is "pending": we do not know yet, and
+ * guessing 'failed' would mark a payment the customer may still complete
+ * (or already completed) as failed.
+ */
+export function interpretStkQueryResponse(httpOk: boolean, data: unknown): StkPushQueryResult {
+  const body = (data && typeof data === 'object' ? data : {}) as Record<string, unknown>
+
+  if (!httpOk || body['errorCode']) {
+    const msg = typeof body['errorMessage'] === 'string' ? body['errorMessage'] : 'Awaiting customer action'
+    return { status: 'pending', resultDesc: msg }
+  }
+
+  const responseCode = body['ResponseCode']
+  if (responseCode !== undefined && String(responseCode) !== '0') {
+    return { status: 'pending', resultDesc: 'Awaiting customer action' }
+  }
+
+  const raw = body['ResultCode']
+  const parsed =
+    typeof raw === 'number' ? raw : typeof raw === 'string' && /^\d+$/.test(raw.trim()) ? Number(raw) : NaN
+  if (!Number.isInteger(parsed)) {
+    return { status: 'pending', resultDesc: 'Awaiting customer action' }
+  }
+
+  const desc = typeof body['ResultDesc'] === 'string' ? body['ResultDesc'] : undefined
+  if (parsed === 0) {
+    return { status: 'completed', resultDesc: desc ?? 'Payment completed', resultCode: 0 }
+  }
+  return { status: 'failed', resultDesc: desc ?? 'Payment failed', resultCode: parsed }
+}
+
+/**
+ * What a polling fallback may hand to applyMpesaPaymentOutcome: null unless
+ * the query produced a final result. Keeps "in progress / unknown" rows
+ * pending in every poller.
+ */
+export function stkQueryToOutcome(
+  result: StkPushQueryResult
+): { resultCode: number; resultDesc: string } | null {
+  if (result.status === 'pending' || result.resultCode === undefined) return null
+  return { resultCode: result.resultCode, resultDesc: result.resultDesc }
+}
+
+export async function queryStkPushStatus(checkoutRequestId: string): Promise<StkPushQueryResult> {
   const token = await getAccessToken()
   const shortcode = getEnv('MPESA_SHORTCODE')
   const timestamp = buildTimestamp()
@@ -178,20 +233,9 @@ export async function queryStkPushStatus(checkoutRequestId: string): Promise<{
     }),
   })
 
-  const data = await response.json()
-
-  // 1037/2001-style ResponseCodes mean "still pending" (e.g. the customer
-  // hasn't entered their PIN yet) rather than a real error.
-  if (!response.ok || data.errorCode) {
-    return { status: 'pending', resultDesc: data.errorMessage ?? 'Awaiting customer action' }
-  }
-
-  const resultCode = data.ResultCode
-  if (resultCode === '0' || resultCode === 0) {
-    return { status: 'completed', resultDesc: data.ResultDesc ?? 'Payment completed' }
-  }
-
-  return { status: 'failed', resultDesc: data.ResultDesc ?? 'Payment failed' }
+  // A non-JSON body (gateway error page) is "unknown", not a failure.
+  const data = await response.json().catch(() => null)
+  return interpretStkQueryResponse(response.ok, data)
 }
 
 /** Shape of the callback Safaricom POSTs to MPESA_CALLBACK_URL. */
