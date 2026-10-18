@@ -5,8 +5,9 @@ import { supabaseAdmin } from '@/lib/supabase/admin'
 import { revalidatePath } from 'next/cache'
 import { requireEntitlement } from '@/lib/entitlements'
 import { requireStudioPermission } from '@/lib/auth/server'
-import { initiateStkPush, normalizeKenyanPhone, queryStkPushStatus } from '@/lib/payments/mpesa'
+import { initiateStkPush, normalizeKenyanPhone, queryStkPushStatus, stkQueryToOutcome } from '@/lib/payments/mpesa'
 import { applyMpesaPaymentOutcome } from '@/lib/payments/resolve'
+import { shouldRequeryPayment } from '@/lib/payments/requery'
 import { getStudioCurrency } from '@/lib/actions/studios'
 
 /**
@@ -266,14 +267,14 @@ export async function pollMpesaPaymentStatusPublic(
 
   const { data: payment } = await supabaseAdmin
     .from('payments')
-    .select('status, provider_checkout_id, failure_reason, provider_receipt_number')
+    .select('status, provider_checkout_id, failure_reason, provider_receipt_number, updated_at')
     .eq('id', paymentId)
     .eq('invoice_id', invoice.id)
     .single()
 
   if (!payment) return { error: 'Payment not found' }
 
-  if (payment.status !== 'pending') {
+  if (payment.status !== 'pending' && !shouldRequeryPayment(payment)) {
     return {
       status: payment.status as 'completed' | 'failed',
       failureReason: payment.failure_reason,
@@ -290,21 +291,33 @@ export async function pollMpesaPaymentStatusPublic(
     return { status: 'pending' as const, resultDesc: '' }
   })
 
-  if (queryResult.status === 'pending') {
-    return { status: 'pending', failureReason: null, receiptNumber: null }
+  // Only a definitive Daraja result may move the row; in-progress, unknown,
+  // timeout and malformed query results leave it pending.
+  const final = stkQueryToOutcome(queryResult)
+  if (!final) {
+    return { status: payment.status === 'failed' ? 'failed' : 'pending', failureReason: payment.status === 'failed' ? payment.failure_reason : null, receiptNumber: null }
   }
 
   const outcome = await applyMpesaPaymentOutcome({
     checkoutRequestId: payment.provider_checkout_id,
-    resultCode: queryResult.status === 'completed' ? 0 : 1,
-    resultDesc: queryResult.resultDesc,
+    resultCode: final.resultCode,
+    resultDesc: final.resultDesc,
+    // final came from stkQueryToOutcome, i.e. Safaricom's own query result.
+    corroborated: true,
   })
 
   revalidatePath(`/invoice/${token}`)
 
   return {
-    status: outcome.status === 'unknown' ? 'pending' : outcome.status,
-    failureReason: outcome.status === 'failed' ? queryResult.resultDesc : null,
+    // 'unknown' means no row was claimed: keep reporting a re-queried failed
+    // row as failed (its stored reason) rather than regressing it to pending.
+    status: outcome.status === 'unknown' ? (payment.status === 'failed' ? 'failed' : 'pending') : outcome.status,
+    failureReason:
+      outcome.status === 'failed'
+        ? queryResult.resultDesc
+        : outcome.status === 'unknown' && payment.status === 'failed'
+          ? payment.failure_reason
+          : null,
     receiptNumber: null,
   }
 }
@@ -340,14 +353,14 @@ export async function pollMpesaPaymentStatus(
   const supabase = await createClient()
   const { data: payment } = await supabase
     .from('payments')
-    .select('status, provider_checkout_id, failure_reason, provider_receipt_number')
+    .select('status, provider_checkout_id, failure_reason, provider_receipt_number, updated_at')
     .eq('id', paymentId)
     .eq('studio_id', membership.studioId)
     .single()
 
   if (!payment) return { error: 'Payment not found' }
 
-  if (payment.status !== 'pending') {
+  if (payment.status !== 'pending' && !shouldRequeryPayment(payment)) {
     return {
       status: payment.status as 'completed' | 'failed',
       failureReason: payment.failure_reason,
@@ -364,21 +377,33 @@ export async function pollMpesaPaymentStatus(
     return { status: 'pending' as const, resultDesc: '' }
   })
 
-  if (queryResult.status === 'pending') {
-    return { status: 'pending', failureReason: null, receiptNumber: null }
+  // Only a definitive Daraja result may move the row; in-progress, unknown,
+  // timeout and malformed query results leave it pending.
+  const final = stkQueryToOutcome(queryResult)
+  if (!final) {
+    return { status: payment.status === 'failed' ? 'failed' : 'pending', failureReason: payment.status === 'failed' ? payment.failure_reason : null, receiptNumber: null }
   }
 
   const outcome = await applyMpesaPaymentOutcome({
     checkoutRequestId: payment.provider_checkout_id,
-    resultCode: queryResult.status === 'completed' ? 0 : 1,
-    resultDesc: queryResult.resultDesc,
+    resultCode: final.resultCode,
+    resultDesc: final.resultDesc,
+    // final came from stkQueryToOutcome, i.e. Safaricom's own query result.
+    corroborated: true,
   })
 
   revalidatePath(`/dashboard/${studioSlug}/invoices`)
 
   return {
-    status: outcome.status === 'unknown' ? 'pending' : outcome.status,
-    failureReason: outcome.status === 'failed' ? queryResult.resultDesc : null,
+    // 'unknown' means no row was claimed: keep reporting a re-queried failed
+    // row as failed (its stored reason) rather than regressing it to pending.
+    status: outcome.status === 'unknown' ? (payment.status === 'failed' ? 'failed' : 'pending') : outcome.status,
+    failureReason:
+      outcome.status === 'failed'
+        ? queryResult.resultDesc
+        : outcome.status === 'unknown' && payment.status === 'failed'
+          ? payment.failure_reason
+          : null,
     receiptNumber: null,
   }
 }

@@ -43,6 +43,7 @@ export async function POST(request: NextRequest) {
   }
 
   let metadata: ReturnType<typeof extractCallbackMetadata> = {}
+  let corroborated = false
 
   if (callback.ResultCode === 0) {
     let corroboration: Awaited<ReturnType<typeof queryStkPushStatus>>
@@ -66,6 +67,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ ResultCode: 0, ResultDesc: 'Accepted' })
     }
 
+    corroborated = true
     metadata = extractCallbackMetadata(payload)
   }
 
@@ -75,6 +77,7 @@ export async function POST(request: NextRequest) {
     resultDesc: callback.ResultDesc,
     receiptNumber: metadata.receiptNumber,
     rawCallback: payload,
+    corroborated: corroborated ? true : undefined,
   })
 
   if (!outcome.handled) {
