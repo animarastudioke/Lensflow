@@ -89,7 +89,7 @@ function seed(status: PaymentRow['status'], over: Partial<PaymentRow> = {}) {
   })
 }
 
-const ok = { checkoutRequestId: 'ws_CO_1', resultCode: 0, resultDesc: 'ok', receiptNumber: 'RCPT1' }
+const ok = { checkoutRequestId: 'ws_CO_1', resultCode: 0, resultDesc: 'ok', receiptNumber: 'RCPT1', corroborated: true as const }
 const fail = { checkoutRequestId: 'ws_CO_1', resultCode: 1032, resultDesc: 'Cancelled' }
 
 beforeEach(() => {
@@ -186,5 +186,31 @@ describe('STK query -> poll outcome mapping', () => {
 
   it('maps ResultCode 0 to success', () => {
     expect(map(true, { ResponseCode: '0', ResultCode: '0', ResultDesc: 'ok' })?.resultCode).toBe(0)
+  })
+})
+
+describe('applyMpesaPaymentOutcome: success requires corroboration attestation', () => {
+  it('refuses a success without corroborated: true and changes nothing', async () => {
+    for (const status of ['pending', 'failed'] as const) {
+      db.payments.length = 0
+      seed(status)
+      const { corroborated: _omit, ...uncorroborated } = ok
+      const res = await applyMpesaPaymentOutcome(uncorroborated)
+      expect(res).toEqual({ handled: false, status: 'unknown' })
+      expect(db.payments[0]?.status).toBe(status)
+      expect(db.payments[0]?.provider_receipt_number).toBeUndefined()
+      expect(db.writes).toHaveLength(0)
+      expect(db.emails).toHaveLength(0)
+    }
+  })
+
+  it('applies a success when corroborated: true', async () => {
+    seed('pending')
+    expect(await applyMpesaPaymentOutcome(ok)).toEqual({ handled: true, status: 'completed' })
+  })
+
+  it('still applies a failure without any attestation', async () => {
+    seed('pending')
+    expect((await applyMpesaPaymentOutcome(fail)).status).toBe('failed')
   })
 })

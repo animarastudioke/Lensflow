@@ -10,6 +10,7 @@ import { supabaseAdmin } from '@/lib/supabase/admin'
 import { hasEntitlement } from '@/lib/entitlements'
 import { initiateStkPush, normalizeKenyanPhone, queryStkPushStatus, stkQueryToOutcome } from '@/lib/payments/mpesa'
 import { applyMpesaPaymentOutcome } from '@/lib/payments/resolve'
+import { shouldRequeryPayment } from '@/lib/payments/requery'
 
 export interface PublicStoreProduct {
   id: string
@@ -230,7 +231,7 @@ export interface ProductPurchaseStatus {
 export async function pollProductPurchaseStatus(paymentId: string): Promise<ProductPurchaseStatus | { error: string }> {
   const { data: payment } = await supabaseAdmin
     .from('payments')
-    .select('status, provider_checkout_id, failure_reason, order_id')
+    .select('status, provider_checkout_id, failure_reason, order_id, updated_at')
     .eq('id', paymentId)
     .not('order_id', 'is', null)
     .single()
@@ -247,7 +248,7 @@ export async function pollProductPurchaseStatus(paymentId: string): Promise<Prod
     return order?.share_token ?? null
   }
 
-  if (payment.status !== 'pending') {
+  if (payment.status !== 'pending' && !shouldRequeryPayment(payment)) {
     return {
       status: payment.status as 'completed' | 'failed',
       failureReason: payment.failure_reason,
@@ -268,18 +269,27 @@ export async function pollProductPurchaseStatus(paymentId: string): Promise<Prod
   // timeout and malformed query results leave it pending.
   const final = stkQueryToOutcome(queryResult)
   if (!final) {
-    return { status: 'pending', failureReason: null, orderShareToken: null }
+    return { status: payment.status === 'failed' ? 'failed' : 'pending', failureReason: payment.status === 'failed' ? payment.failure_reason : null, orderShareToken: null }
   }
 
   const outcome = await applyMpesaPaymentOutcome({
     checkoutRequestId: payment.provider_checkout_id,
     resultCode: final.resultCode,
     resultDesc: final.resultDesc,
+    // final came from stkQueryToOutcome, i.e. Safaricom's own query result.
+    corroborated: true,
   })
 
   return {
-    status: outcome.status === 'unknown' ? 'pending' : outcome.status,
-    failureReason: outcome.status === 'failed' ? queryResult.resultDesc : null,
+    // 'unknown' means no row was claimed: keep reporting a re-queried failed
+    // row as failed (its stored reason) rather than regressing it to pending.
+    status: outcome.status === 'unknown' ? (payment.status === 'failed' ? 'failed' : 'pending') : outcome.status,
+    failureReason:
+      outcome.status === 'failed'
+        ? queryResult.resultDesc
+        : outcome.status === 'unknown' && payment.status === 'failed'
+          ? payment.failure_reason
+          : null,
     orderShareToken: outcome.status === 'completed' ? await getOrderShareToken() : null,
   }
 }

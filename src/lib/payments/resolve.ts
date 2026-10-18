@@ -48,8 +48,28 @@ export async function applyMpesaPaymentOutcome(params: {
   resultDesc: string
   receiptNumber?: string
   rawCallback?: unknown
+  /**
+   * Attestation that the caller confirmed this outcome with Safaricom's own
+   * query API (queryStkPushStatus) rather than trusting an inbound request.
+   * Required to apply a success; ignored for failures. The type cannot make
+   * it mandatory because resultCode is a runtime number, so the real
+   * enforcement is the runtime refusal below.
+   */
+  corroborated?: true
 }): Promise<{ handled: boolean; status: 'completed' | 'failed' | 'unknown' }> {
   const success = params.resultCode === 0
+
+  // A forged callback claiming success could otherwise mark a payment paid
+  // and grant entitlements without money moving, so "corroborate first" is
+  // enforced here instead of being a convention every caller must remember.
+  if (success && params.corroborated !== true) {
+    console.error(
+      'Refusing to apply M-Pesa success without provider corroboration:',
+      params.checkoutRequestId
+    )
+    return { handled: false, status: 'unknown' }
+  }
+
   const newStatus: 'completed' | 'failed' = success ? 'completed' : 'failed'
 
   const claimable: ('pending' | 'failed')[] = success ? ['pending', 'failed'] : ['pending']
