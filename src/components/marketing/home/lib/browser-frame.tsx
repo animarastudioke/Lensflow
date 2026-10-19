@@ -18,7 +18,8 @@ export function BrowserFrame({
       className={cn(
         // Fixed dark app chrome, independent of page theme — a product screenshot
         // reads the same whether the marketing page around it is light or dark.
-        'overflow-hidden rounded-md border border-white/10 bg-[#15151a] shadow-2xl shadow-black/40',
+        // Border-only elevation (no shadow), per the design system.
+        'overflow-hidden rounded-md border border-border bg-[#15151a]',
         className
       )}
     >
@@ -28,16 +29,14 @@ export function BrowserFrame({
           <span className="h-2.5 w-2.5 rounded-full bg-white/20" />
           <span className="h-2.5 w-2.5 rounded-full bg-white/20" />
         </div>
-        <div className="mx-auto flex max-w-xs flex-1 items-center justify-center rounded-md bg-white/5 px-3 py-1 text-center font-mono text-[11px] text-white/50">
+        <div className="mx-auto min-w-0 max-w-xs flex-1 truncate rounded-md bg-white/5 px-3 py-1 text-center font-mono text-[11px] text-white/60">
           {url}
         </div>
-        <div className="flex w-[52px] justify-end">
-          {demoBadge ? (
-            <span className="rounded-full bg-white/10 px-2 py-0.5 text-[9px] font-medium uppercase tracking-wide text-white/50">
-              Demo
-            </span>
-          ) : null}
-        </div>
+        {demoBadge ? (
+          <span className="shrink-0 rounded-sm border border-white/20 px-2 py-0.5 font-mono text-[9px] font-medium uppercase tracking-[0.12em] text-white/70">
+            Sample data
+          </span>
+        ) : null}
       </div>
       <div className="relative">{children}</div>
     </div>
