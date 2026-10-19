@@ -31,8 +31,8 @@ export default function PricingPage() {
               <div
                 key={tier.id}
                 className={cn(
-                  'flex flex-col rounded-lg border p-6',
-                  tier.highlighted ? 'border-primary shadow-lg shadow-primary/10' : 'border-border'
+                  'flex flex-col rounded-md border p-6',
+                  tier.highlighted ? 'border-primary' : 'border-border'
                 )}
               >
                 {tier.highlighted ? (

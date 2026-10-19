@@ -8,7 +8,7 @@ export function MarketingPageHeader({
   description?: string
 }) {
   return (
-    <section className="py-20 sm:py-28">
+    <section className="py-14 sm:py-24">
       <div className="container-wide">
         <div className="mx-auto max-w-2xl text-center">
           <span className="label-caption text-primary">{label}</span>

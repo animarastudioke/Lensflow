@@ -17,7 +17,7 @@ export function EarlyAccess() {
         <ScrollReveal>
           <div className="mx-auto max-w-2xl text-center">
             <span className="label-caption text-primary">{hasTestimonials ? 'What studios say' : 'Early access'}</span>
-            <h2 className="mt-3 text-balance font-display text-3xl font-semibold tracking-tight text-foreground sm:text-5xl">
+            <h2 className="mt-3 text-balance font-display text-display-md font-semibold text-foreground">
               Built with photographers, for photographers.
             </h2>
             {!hasTestimonials && (
