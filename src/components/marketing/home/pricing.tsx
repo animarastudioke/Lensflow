@@ -18,7 +18,7 @@ export function Pricing() {
         <ScrollReveal>
           <div className="mx-auto max-w-2xl text-center">
             <span className="label-caption text-primary">Pricing</span>
-            <h2 className="mt-3 text-balance font-display text-3xl font-semibold tracking-tight text-foreground sm:text-5xl">
+            <h2 className="mt-3 text-balance font-display text-display-md font-semibold text-foreground">
               Simple pricing that grows with your business.
             </h2>
             <p className="mt-4 text-lg text-muted-foreground">
@@ -37,7 +37,7 @@ export function Pricing() {
               <div
                 className={cn(
                   'flex h-full flex-col rounded-md border p-5',
-                  tier.highlighted ? 'border-primary shadow-lg shadow-primary/10' : 'border-border'
+                  tier.highlighted ? 'border-primary' : 'border-border'
                 )}
               >
                 {tier.highlighted ? (

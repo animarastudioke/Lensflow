@@ -20,12 +20,12 @@ export function Footer() {
               The business platform built for photographers and videographers.
             </p>
             {SOCIAL_LINKS.length > 0 ? (
-              <div className="mt-6 flex items-center gap-4">
+              <div className="mt-5 flex items-center gap-2">
                 {SOCIAL_LINKS.map((social) => (
                   <a
                     key={social.label}
                     href={social.href}
-                    className="text-muted-foreground transition-colors hover:text-foreground"
+                    className="focus-ring -m-2 rounded-md p-2 text-muted-foreground transition-colors hover:text-foreground"
                     aria-label={social.label}
                     target="_blank"
                     rel="noreferrer noopener"
@@ -42,10 +42,10 @@ export function Footer() {
           {FOOTER_LINK_GROUPS.map((group) => (
             <div key={group.heading}>
               <h3 className="label-caption mb-4">{group.heading}</h3>
-              <ul className="space-y-2.5 text-sm text-muted-foreground">
+              <ul className="text-sm text-muted-foreground">
                 {group.links.map((link) => (
                   <li key={link.href}>
-                    <Link href={link.href} className="transition-colors hover:text-foreground">
+                    <Link href={link.href} className="focus-ring -mx-1 block rounded-sm px-1 py-2 transition-colors hover:text-foreground">
                       {link.label}
                     </Link>
                   </li>

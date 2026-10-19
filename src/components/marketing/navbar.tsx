@@ -6,6 +6,7 @@ import * as NavigationMenuPrimitive from '@radix-ui/react-navigation-menu'
 import { AnimatePresence, motion } from 'framer-motion'
 import { ChevronDown, Menu, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { Button } from '@/components/ui/button'
 import { Logo } from './home/lib/logo'
 import { NAV_PRODUCT_LINKS, NAV_RESOURCES_LINKS, NAV_SOLUTIONS_LINKS, type NavLink } from '@/lib/constants/navigation'
 
@@ -17,11 +18,11 @@ function DropdownPanel({ links }: { links: NavLink[] }) {
           <NavigationMenuPrimitive.Link asChild>
             <Link
               href={link.href}
-              className="block rounded-md px-3 py-2.5 text-sm transition-colors hover:bg-white/10 focus-visible:bg-white/10 focus-visible:outline-none"
+              className="block rounded-md px-3 py-2.5 text-sm transition-colors hover:bg-white/10 focus-visible:bg-white/10"
             >
               <span className="font-medium text-white">{link.label}</span>
               {link.description ? (
-                <span className="mt-0.5 block text-xs text-white/55">{link.description}</span>
+                <span className="mt-0.5 block text-xs text-white/70">{link.description}</span>
               ) : null}
             </Link>
           </NavigationMenuPrimitive.Link>
@@ -36,7 +37,7 @@ const contentClass =
 
 function DesktopNav({ solid }: { solid: boolean }) {
   const triggerClass = cn(
-    'group inline-flex items-center gap-1 rounded-md px-3 py-2 text-sm font-medium outline-none transition-colors',
+    'group focus-ring inline-flex items-center gap-1 rounded-md px-3 py-2 text-sm font-medium transition-colors',
     solid
       ? 'text-foreground/80 hover:text-foreground focus-visible:text-foreground data-[state=open]:text-foreground'
       : 'text-white/90 hover:text-white focus-visible:text-white data-[state=open]:text-white'
@@ -133,7 +134,7 @@ function MobileMenu({ open, onClose }: { open: boolean; onClose: () => void }) {
             <button
               type="button"
               onClick={onClose}
-              className="rounded-md p-2 text-white/80 transition-colors hover:bg-white/10 hover:text-white"
+              className="focus-ring flex h-11 w-11 items-center justify-center rounded-md text-white/80 transition-colors hover:bg-white/10 hover:text-white"
               aria-label="Close menu"
             >
               <X className="h-6 w-6" />
@@ -157,7 +158,7 @@ function MobileMenu({ open, onClose }: { open: boolean; onClose: () => void }) {
                   <Link
                     href={group.href}
                     onClick={onClose}
-                    className="block py-4 font-display text-2xl text-white"
+                    className="focus-ring block py-4 font-display text-2xl text-white"
                   >
                     {group.label}
                   </Link>
@@ -165,7 +166,7 @@ function MobileMenu({ open, onClose }: { open: boolean; onClose: () => void }) {
                   <>
                     <button
                       type="button"
-                      className="flex w-full items-center justify-between py-4 font-display text-2xl text-white"
+                      className="focus-ring flex w-full items-center justify-between py-4 font-display text-2xl text-white"
                       aria-expanded={expanded === group.label}
                       onClick={() => setExpanded((current) => (current === group.label ? null : group.label))}
                     >
@@ -191,7 +192,7 @@ function MobileMenu({ open, onClose }: { open: boolean; onClose: () => void }) {
                               <Link
                                 href={link.href}
                                 onClick={onClose}
-                                className="block py-2.5 pl-1 text-base text-white/65 transition-colors hover:text-white"
+                                className="focus-ring block py-3 pl-1 text-base text-white/70 transition-colors hover:text-white"
                               >
                                 {link.label}
                               </Link>
@@ -207,20 +208,21 @@ function MobileMenu({ open, onClose }: { open: boolean; onClose: () => void }) {
           </motion.nav>
 
           <div className="flex flex-col gap-3 border-t border-white/10 px-4 py-6 sm:px-6">
-            <Link
-              href="/auth/login"
-              onClick={onClose}
-              className="rounded-md border border-white/15 px-4 py-3 text-center text-sm font-medium text-white transition-colors hover:bg-white/10"
+            <Button
+              size="lg"
+              variant="outline"
+              className="w-full border-white/20 bg-transparent text-white hover:border-white/40 hover:bg-white/10 hover:text-white"
+              asChild
             >
-              Log in
-            </Link>
-            <Link
-              href="/auth/signup"
-              onClick={onClose}
-              className="rounded-md bg-white px-4 py-3 text-center text-sm font-medium text-black transition-colors hover:bg-white/90"
-            >
-              Start free
-            </Link>
+              <Link href="/auth/login" onClick={onClose}>
+                Log in
+              </Link>
+            </Button>
+            <Button size="lg" variant="secondary" className="w-full" asChild>
+              <Link href="/auth/signup" onClick={onClose}>
+                Start free
+              </Link>
+            </Button>
           </div>
         </motion.div>
       ) : null}
@@ -279,32 +281,22 @@ export function Navbar({ transparent = false }: { transparent?: boolean }) {
           <DesktopNav solid={solid} />
 
           <div className="hidden items-center gap-2 lg:flex">
-            <Link
-              href="/auth/login"
-              className={cn(
-                'rounded-md px-3.5 py-2 text-sm font-medium transition-colors',
-                solid ? 'text-foreground hover:bg-accent' : 'text-white/90 hover:text-white'
-              )}
+            <Button
+              variant="ghost"
+              className={cn(!solid && 'text-white/90 hover:bg-white/10 hover:text-white')}
+              asChild
             >
-              Log in
-            </Link>
-            <Link
-              href="/auth/signup"
-              className={cn(
-                'rounded-md px-4 py-2 text-sm font-medium transition-colors',
-                solid
-                  ? 'bg-primary text-primary-foreground hover:bg-primary/88'
-                  : 'bg-white text-black hover:bg-white/90'
-              )}
-            >
-              Start free
-            </Link>
+              <Link href="/auth/login">Log in</Link>
+            </Button>
+            <Button variant={solid ? 'default' : 'secondary'} asChild>
+              <Link href="/auth/signup">Start free</Link>
+            </Button>
           </div>
 
           <button
             type="button"
             className={cn(
-              'rounded-md p-2 transition-colors lg:hidden',
+              'focus-ring flex h-11 w-11 items-center justify-center rounded-md transition-colors lg:hidden',
               solid ? 'text-foreground hover:bg-accent' : 'text-white hover:bg-white/10'
             )}
             onClick={() => setMobileOpen(true)}

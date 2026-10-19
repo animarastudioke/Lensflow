@@ -22,7 +22,7 @@ export default function ContactPage() {
           <div className="mx-auto max-w-lg text-center">
             <a
               href={`mailto:${APP_CONSTANTS.SUPPORT_EMAIL}`}
-              className="inline-flex items-center gap-2 text-body-lg text-primary hover:underline"
+              className="inline-flex min-h-11 items-center gap-2 text-body-lg text-primary hover:underline"
             >
               <Mail className="h-5 w-5" strokeWidth={1.5} />
               {APP_CONSTANTS.SUPPORT_EMAIL}

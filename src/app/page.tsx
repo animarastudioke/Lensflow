@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import { APP_CONSTANTS } from '@/lib/constants'
 import { Navbar } from '@/components/marketing/navbar'
 import { Footer } from '@/components/marketing/footer'
+import { MarketingMotion } from '@/components/marketing/MarketingMotion'
 import { LIGHT_THEME_VARS } from '@/components/marketing/MarketingShell'
 import { Hero } from '@/components/marketing/home/hero'
 import { ValueStrip } from '@/components/marketing/home/value-strip'
@@ -107,6 +108,7 @@ export default function HomePage() {
         Skip to content
       </a>
       <div className="min-h-screen bg-background text-foreground" style={LIGHT_THEME_VARS}>
+        <MarketingMotion>
         <Navbar transparent />
         <main id="main-content">
           <Hero />
@@ -122,6 +124,7 @@ export default function HomePage() {
           <FinalCta />
         </main>
         <Footer />
+        </MarketingMotion>
       </div>
     </>
   )

@@ -24,10 +24,10 @@ export function GalleryShowcase() {
       <div className="container-wide relative">
         <ScrollReveal>
           <div className="mx-auto max-w-2xl text-center">
-            <span className="font-mono text-[0.6875rem] font-medium uppercase tracking-[0.16em] text-white/50">
+            <span className="font-mono text-[0.6875rem] font-medium uppercase tracking-[0.16em] text-white/70">
               The gallery experience
             </span>
-            <h2 className="mt-3 text-balance font-display text-3xl font-semibold tracking-tight text-white sm:text-5xl">
+            <h2 className="mt-3 text-balance font-display text-display-md font-semibold text-white">
               The gallery is part of the experience.
             </h2>
             <p className="mt-4 text-lg text-white/60">
@@ -78,7 +78,7 @@ export function GalleryShowcase() {
           ))}
         </div>
 
-        <p className="container-wide mt-4 text-right font-mono text-[10px] uppercase tracking-wide text-white/35">
+        <p className="container-wide mt-4 text-right font-mono text-[10px] uppercase tracking-wide text-white/60">
           Example imagery
         </p>
       </ScrollReveal>
