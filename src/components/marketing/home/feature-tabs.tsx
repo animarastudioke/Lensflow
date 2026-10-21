@@ -6,8 +6,8 @@ import * as TabsPrimitive from '@radix-ui/react-tabs'
 import { ArrowRight } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { FEATURE_TABS } from '@/lib/constants/homepage'
-import { ScrollReveal } from './lib/scroll-reveal'
 import { BrowserFrame } from './lib/browser-frame'
+import { SectionHead } from './lib/section-head'
 import { GalleriesDemo } from './feature-demos/galleries-demo'
 import { BookingDemo } from './feature-demos/booking-demo'
 import { CrmDemo } from './feature-demos/crm-demo'
@@ -26,28 +26,21 @@ const DEMO_COMPONENTS: Record<string, ComponentType> = {
 
 export function FeatureTabs() {
   return (
-    <section className="page-section bg-background" id="platform">
+    <section className="page-section" id="platform">
       <div className="container-wide">
-        <ScrollReveal>
-          <div className="mx-auto max-w-2xl text-center">
-            <span className="label-caption text-primary">The platform</span>
-            <h2 className="mt-3 text-balance font-display text-display-md font-semibold text-foreground">
-              One workspace. Every part of your business.
-            </h2>
-            <p className="mt-4 text-lg text-muted-foreground">
-              From the first inquiry to final delivery, LensFlow keeps your entire client journey
-              connected.
-            </p>
-          </div>
-        </ScrollReveal>
+        <SectionHead
+          title="One workspace. Every part of your business."
+          caption="The platform"
+          intro="From the first inquiry to final delivery, LensFlow keeps your entire client journey connected."
+        />
 
-        <TabsPrimitive.Root defaultValue="galleries" className="mt-14">
+        <TabsPrimitive.Root defaultValue="galleries" className="mt-10">
           <TabsPrimitive.List className="scrollbar-hide -mx-4 mb-8 flex gap-2 overflow-x-auto px-4 sm:mx-0 sm:px-0 lg:mb-0 lg:hidden">
             {FEATURE_TABS.map((tab) => (
               <TabsPrimitive.Trigger
                 key={tab.id}
                 value={tab.id}
-                className="shrink-0 rounded-full border border-border px-4 py-2 text-sm font-medium text-muted-foreground transition-colors data-[state=active]:border-primary data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
+                className="focus-ring shrink-0 rounded-md border border-input px-4 py-2 text-sm font-medium text-muted-foreground transition-colors data-[state=active]:border-primary data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
               >
                 {tab.label}
               </TabsPrimitive.Trigger>
@@ -55,22 +48,22 @@ export function FeatureTabs() {
           </TabsPrimitive.List>
 
           <div className="grid gap-10 lg:grid-cols-[280px_1fr] lg:gap-12">
-            <TabsPrimitive.List className="hidden flex-col gap-1 lg:flex">
+            <TabsPrimitive.List className="hidden flex-col lg:flex">
               {FEATURE_TABS.map((tab) => (
                 <TabsPrimitive.Trigger
                   key={tab.id}
                   value={tab.id}
                   className={cn(
-                    'group flex items-start gap-3 rounded-md border border-transparent px-4 py-3.5 text-left transition-colors',
-                    'data-[state=active]:border-border data-[state=active]:bg-card',
+                    'group focus-ring flex items-start gap-3 border-b border-l-2 border-b-border border-l-transparent px-4 py-4 text-left transition-colors',
+                    'data-[state=active]:border-l-primary data-[state=active]:bg-card',
                     'hover:bg-accent/50'
                   )}
                 >
-                  <span className="font-mono text-xs text-muted-foreground/60 group-data-[state=active]:text-primary">
+                  <span className="pt-1 font-mono text-[0.6875rem] tracking-[0.1em] text-muted-foreground group-data-[state=active]:text-primary">
                     {tab.number}
                   </span>
                   <span>
-                    <span className="block text-sm font-medium text-foreground">{tab.label}</span>
+                    <span className="block font-display text-heading-lg text-foreground">{tab.label}</span>
                     <span className="mt-0.5 block text-xs text-muted-foreground">{tab.heading}</span>
                   </span>
                 </TabsPrimitive.Trigger>
@@ -78,30 +71,40 @@ export function FeatureTabs() {
             </TabsPrimitive.List>
 
             <div>
-              {FEATURE_TABS.map((tab) => {
+              {FEATURE_TABS.map((tab, index) => {
                 const Demo = DEMO_COMPONENTS[tab.id]!
                 return (
                   <TabsPrimitive.Content key={tab.id} value={tab.id} className="focus-visible:outline-none">
                     <div className="animate-in">
                       <div className="mb-6 max-w-xl">
-                        <h3 className="text-balance font-display text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
+                        <h3 className="text-balance font-display text-display-sm font-medium text-foreground">
                           {tab.heading}
                         </h3>
                         <p className="mt-3 text-muted-foreground">{tab.copy}</p>
                         <Link
                           href={tab.cta.href}
-                          className="mt-4 inline-flex items-center gap-1.5 text-sm font-medium text-primary link-underline"
+                          className="focus-ring mt-4 inline-flex items-center gap-1.5 text-sm font-medium text-primary link-underline"
                         >
                           {tab.cta.label}
                           <ArrowRight className="h-3.5 w-3.5" />
                         </Link>
                       </div>
 
-                      <BrowserFrame url={tab.id === 'websites' ? 'amarawren.com' : 'app.lensflow.co.ke'}>
-                        <div className="min-h-[380px] sm:min-h-[420px]">
-                          <Demo />
+                      <figure>
+                        <div className="rounded-md border border-border bg-card p-3 sm:p-4">
+                          <BrowserFrame url={tab.id === 'websites' ? 'amarawren.com' : 'app.lensflow.co.ke'}>
+                            <div className="min-h-[380px] sm:min-h-[420px]">
+                              <Demo />
+                            </div>
+                          </BrowserFrame>
                         </div>
-                      </BrowserFrame>
+                        <figcaption className="label-caption mt-3.5 flex flex-wrap justify-between gap-x-4 gap-y-1">
+                          <span>
+                            Fig. {index + 2} — {tab.label}
+                          </span>
+                          <span>Sample data</span>
+                        </figcaption>
+                      </figure>
                     </div>
                   </TabsPrimitive.Content>
                 )

@@ -1,27 +1,20 @@
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion'
 import { FAQ_ITEMS } from '@/lib/constants/homepage'
-import { ScrollReveal } from './lib/scroll-reveal'
+import { SectionHead } from './lib/section-head'
 
 export function Faq() {
   return (
-    <section className="page-section bg-background">
+    <section className="page-section">
       <div className="container-wide">
-        <ScrollReveal>
-          <div className="mx-auto max-w-2xl text-center">
-            <span className="label-caption text-primary">FAQ</span>
-            <h2 className="mt-3 text-balance font-display text-display-md font-semibold text-foreground">
-              Frequently asked questions
-            </h2>
-          </div>
-        </ScrollReveal>
+        <SectionHead title="Frequently asked questions" caption="FAQ" />
 
-        <Accordion type="single" collapsible className="mx-auto mt-12 max-w-2xl">
+        <Accordion type="single" collapsible className="mt-2 max-w-3xl">
           {FAQ_ITEMS.map((item) => (
             <AccordionItem key={item.question} value={item.question}>
-              <AccordionTrigger className="w-full py-5 text-left text-base font-medium text-foreground hover:no-underline">
+              <AccordionTrigger className="focus-ring w-full py-5 text-left font-display text-heading-md font-medium text-foreground hover:no-underline">
                 {item.question}
               </AccordionTrigger>
-              <AccordionContent className="text-sm text-muted-foreground">{item.answer}</AccordionContent>
+              <AccordionContent className="text-body-sm text-muted-foreground">{item.answer}</AccordionContent>
             </AccordionItem>
           ))}
         </Accordion>
