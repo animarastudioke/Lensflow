@@ -2,54 +2,35 @@ import Image from 'next/image'
 import Link from 'next/link'
 import { ArrowRight } from 'lucide-react'
 import { GALLERY_SHOWCASE_IMAGES } from '@/lib/constants/homepage'
+import { SectionHead } from './lib/section-head'
 import { ScrollReveal } from './lib/scroll-reveal'
 
 const FILMSTRIP_IMAGES = GALLERY_SHOWCASE_IMAGES
 
 export function GalleryShowcase() {
   return (
-    <section className="relative overflow-hidden bg-[#0c0c0f] py-24 sm:py-32">
-      <div className="absolute inset-0 opacity-30">
-        <Image
-          src={`https://images.unsplash.com/${FILMSTRIP_IMAGES[3]!.src}?w=2000&q=60&auto=format&fit=crop`}
-          alt=""
-          fill
-          sizes="100vw"
-          className="object-cover"
-          aria-hidden="true"
+    <section className="page-section overflow-hidden">
+      <div className="container-wide">
+        <SectionHead
+          title="The gallery is part of the experience."
+          caption="The gallery experience"
+          intro="Give clients a beautiful place to discover, select, share, and download their images."
         />
-        <div className="absolute inset-0 bg-gradient-to-b from-[#0c0c0f] via-[#0c0c0f]/80 to-[#0c0c0f]" />
+        <Link
+          href="/features/galleries"
+          className="focus-ring mt-4 inline-flex items-center gap-1.5 text-sm font-medium text-primary link-underline"
+        >
+          Explore galleries
+          <ArrowRight className="h-3.5 w-3.5" />
+        </Link>
       </div>
 
-      <div className="container-wide relative">
-        <ScrollReveal>
-          <div className="mx-auto max-w-2xl text-center">
-            <span className="font-mono text-[0.6875rem] font-medium uppercase tracking-[0.16em] text-white/70">
-              The gallery experience
-            </span>
-            <h2 className="mt-3 text-balance font-display text-display-md font-semibold text-white">
-              The gallery is part of the experience.
-            </h2>
-            <p className="mt-4 text-lg text-white/60">
-              Give clients a beautiful place to discover, select, share, and download their images.
-            </p>
-            <Link
-              href="/features/galleries"
-              className="mt-6 inline-flex items-center gap-1.5 text-sm font-medium text-white link-underline"
-            >
-              Explore galleries
-              <ArrowRight className="h-3.5 w-3.5" />
-            </Link>
-          </div>
-        </ScrollReveal>
-      </div>
-
-      <ScrollReveal variant="fadeIn" delay={0.15} className="relative mt-16">
+      <ScrollReveal variant="fadeIn" delay={0.15} className="relative mt-12">
         <div className="scrollbar-hide hidden gap-4 overflow-x-auto px-[max(1.5rem,calc((100vw-80rem)/2))] pb-4 sm:flex">
           {FILMSTRIP_IMAGES.map((image, index) => (
             <div
               key={image.src}
-              className="relative aspect-[4/5] w-[220px] shrink-0 overflow-hidden rounded-md lg:w-[280px]"
+              className="relative aspect-[4/5] w-[220px] shrink-0 overflow-hidden rounded-md border border-border bg-muted lg:w-[280px]"
               style={{ marginTop: index % 2 === 0 ? 0 : 32 }}
             >
               <Image
@@ -66,7 +47,10 @@ export function GalleryShowcase() {
         {/* Mobile: a full grid of all 8 images rather than hiding half the set. */}
         <div className="container-wide grid grid-cols-2 gap-3 sm:hidden">
           {FILMSTRIP_IMAGES.map((image) => (
-            <div key={image.src} className="relative aspect-[3/4] overflow-hidden rounded-md">
+            <div
+              key={image.src}
+              className="relative aspect-[3/4] overflow-hidden rounded-md border border-border bg-muted"
+            >
               <Image
                 src={`https://images.unsplash.com/${image.src}?w=500&q=70&auto=format&fit=crop`}
                 alt={image.alt}
@@ -78,9 +62,7 @@ export function GalleryShowcase() {
           ))}
         </div>
 
-        <p className="container-wide mt-4 text-right font-mono text-[10px] uppercase tracking-wide text-white/60">
-          Example imagery
-        </p>
+        <p className="label-caption container-wide mt-4 sm:text-right">Example imagery</p>
       </ScrollReveal>
     </section>
   )

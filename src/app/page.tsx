@@ -109,7 +109,7 @@ export default function HomePage() {
       </a>
       <div className="min-h-screen bg-background text-foreground" style={LIGHT_THEME_VARS}>
         <MarketingMotion>
-        <Navbar transparent />
+        <Navbar />
         <main id="main-content">
           <Hero />
           <ValueStrip />
