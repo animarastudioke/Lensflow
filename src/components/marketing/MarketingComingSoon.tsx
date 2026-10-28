@@ -10,7 +10,7 @@ export function MarketingComingSoon({ note }: { note: string }) {
           <p className="text-body-lg text-muted-foreground">{note}</p>
           <Link
             href={`mailto:${APP_CONSTANTS.SUPPORT_EMAIL}`}
-            className="mt-6 inline-flex items-center gap-2 text-body text-primary hover:underline"
+            className="mt-6 inline-flex min-h-11 items-center gap-2 text-body text-primary hover:underline"
           >
             <Mail className="h-4 w-4" strokeWidth={1.5} />
             {APP_CONSTANTS.SUPPORT_EMAIL}

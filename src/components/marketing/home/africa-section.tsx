@@ -21,7 +21,7 @@ export function AfricaSection() {
         <div>
           <ScrollReveal>
             <span className="label-caption text-primary">Built for where you work</span>
-            <h2 className="mt-3 text-balance font-display text-3xl font-semibold tracking-tight text-foreground sm:text-5xl">
+            <h2 className="mt-3 text-balance font-display text-display-md font-semibold text-foreground">
               Built for where you work. Ready to grow with you.
             </h2>
             <p className="mt-4 max-w-lg text-lg text-muted-foreground">

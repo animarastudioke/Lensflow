@@ -230,6 +230,22 @@
   }
 }
 
+/* Reduced motion: remove movement itself, not just its duration. */
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  .animate-in,
+  .animate-out {
+    animation: none;
+  }
+
+  .link-underline::after {
+    transition: none;
+  }
+}
+
 @layer utilities {
   .animate-in {
     animation: animate-in 0.2s ease-out forwards;

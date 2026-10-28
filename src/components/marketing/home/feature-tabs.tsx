@@ -31,7 +31,7 @@ export function FeatureTabs() {
         <ScrollReveal>
           <div className="mx-auto max-w-2xl text-center">
             <span className="label-caption text-primary">The platform</span>
-            <h2 className="mt-3 text-balance font-display text-3xl font-semibold tracking-tight text-foreground sm:text-5xl">
+            <h2 className="mt-3 text-balance font-display text-display-md font-semibold text-foreground">
               One workspace. Every part of your business.
             </h2>
             <p className="mt-4 text-lg text-muted-foreground">

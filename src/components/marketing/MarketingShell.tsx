@@ -1,13 +1,15 @@
 import type { CSSProperties, ReactNode } from 'react'
 import { Navbar } from './navbar'
 import { Footer } from './footer'
+import { MarketingMotion } from './MarketingMotion'
 
 // The marketing site always presents the same light, editorial look,
 // regardless of a visitor's dashboard dark-mode preference (dark mode is a
 // workspace setting, not a brand choice) - so every design token is pinned
 // to its light value here rather than left to inherit the global theme.
 export const LIGHT_THEME_VARS = {
-  '--background': '0 0% 100%',
+  // Matches the :root token: gallery-wall matte white, never stark #fff.
+  '--background': '210 10% 97%',
   '--foreground': '220 20% 11%',
   '--card': '0 0% 100%',
   '--card-foreground': '220 20% 11%',
@@ -37,9 +39,11 @@ export const LIGHT_THEME_VARS = {
 export function MarketingShell({ children }: { children: ReactNode }) {
   return (
     <div className="min-h-screen bg-background text-foreground" style={LIGHT_THEME_VARS}>
-      <Navbar />
-      <main className="pt-16">{children}</main>
-      <Footer />
+      <MarketingMotion>
+        <Navbar />
+        <main className="pt-16">{children}</main>
+        <Footer />
+      </MarketingMotion>
     </div>
   )
 }

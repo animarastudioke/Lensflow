@@ -6,6 +6,7 @@ import Image from 'next/image'
 import { motion, useReducedMotion, useScroll, useTransform } from 'framer-motion'
 import { ArrowRight, CheckCircle2 } from 'lucide-react'
 import { HERO_IMAGE } from '@/lib/constants/homepage'
+import { Button } from '@/components/ui/button'
 import { ProductPreview } from './product-preview'
 
 const fadeUp = {
@@ -84,7 +85,7 @@ export function Hero() {
             initial="hidden"
             animate="visible"
             variants={fadeUp}
-            className="mt-5 text-balance font-display text-[2.5rem] font-semibold leading-[1.08] tracking-tight text-white sm:text-6xl lg:text-[4.75rem]"
+            className="mt-5 text-balance font-display text-display-xl font-semibold text-white"
           >
             Run your entire creative business from one place.
           </motion.h1>
@@ -107,19 +108,20 @@ export function Hero() {
             variants={fadeUp}
             className="mt-10 flex flex-col items-center justify-center gap-4 sm:flex-row"
           >
-            <Link
-              href="/auth/signup"
-              className="inline-flex w-full items-center justify-center gap-2 rounded-md bg-white px-6 py-3.5 text-base font-medium text-black transition-all duration-200 hover:-translate-y-0.5 hover:bg-white/90 hover:shadow-lg hover:shadow-black/20 sm:w-auto"
+            <Button size="xl" variant="secondary" className="w-full gap-2 sm:w-auto" asChild>
+              <Link href="/auth/signup">
+                Start free
+                <ArrowRight className="h-4 w-4" />
+              </Link>
+            </Button>
+            <Button
+              size="xl"
+              variant="outline"
+              className="w-full border-white/25 bg-transparent text-white hover:border-white/50 hover:bg-white/10 hover:text-white sm:w-auto"
+              asChild
             >
-              Start free
-              <ArrowRight className="h-4 w-4" />
-            </Link>
-            <Link
-              href="#product-tour"
-              className="inline-flex w-full items-center justify-center gap-2 rounded-md border border-white/25 px-6 py-3.5 text-base font-medium text-white transition-all duration-200 hover:-translate-y-0.5 hover:border-white/50 hover:bg-white/10 sm:w-auto"
-            >
-              See how it works
-            </Link>
+              <Link href="#product-tour">See how it works</Link>
+            </Button>
           </motion.div>
 
           <motion.p
@@ -127,7 +129,7 @@ export function Hero() {
             initial="hidden"
             animate="visible"
             variants={fadeUp}
-            className="mt-5 flex items-center justify-center gap-1.5 text-sm text-white/55"
+            className="mt-5 flex items-center justify-center gap-1.5 text-sm text-white/70"
           >
             <CheckCircle2 className="h-4 w-4" />
             No credit card required · Free plan available
