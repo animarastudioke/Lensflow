@@ -1,6 +1,6 @@
 name = "lensflow-public-media"
 main = "src/index.mjs"
-compatibility_date = "2026-10-31"
+compatibility_date = "2026-10-30"
 workers_dev = false
 preview_urls = false
 
