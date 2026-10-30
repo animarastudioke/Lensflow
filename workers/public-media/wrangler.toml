@@ -1,0 +1,13 @@
+name = "lensflow-public-media"
+main = "src/index.mjs"
+compatibility_date = "2026-10-31"
+workers_dev = false
+preview_urls = false
+
+[[routes]]
+pattern = "media.lensflow.co.ke"
+custom_domain = true
+
+[[r2_buckets]]
+binding = "MEDIA_BUCKET"
+bucket_name = "lensflow-media"

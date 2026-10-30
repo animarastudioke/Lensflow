@@ -140,8 +140,8 @@ export async function middleware(request: NextRequest) {
 
   // CSP for non-authenticated pages
   if (!session) {
-    // Public galleries (/g/[token]) load media straight from R2: preview/
-    // thumbnail images via the public bucket domain, and — for video — a
+    // Public galleries (/g/[token]) load images via LensFlow's public-media
+    // Worker custom domain, and — for video — a
     // presigned playback URL on R2's S3 API domain (also used for the
     // fetch()-initiated download flow, which redirects to that same host).
     // Without these, the browser's CSP blocks the request before it ever
