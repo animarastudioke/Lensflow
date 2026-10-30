@@ -25,7 +25,7 @@ function isValidLink(value: unknown): value is string | undefined {
 }
 
 function isWebsiteSection(value: unknown): value is WebsiteSection {
-  if (!isRecord(value) || typeof value.id !== 'string' || !/^[a-zA-Z0-9_-]{1,80}$/.test(value.id)) return false
+  if (!isRecord(value) || typeof value['id'] !== 'string' || !/^[a-zA-Z0-9_-]{1,80}$/.test(value['id'])) return false
   if (typeof value.heading !== 'string' || value.heading.length > 200) return false
   if (!optionalText(value.body, 5000)) return false
 
