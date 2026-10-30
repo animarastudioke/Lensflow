@@ -26,37 +26,37 @@ function isValidLink(value: unknown): value is string | undefined {
 
 function isWebsiteSection(value: unknown): value is WebsiteSection {
   if (!isRecord(value) || typeof value['id'] !== 'string' || !/^[a-zA-Z0-9_-]{1,80}$/.test(value['id'])) return false
-  if (typeof value.heading !== 'string' || value.heading.length > 200) return false
-  if (!optionalText(value.body, 5000)) return false
+  if (typeof value['heading'] !== 'string' || value['heading'].length > 200) return false
+  if (!optionalText(value['body'], 5000)) return false
 
-  const galleryIdValid = value.galleryId === undefined
-    || value.galleryId === ''
-    || (typeof value.galleryId === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value.galleryId))
+  const galleryIdValid = value['galleryId'] === undefined
+    || value['galleryId'] === ''
+    || (typeof value['galleryId'] === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value['galleryId']))
 
-  if (value.type === 'hero') {
-    return optionalText(value.eyebrow, 80)
-      && optionalText(value.ctaLabel, 80)
-      && isValidLink(value.ctaHref)
+  if (value['type'] === 'hero') {
+    return optionalText(value['eyebrow'], 80)
+      && optionalText(value['ctaLabel'], 80)
+      && isValidLink(value['ctaHref'])
       && galleryIdValid
   }
-  if (value.type === 'text') return true
-  if (value.type === 'gallery') return galleryIdValid
-  if (value.type === 'services') {
-    return Array.isArray(value.items)
-      && value.items.length <= 8
-      && value.items.every((item) => isRecord(item)
-        && typeof item.title === 'string' && item.title.length <= 100
-        && typeof item.description === 'string' && item.description.length <= 500)
+  if (value['type'] === 'text') return true
+  if (value['type'] === 'gallery') return galleryIdValid
+  if (value['type'] === 'services') {
+    return Array.isArray(value['items'])
+      && value['items'].length <= 8
+      && value['items'].every((item) => isRecord(item)
+        && typeof item['title'] === 'string' && item['title'].length <= 100
+        && typeof item['description'] === 'string' && item['description'].length <= 500)
   }
-  if (value.type === 'contact') return optionalText(value.ctaLabel, 80) && isValidLink(value.ctaHref)
+  if (value['type'] === 'contact') return optionalText(value['ctaLabel'], 80) && isValidLink(value['ctaHref'])
   return false
 }
 
 export function getWebsiteSections(content: unknown, pageName: string): WebsiteSection[] {
   if (isRecord(content)) {
-    if (Array.isArray(content.sections)) {
+    if (Array.isArray(content['sections'])) {
       const seenIds = new Set<string>()
-      return content.sections.slice(0, 30).filter((candidate) => {
+      return content['sections'].slice(0, 30).filter((candidate) => {
         if (!isWebsiteSection(candidate) || seenIds.has(candidate.id)) return false
         seenIds.add(candidate.id)
         return true
@@ -64,12 +64,12 @@ export function getWebsiteSections(content: unknown, pageName: string): WebsiteS
     }
 
     // Read older pages without changing their stored data until the user saves.
-    if (typeof content.heading === 'string' || typeof content.body === 'string') {
+    if (typeof content['heading'] === 'string' || typeof content['body'] === 'string') {
       return [{
         id: 'legacy-content',
         type: 'text',
-        heading: typeof content.heading === 'string' && content.heading ? content.heading.slice(0, 200) : pageName,
-        body: typeof content.body === 'string' ? content.body.slice(0, 5000) : '',
+        heading: typeof content['heading'] === 'string' && content['heading'] ? content['heading'].slice(0, 200) : pageName,
+        body: typeof content['body'] === 'string' ? content['body'].slice(0, 5000) : '',
       }]
     }
   }
