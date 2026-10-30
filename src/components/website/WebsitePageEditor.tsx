@@ -88,7 +88,10 @@ export function WebsitePageEditor({
     if (nextIndex < 0 || nextIndex >= sections.length) return
     setSections((current) => {
       const next = [...current]
-      ;[next[index], next[nextIndex]] = [next[nextIndex], next[index]]
+      const sectionAtIndex = next[index]
+      const sectionAtNextIndex = next[nextIndex]
+      if (!sectionAtIndex || !sectionAtNextIndex) return current
+      ;[next[index], next[nextIndex]] = [sectionAtNextIndex, sectionAtIndex]
       return next
     })
     setIsDirty(true)
