@@ -156,7 +156,7 @@ export async function createWebsite(formData: FormData) {
     .maybeSingle()
 
   if (existing) {
-    throw new Error('That subdomain is already taken')
+    return { error: 'That subdomain is already taken. Choose a different one to continue.' }
   }
 
   const { data: website, error } = await supabase
@@ -173,6 +173,9 @@ export async function createWebsite(formData: FormData) {
 
   if (error || !website) {
     console.error('Create website error:', error)
+    if (error?.code === '23505') {
+      return { error: 'That subdomain is already taken. Choose a different one to continue.' }
+    }
     throw new Error('Failed to create website')
   }
 
