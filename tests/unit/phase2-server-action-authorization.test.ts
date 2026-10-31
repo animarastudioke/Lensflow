@@ -20,7 +20,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const dbCalls: string[] = []
 
-function makeBuilder(): any {
+function makeBuilder(table = ''): any {
   const builder: any = {}
   const record = (name: string) => (..._args: unknown[]) => {
     if (name === 'insert' || name === 'update' || name === 'delete' || name === 'upsert') {
@@ -32,7 +32,9 @@ function makeBuilder(): any {
     builder[method] = record(method)
   }
   builder.single = async () => ({ data: null, error: null })
-  builder.maybeSingle = async () => ({ data: null, error: null })
+  // setWebsiteStatus looks the website up (maybeSingle) before updating it, so an
+  // authorized call only reaches the write when that lookup finds the studio's row.
+  builder.maybeSingle = async () => ({ data: table === 'websites' ? { subdomain: 'studio' } : null, error: null })
   // Several actions `await` a query directly after .eq()/.delete() without a
   // terminal .single() (e.g. `const { error } = await supabase.from(...).delete().eq(...)`)
   // — making the builder itself thenable lets that resolve like the real client would.
@@ -43,7 +45,7 @@ function makeBuilder(): any {
 vi.mock('@/lib/supabase/server', () => ({
   createClient: async () => ({
     auth: { getUser: async () => ({ data: { user: { id: 'user-1' } } }) },
-    from: () => makeBuilder(),
+    from: (table: string) => makeBuilder(table),
   }),
 }))
 

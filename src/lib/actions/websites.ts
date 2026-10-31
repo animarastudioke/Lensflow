@@ -6,6 +6,9 @@ import { redirect } from 'next/navigation'
 import { z } from 'zod'
 import { hasEntitlement, requireEntitlement } from '@/lib/entitlements'
 import { requireStudioPermission } from '@/lib/auth/server'
+import { createDefaultWebsiteSections } from '@/lib/website/content'
+import { websiteSectionsSchema } from '@/lib/website/section-schema'
+import { getWebsiteGalleryOptions as loadWebsiteGalleryOptions } from '@/lib/website/galleries'
 
 export type WebsiteStatus = 'published' | 'draft' | 'archived'
 
@@ -39,6 +42,7 @@ export interface WebsiteRow {
   published_at: string | null
   created_at: string
   updated_at: string
+  studio?: { name: string; logo_url: string | null } | null
   pages?: WebsitePageRow[]
 }
 
@@ -88,7 +92,7 @@ export async function getWebsite(websiteId: string, studioSlug: string): Promise
 
   const { data: website } = await supabase
     .from('websites')
-    .select('*, pages:website_pages(*)')
+    .select('*, studio:studios(name, logo_url), pages:website_pages(*)')
     .eq('id', websiteId)
     .eq('studio_id', studio.id)
     .single()
@@ -110,6 +114,13 @@ export async function getWebsitePage(
   return { website, page }
 }
 
+export async function getWebsiteGalleries(websiteId: string, studioSlug: string) {
+  const website = await getWebsite(websiteId, studioSlug)
+  if (!website) return []
+  const supabase = await createClient()
+  return loadWebsiteGalleryOptions(supabase, website.studio_id)
+}
+
 const createWebsiteSchema = z.object({
   name: z.string().min(1, 'Name is required').max(200),
   subdomain: z
@@ -117,7 +128,7 @@ const createWebsiteSchema = z.object({
     .min(3, 'Subdomain must be at least 3 characters')
     .max(63)
     .regex(/^[a-z0-9-]+$/, 'Only lowercase letters, numbers, and hyphens'),
-  template: z.string().min(1),
+  template: z.enum(['modern-minimal', 'elegant-wedding', 'bold-editorial']),
 })
 
 export async function createWebsite(formData: FormData) {
@@ -145,7 +156,7 @@ export async function createWebsite(formData: FormData) {
     .maybeSingle()
 
   if (existing) {
-    throw new Error('That subdomain is already taken')
+    return { error: 'That subdomain is already taken. Choose a different one to continue.' }
   }
 
   const { data: website, error } = await supabase
@@ -162,15 +173,24 @@ export async function createWebsite(formData: FormData) {
 
   if (error || !website) {
     console.error('Create website error:', error)
+    if (error?.code === '23505') {
+      return { error: 'That subdomain is already taken. Choose a different one to continue.' }
+    }
     throw new Error('Failed to create website')
   }
 
-  await supabase.from('website_pages').insert({
+  const { error: homePageError } = await supabase.from('website_pages').insert({
     website_id: website.id,
     name: 'Home',
     path: '/',
     order: 0,
+    content: { sections: createDefaultWebsiteSections(validated.name) },
   })
+  if (homePageError) {
+    console.error('Create website home page error:', homePageError)
+    await supabase.from('websites').delete().eq('id', website.id).eq('studio_id', membership.studioId)
+    throw new Error('Failed to create the home page. Please try again.')
+  }
 
   revalidatePath(`/dashboard/${studioSlug}/website`)
   redirect(`/dashboard/${studioSlug}/website/${website.id}/editor`)
@@ -181,6 +201,15 @@ export async function deleteWebsite(websiteId: string, studioSlug: string): Prom
   if ('error' in membership) return membership
 
   const supabase = await createClient()
+  const { data: website } = await supabase
+    .from('websites')
+    .select('subdomain')
+    .eq('id', websiteId)
+    .eq('studio_id', membership.studioId)
+    .maybeSingle()
+
+  if (!website) return { error: 'Website not found' }
+
   const { error } = await supabase
     .from('websites')
     .delete()
@@ -193,6 +222,7 @@ export async function deleteWebsite(websiteId: string, studioSlug: string): Prom
   }
 
   revalidatePath(`/dashboard/${studioSlug}/website`)
+  revalidatePath(`/portfolio/${website.subdomain}`)
 }
 
 export async function bulkDeleteWebsites(websiteIds: string[], studioSlug: string): Promise<{ error: string } | undefined> {
@@ -227,6 +257,26 @@ export async function setWebsiteStatus(
   }
 
   const supabase = await createClient()
+  const { data: website } = await supabase
+    .from('websites')
+    .select('subdomain')
+    .eq('id', websiteId)
+    .eq('studio_id', membership.studioId)
+    .maybeSingle()
+
+  if (!website) return { error: 'Website not found' }
+
+  if (status === 'published') {
+    const { data: homePage } = await supabase
+      .from('website_pages')
+      .select('id')
+      .eq('website_id', websiteId)
+      .eq('path', '/')
+      .eq('is_published', true)
+      .maybeSingle()
+    if (!homePage) return { error: 'Publish the Home page before publishing this website.' }
+  }
+
   const { error } = await supabase
     .from('websites')
     .update({
@@ -243,6 +293,7 @@ export async function setWebsiteStatus(
   }
 
   revalidatePath(`/dashboard/${studioSlug}/website`)
+  revalidatePath(`/portfolio/${website.subdomain}`)
 }
 
 export async function bulkSetWebsiteStatus(
@@ -258,6 +309,33 @@ export async function bulkSetWebsiteStatus(
   }
 
   const supabase = await createClient()
+  if (status === 'published') {
+    const { data: websites } = await supabase
+      .from('websites')
+      .select('id')
+      .eq('studio_id', membership.studioId)
+      .in('id', websiteIds)
+    const selectedIds = [...new Set((websites ?? []).map((website) => website.id))]
+    const { data: homePages } = selectedIds.length > 0
+      ? await supabase
+        .from('website_pages')
+        .select('website_id')
+        .in('website_id', selectedIds)
+        .eq('path', '/')
+        .eq('is_published', true)
+      : { data: [] }
+    const readyIds = new Set((homePages ?? []).map((page) => page.website_id))
+    if (selectedIds.some((id) => !readyIds.has(id))) {
+      return { error: 'Publish the Home page on every selected website before publishing them.' }
+    }
+  }
+
+  const { data: websites } = await supabase
+    .from('websites')
+    .select('subdomain')
+    .eq('studio_id', membership.studioId)
+    .in('id', websiteIds)
+
   const { error } = await supabase
     .from('websites')
     .update({
@@ -274,6 +352,7 @@ export async function bulkSetWebsiteStatus(
   }
 
   revalidatePath(`/dashboard/${studioSlug}/website`)
+  for (const website of websites ?? []) revalidatePath(`/portfolio/${website.subdomain}`)
 }
 
 export async function duplicateWebsite(websiteId: string, studioSlug: string): Promise<{ error: string } | undefined> {
@@ -340,6 +419,7 @@ export async function duplicateWebsite(websiteId: string, studioSlug: string): P
 const updateWebsiteSchema = z.object({
   name: z.string().min(1, 'Name is required').max(200),
   custom_domain: z.string().max(255).optional(),
+  template: z.enum(['modern-minimal', 'elegant-wedding', 'bold-editorial']),
   primary_color: z.string().max(20).optional(),
   seo_title: z.string().max(200).optional(),
   seo_description: z.string().max(500).optional(),
@@ -356,6 +436,7 @@ export async function updateWebsiteSettings(formData: FormData) {
   const validated = updateWebsiteSchema.parse({
     name: formData.get('name'),
     custom_domain: formData.get('custom_domain') || undefined,
+    template: formData.get('template') || 'modern-minimal',
     primary_color: formData.get('primary_color') || undefined,
     seo_title: formData.get('seo_title') || undefined,
     seo_description: formData.get('seo_description') || undefined,
@@ -367,13 +448,26 @@ export async function updateWebsiteSettings(formData: FormData) {
   }
 
   const supabase = await createClient()
+  const { data: current } = await supabase
+    .from('websites')
+    .select('theme, seo, subdomain')
+    .eq('id', websiteId)
+    .eq('studio_id', membership.studioId)
+    .single()
+
+  if (!current) throw new Error('Website not found')
+
+  const currentTheme = (current.theme ?? {}) as Record<string, unknown>
+  const currentSeo = (current.seo ?? {}) as Record<string, unknown>
   const { error } = await supabase
     .from('websites')
     .update({
       name: validated.name,
       custom_domain: validated.custom_domain || null,
-      theme: { primaryColor: validated.primary_color || undefined },
-      seo: { title: validated.seo_title, description: validated.seo_description },
+      template: validated.template,
+      template_name: TEMPLATES.find((item) => item.value === validated.template)?.label ?? TEMPLATES[0].label,
+      theme: { ...currentTheme, primaryColor: validated.primary_color || undefined },
+      seo: { ...currentSeo, title: validated.seo_title, description: validated.seo_description },
       password_protected: validated.password_protected,
       updated_at: new Date().toISOString(),
     })
@@ -386,6 +480,7 @@ export async function updateWebsiteSettings(formData: FormData) {
   }
 
   revalidatePath(`/dashboard/${studioSlug}/website/${websiteId}/editor`)
+  revalidatePath(`/portfolio/${current.subdomain}`)
 }
 
 const addPageSchema = z.object({
@@ -393,7 +488,8 @@ const addPageSchema = z.object({
   path: z
     .string()
     .min(1, 'Path is required')
-    .regex(/^\/[a-z0-9-/]*$/, 'Path must start with / and use lowercase letters, numbers, and hyphens'),
+    .regex(/^\/[a-z0-9-/]*$/, 'Path must start with / and use lowercase letters, numbers, and hyphens')
+    .refine((path) => path === '/' || (!path.endsWith('/') && !path.includes('//')), 'Use one clean path without a trailing slash.'),
 })
 
 export async function addWebsitePage(formData: FormData) {
@@ -411,7 +507,7 @@ export async function addWebsitePage(formData: FormData) {
   const supabase = await createClient()
   const { data: website } = await supabase
     .from('websites')
-    .select('id')
+    .select('id, subdomain')
     .eq('id', websiteId)
     .eq('studio_id', membership.studioId)
     .single()
@@ -423,12 +519,22 @@ export async function addWebsitePage(formData: FormData) {
     .select('id', { count: 'exact', head: true })
     .eq('website_id', websiteId)
 
-  const { error } = await supabase.from('website_pages').insert({
+  const { data: existingPage } = await supabase
+    .from('website_pages')
+    .select('id')
+    .eq('website_id', websiteId)
+    .eq('path', validated.path)
+    .maybeSingle()
+
+  if (existingPage) throw new Error('That page path already exists on this website.')
+
+  const { data: page, error } = await supabase.from('website_pages').insert({
     website_id: websiteId,
     name: validated.name,
     path: validated.path,
     order: count || 0,
-  })
+    content: { version: 1, sections: [{ id: 'intro', type: 'text', heading: validated.name, body: '' }] },
+  }).select('*').single()
 
   if (error) {
     console.error('Add website page error:', error)
@@ -436,6 +542,7 @@ export async function addWebsitePage(formData: FormData) {
   }
 
   revalidatePath(`/dashboard/${studioSlug}/website/${websiteId}/editor`)
+  return page as WebsitePageRow
 }
 
 export async function setPagePublished(
@@ -450,25 +557,28 @@ export async function setPagePublished(
   const supabase = await createClient()
   const { data: website } = await supabase
     .from('websites')
-    .select('id')
+    .select('id, subdomain')
     .eq('id', websiteId)
     .eq('studio_id', membership.studioId)
     .single()
 
   if (!website) return { error: 'Website not found' }
 
-  const { error } = await supabase
+  const { data: updatedPage, error } = await supabase
     .from('website_pages')
     .update({ is_published: isPublished, updated_at: new Date().toISOString() })
     .eq('id', pageId)
     .eq('website_id', websiteId)
+    .select('path')
+    .single()
 
-  if (error) {
+  if (error || !updatedPage) {
     console.error('Set page published error:', error)
     return { error: 'Failed to update page' }
   }
 
   revalidatePath(`/dashboard/${studioSlug}/website/${websiteId}/editor`)
+  revalidatePath(`/portfolio/${website.subdomain}${updatedPage.path === '/' ? '' : updatedPage.path}`)
 }
 
 export async function deleteWebsitePage(
@@ -482,37 +592,30 @@ export async function deleteWebsitePage(
   const supabase = await createClient()
   const { data: website } = await supabase
     .from('websites')
-    .select('id')
+    .select('id, subdomain')
     .eq('id', websiteId)
     .eq('studio_id', membership.studioId)
     .single()
 
   if (!website) return { error: 'Website not found' }
 
-  const { error } = await supabase
+  const { data: deletedPage, error } = await supabase
     .from('website_pages')
     .delete()
     .eq('id', pageId)
     .eq('website_id', websiteId)
+    .select('path')
+    .single()
 
-  if (error) {
+  if (error || !deletedPage) {
     console.error('Delete website page error:', error)
     return { error: 'Failed to delete page' }
   }
 
   revalidatePath(`/dashboard/${studioSlug}/website/${websiteId}/editor`)
+  revalidatePath(`/portfolio/${website.subdomain}${deletedPage.path === '/' ? '' : deletedPage.path}`)
 }
 
-const updatePageContentSchema = z.object({
-  heading: z.string().max(200).optional(),
-  body: z.string().max(5000).optional(),
-})
-
-// The `content` column has existed on website_pages since the baseline
-// schema but was never wired to any editor or renderer -- pages always
-// saved as `{}`. This is deliberately a single heading/body pair, not a
-// block/section model: it fills in the existing JSONB column with the
-// simplest real shape rather than inventing page-builder architecture.
 export async function updateWebsitePageContent(formData: FormData): Promise<{ error: string } | undefined> {
   const membership = await requireStudioPermission('website:manage_pages')
   if ('error' in membership) return membership
@@ -521,35 +624,43 @@ export async function updateWebsitePageContent(formData: FormData): Promise<{ er
   const websiteId = formData.get('website_id') as string
   const studioSlug = formData.get('studio_slug') as string
 
-  const validated = updatePageContentSchema.parse({
-    heading: formData.get('heading') || undefined,
-    body: formData.get('body') || undefined,
-  })
+  let rawSections: unknown
+  try {
+    rawSections = JSON.parse(String(formData.get('sections') ?? '[]'))
+  } catch {
+    return { error: 'The page sections could not be read. Please reload and try again.' }
+  }
+  const parsedSections = websiteSectionsSchema.safeParse(rawSections)
+  if (!parsedSections.success) return { error: 'Some section content is invalid. Review the fields and try again.' }
 
   const supabase = await createClient()
   const { data: website } = await supabase
     .from('websites')
-    .select('id')
+    .select('id, subdomain')
     .eq('id', websiteId)
     .eq('studio_id', membership.studioId)
     .single()
 
   if (!website) return { error: 'Website not found' }
 
-  const { error } = await supabase
+  const { data: updatedPage, error } = await supabase
     .from('website_pages')
     .update({
-      content: { heading: validated.heading ?? '', body: validated.body ?? '' },
+      content: { version: 1, sections: parsedSections.data },
       updated_at: new Date().toISOString(),
     })
     .eq('id', pageId)
     .eq('website_id', websiteId)
+    .select('path')
+    .single()
 
-  if (error) {
+  if (error || !updatedPage) {
     console.error('Update website page content error:', error)
     return { error: 'Failed to save page content' }
   }
 
   revalidatePath(`/dashboard/${studioSlug}/website/${websiteId}/editor`)
   revalidatePath(`/dashboard/${studioSlug}/website/${websiteId}/preview`)
+  revalidatePath(`/portfolio/${website.subdomain}${updatedPage.path === '/' ? '' : updatedPage.path}`)
 }
+
