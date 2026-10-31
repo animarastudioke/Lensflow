@@ -12,21 +12,15 @@ import {
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
 import { Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { createWebsite } from '@/lib/actions/websites'
 import { PageHeader } from '@/components/layout/PageHeader'
+import { TemplatePicker } from '@/components/website/TemplatePicker'
+import { DEFAULT_TEMPLATE_ID, type ServiceId } from '@/lib/website/templates'
 
 interface NewWebsiteFormProps {
   studioSlug: string
-  templates: readonly { value: string; label: string }[]
 }
 
 function slugify(value: string) {
@@ -37,13 +31,14 @@ function slugify(value: string) {
     .slice(0, 63)
 }
 
-export function NewWebsiteForm({ studioSlug, templates }: NewWebsiteFormProps) {
+export function NewWebsiteForm({ studioSlug }: NewWebsiteFormProps) {
   const [isSubmitting, setIsSubmitting] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
   const [name, setName] = React.useState('')
   const [subdomain, setSubdomain] = React.useState('')
   const [subdomainTouched, setSubdomainTouched] = React.useState(false)
-  const [template, setTemplate] = React.useState(templates[0]?.value ?? '')
+  const [template, setTemplate] = React.useState<string>(DEFAULT_TEMPLATE_ID)
+  const [service, setService] = React.useState<ServiceId | null>(null)
 
   React.useEffect(() => {
     if (!subdomainTouched) {
@@ -59,6 +54,7 @@ export function NewWebsiteForm({ studioSlug, templates }: NewWebsiteFormProps) {
     const formData = new FormData(e.currentTarget)
     formData.set('studio_slug', studioSlug)
     formData.set('template', template)
+    if (service) formData.set('service', service)
 
     try {
       const result = await createWebsite(formData)
@@ -79,7 +75,7 @@ export function NewWebsiteForm({ studioSlug, templates }: NewWebsiteFormProps) {
   }
 
   return (
-    <div className="max-w-2xl mx-auto space-y-6">
+    <div className="max-w-4xl mx-auto space-y-6">
       <PageHeader
         title="New Website"
         description="Start a new portfolio website"
@@ -126,19 +122,24 @@ export function NewWebsiteForm({ studioSlug, templates }: NewWebsiteFormProps) {
               <p className="text-xs text-muted-foreground">Lowercase letters, numbers, and hyphens only.</p>
             </div>
 
-            <div className="space-y-2">
-              <Label>Template</Label>
-              <Select value={template} onValueChange={setTemplate}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {templates.map((t) => (
-                    <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="mt-6">
+          <CardHeader>
+            <CardTitle>Choose a look</CardTitle>
+            <CardDescription>
+              Your site starts with sample pages in the style you pick. You can edit every word and change the style later.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <TemplatePicker
+              value={template}
+              onValueChange={setTemplate}
+              service={service}
+              onServiceChange={setService}
+              selectOnServiceChange
+            />
           </CardContent>
         </Card>
 

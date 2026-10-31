@@ -4,7 +4,6 @@ import { getAuthUserServer } from '@/lib/auth'
 import { getStudioForSettings } from '@/lib/actions/studios'
 import { hasEntitlement } from '@/lib/entitlements'
 import { NewWebsiteForm } from '@/components/website/NewWebsiteForm'
-import { getWebsiteTemplates } from '@/lib/actions/websites'
 import { FeatureUpgradePrompt } from '@/components/billing/FeatureUpgradePrompt'
 import { Globe } from 'lucide-react'
 
@@ -46,7 +45,5 @@ export default async function NewWebsitePage({ params }: NewWebsitePageProps) {
     )
   }
 
-  const templates = await getWebsiteTemplates()
-
-  return <NewWebsiteForm studioSlug={studioSlug} templates={templates} />
+  return <NewWebsiteForm studioSlug={studioSlug} />
 }

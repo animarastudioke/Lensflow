@@ -35,14 +35,16 @@ export async function getWebsiteGalleryOptions(
     .in('gallery_id', galleryIds)
 
   const now = Date.now()
-  const blockedIds = new Set((shareSettings ?? [])
-    .filter((setting) => setting.password_protected || setting.require_email || !setting.allow_embed || (setting.expires_at && new Date(setting.expires_at).getTime() <= now))
+  // Fail closed: a gallery with no share-settings row has never been told it may
+  // appear on a public page, so it is treated as not embeddable.
+  const embeddableIds = new Set((shareSettings ?? [])
+    .filter((setting) => !setting.password_protected && !setting.require_email && setting.allow_embed && !(setting.expires_at && new Date(setting.expires_at).getTime() <= now))
     .map((setting) => setting.gallery_id))
   const publicGalleries = galleries.filter((gallery) => {
     const expiresAt = gallery.expiry_days && gallery.created_at
       ? new Date(gallery.created_at).getTime() + gallery.expiry_days * 24 * 60 * 60 * 1000
       : null
-    return !blockedIds.has(gallery.id) && (expiresAt === null || expiresAt > now)
+    return embeddableIds.has(gallery.id) && (expiresAt === null || expiresAt > now)
   })
   if (!publicGalleries.length) return []
 
