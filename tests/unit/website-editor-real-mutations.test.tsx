@@ -79,7 +79,8 @@ describe('WebsiteEditor: page delete requires confirmation', () => {
     fireEvent.click(within(dialog).getByRole('button', { name: 'Delete page' }))
 
     await waitFor(() => expect(deleteWebsitePageMock).toHaveBeenCalledWith('page-1', 'website-1', 'test-studio'))
-    await waitFor(() => expect(screen.queryByText('Home')).not.toBeInTheDocument())
+    // The row is identified by its delete control: the template picker's live miniatures also contain a "Home" nav label.
+    await waitFor(() => expect(screen.queryByRole('button', { name: 'Delete Home' })).not.toBeInTheDocument())
   })
 })
 

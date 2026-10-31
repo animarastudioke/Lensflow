@@ -6,7 +6,7 @@ import { redirect } from 'next/navigation'
 import { z } from 'zod'
 import { hasEntitlement, requireEntitlement } from '@/lib/entitlements'
 import { requireStudioPermission } from '@/lib/auth/server'
-import { createDefaultWebsiteSections } from '@/lib/website/content'
+import { DEFAULT_TEMPLATE_ID, SERVICE_IDS, TEMPLATES, TEMPLATE_IDS, getTemplate } from '@/lib/website/templates'
 import { websiteSectionsSchema } from '@/lib/website/section-schema'
 import { getWebsiteGalleryOptions as loadWebsiteGalleryOptions } from '@/lib/website/galleries'
 
@@ -46,14 +46,10 @@ export interface WebsiteRow {
   pages?: WebsitePageRow[]
 }
 
-const TEMPLATES = [
-  { value: 'modern-minimal', label: 'Modern Minimal' },
-  { value: 'elegant-wedding', label: 'Elegant Wedding' },
-  { value: 'bold-editorial', label: 'Bold Editorial' },
-] as const
-
+// Kept for callers that only need id/label pairs; the registry in
+// src/lib/website/templates.ts is the single source of truth.
 export async function getWebsiteTemplates() {
-  return TEMPLATES
+  return TEMPLATES.map((template) => ({ value: template.id, label: template.label }))
 }
 
 export async function getWebsites(studioSlug: string): Promise<{ websites: WebsiteRow[]; total: number }> {
@@ -128,7 +124,9 @@ const createWebsiteSchema = z.object({
     .min(3, 'Subdomain must be at least 3 characters')
     .max(63)
     .regex(/^[a-z0-9-]+$/, 'Only lowercase letters, numbers, and hyphens'),
-  template: z.enum(['modern-minimal', 'elegant-wedding', 'bold-editorial']),
+  template: z.enum(TEMPLATE_IDS),
+  // Only used to pick a default in the picker; never stored.
+  service: z.enum(SERVICE_IDS).optional(),
 })
 
 export async function createWebsite(formData: FormData) {
@@ -138,14 +136,16 @@ export async function createWebsite(formData: FormData) {
   await requireEntitlement(membership.studioId, 'website_builder')
 
   const studioSlug = formData.get('studio_slug') as string
-  const template = (formData.get('template') as string) || TEMPLATES[0].value
-  const templateName = TEMPLATES.find(t => t.value === template)?.label || TEMPLATES[0].label
+  const template = (formData.get('template') as string) || DEFAULT_TEMPLATE_ID
 
   const validated = createWebsiteSchema.parse({
     name: formData.get('name'),
     subdomain: formData.get('subdomain'),
     template,
+    service: formData.get('service') || undefined,
   })
+  const chosenTemplate = getTemplate(validated.template)
+  const templateName = chosenTemplate.label
 
   const supabase = await createClient()
 
@@ -179,17 +179,23 @@ export async function createWebsite(formData: FormData) {
     throw new Error('Failed to create website')
   }
 
-  const { error: homePageError } = await supabase.from('website_pages').insert({
-    website_id: website.id,
-    name: 'Home',
-    path: '/',
-    order: 0,
-    content: { sections: createDefaultWebsiteSections(validated.name) },
-  })
+  // Starter content comes only from the server-side registry, never the client.
+  // is_published is left to the column default (false) exactly as the old
+  // single-Home insert did: every starter page stays a draft until the studio
+  // has edited and published it.
+  const { error: homePageError } = await supabase.from('website_pages').insert(
+    chosenTemplate.starterPages(validated.name).map((page, index) => ({
+      website_id: website.id,
+      name: page.name,
+      path: page.path,
+      order: index,
+      content: { sections: page.sections },
+    }))
+  )
   if (homePageError) {
-    console.error('Create website home page error:', homePageError)
+    console.error('Create website starter pages error:', homePageError)
     await supabase.from('websites').delete().eq('id', website.id).eq('studio_id', membership.studioId)
-    throw new Error('Failed to create the home page. Please try again.')
+    throw new Error('Failed to create the starter pages. Please try again.')
   }
 
   revalidatePath(`/dashboard/${studioSlug}/website`)
@@ -419,7 +425,7 @@ export async function duplicateWebsite(websiteId: string, studioSlug: string): P
 const updateWebsiteSchema = z.object({
   name: z.string().min(1, 'Name is required').max(200),
   custom_domain: z.string().max(255).optional(),
-  template: z.enum(['modern-minimal', 'elegant-wedding', 'bold-editorial']),
+  template: z.enum(TEMPLATE_IDS),
   primary_color: z.string().max(20).optional(),
   seo_title: z.string().max(200).optional(),
   seo_description: z.string().max(500).optional(),
@@ -465,7 +471,7 @@ export async function updateWebsiteSettings(formData: FormData) {
       name: validated.name,
       custom_domain: validated.custom_domain || null,
       template: validated.template,
-      template_name: TEMPLATES.find((item) => item.value === validated.template)?.label ?? TEMPLATES[0].label,
+      template_name: getTemplate(validated.template).label,
       theme: { ...currentTheme, primaryColor: validated.primary_color || undefined },
       seo: { ...currentSeo, title: validated.seo_title, description: validated.seo_description },
       password_protected: validated.password_protected,
@@ -557,12 +563,26 @@ export async function setPagePublished(
   const supabase = await createClient()
   const { data: website } = await supabase
     .from('websites')
-    .select('id, subdomain')
+    .select('id, subdomain, status')
     .eq('id', websiteId)
     .eq('studio_id', membership.studioId)
     .single()
 
   if (!website) return { error: 'Website not found' }
+
+  // The public site 404s at its root without a published Home page, and
+  // setWebsiteStatus is the only other place that rule is enforced.
+  if (!isPublished && website.status === 'published') {
+    const { data: page, error: pageError } = await supabase
+      .from('website_pages')
+      .select('path')
+      .eq('id', pageId)
+      .eq('website_id', websiteId)
+      .maybeSingle()
+    // Fail closed: if the page cannot be read we cannot rule out that it is Home.
+    if (pageError || !page) return { error: 'Failed to update page' }
+    if (page.path === '/') return { error: 'Unpublish the website before hiding its Home page.' }
+  }
 
   const { data: updatedPage, error } = await supabase
     .from('website_pages')
@@ -592,12 +612,23 @@ export async function deleteWebsitePage(
   const supabase = await createClient()
   const { data: website } = await supabase
     .from('websites')
-    .select('id, subdomain')
+    .select('id, subdomain, status')
     .eq('id', websiteId)
     .eq('studio_id', membership.studioId)
     .single()
 
   if (!website) return { error: 'Website not found' }
+
+  if (website.status === 'published') {
+    const { data: page, error: pageError } = await supabase
+      .from('website_pages')
+      .select('path')
+      .eq('id', pageId)
+      .eq('website_id', websiteId)
+      .maybeSingle()
+    if (pageError || !page) return { error: 'Failed to delete page' }
+    if (page.path === '/') return { error: 'Unpublish the website before deleting its Home page.' }
+  }
 
   const { data: deletedPage, error } = await supabase
     .from('website_pages')

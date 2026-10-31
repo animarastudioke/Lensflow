@@ -7,6 +7,8 @@ const config: Config = {
     './src/components/**/*.{js,ts,jsx,tsx,mdx}',
     './src/app/**/*.{js,ts,jsx,tsx,mdx}',
     './src/features/**/*.{js,ts,jsx,tsx,mdx}',
+    // Template themes are class strings that live in the registry, not in a component.
+    './src/lib/website/**/*.{ts,tsx}',
   ],
   theme: {
     container: {

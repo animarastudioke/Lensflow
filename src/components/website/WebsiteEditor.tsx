@@ -13,7 +13,8 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Checkbox } from '@/components/ui/checkbox'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { TemplatePicker } from '@/components/website/TemplatePicker'
+import { getTemplate, type ServiceId } from '@/lib/website/templates'
 import { PageHeader } from '@/components/layout/PageHeader'
 import { EmptyState } from '@/components/layout/EmptyState'
 import { ConfirmDialog } from '@/components/layout/ConfirmDialog'
@@ -43,7 +44,10 @@ export function WebsiteEditor({ studioSlug, website }: WebsiteEditorProps) {
   const [isSubmitting, setIsSubmitting] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
   const [passwordProtected, setPasswordProtected] = React.useState(website.password_protected)
-  const [template, setTemplate] = React.useState(website.template)
+  // A stored id that is no longer in the registry renders as the default, so the
+  // picker must start there too or the next save would be rejected.
+  const [template, setTemplate] = React.useState(getTemplate(website.template).id)
+  const [service, setService] = React.useState<ServiceId | null>(null)
   const [pages, setPages] = React.useState(website.pages || [])
   const [newPageName, setNewPageName] = React.useState('')
   const [newPagePath, setNewPagePath] = React.useState('')
@@ -170,16 +174,15 @@ export function WebsiteEditor({ studioSlug, website }: WebsiteEditorProps) {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="website_template">Portfolio style</Label>
-              <Select value={template} onValueChange={setTemplate}>
-                <SelectTrigger id="website_template"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="modern-minimal">Modern Minimal</SelectItem>
-                  <SelectItem value="elegant-wedding">Elegant Wedding</SelectItem>
-                  <SelectItem value="bold-editorial">Bold Editorial</SelectItem>
-                </SelectContent>
-              </Select>
-              <p className="text-xs text-muted-foreground">Each style changes the actual site layout and presentation.</p>
+              <p className="text-sm font-medium">Portfolio style</p>
+              <TemplatePicker
+                value={template}
+                onValueChange={setTemplate}
+                service={service}
+                onServiceChange={setService}
+                gridClassName="sm:grid-cols-2"
+              />
+              <p className="text-xs text-muted-foreground">Changing the style only changes how your site looks. Your pages and text are not touched.</p>
             </div>
 
             <div className="space-y-2">
