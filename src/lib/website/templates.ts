@@ -363,7 +363,7 @@ const CLEAN_COMMERCIAL: WebsiteTemplate = {
           heading: name,
           body: 'Clear, well-lit imagery for products, teams and brands.',
           ctaLabel: 'Request a quote',
-          ctaHref: '/contact',
+          ctaHref: '#contact',
         },
         { id: 'portfolio', type: 'gallery', heading: 'Selected work', galleryId: '' },
         {

@@ -57,6 +57,16 @@ describe('website template registry', () => {
     }
   )
 
+  it('only seeds in-page anchors for calls to action, which stay inside the studio site', () => {
+    for (const template of TEMPLATES) {
+      for (const page of template.starterPages('Test Studio')) {
+        for (const section of page.sections) {
+          if ('ctaHref' in section && section.ctaHref) expect(section.ctaHref, template.id).toMatch(/^#[a-z-]+$/)
+        }
+      }
+    }
+  })
+
   it('never seeds contact details or links to other sites', () => {
     for (const template of TEMPLATES) {
       const text = JSON.stringify(template.starterPages('Test Studio'))
@@ -75,6 +85,10 @@ describe('getTemplate and isTemplateId', () => {
     expect(getTemplate('retired-template').id).toBe(DEFAULT_TEMPLATE_ID)
     expect(getTemplate(null).id).toBe(DEFAULT_TEMPLATE_ID)
     expect(getTemplate(undefined).id).toBe(DEFAULT_TEMPLATE_ID)
+  })
+
+  it('resolves a retired id to a registered one, which is what the editor starts from', () => {
+    expect(isTemplateId(getTemplate('retired-template').id)).toBe(true)
   })
 
   it('only accepts registered ids', () => {

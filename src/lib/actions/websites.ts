@@ -573,13 +573,15 @@ export async function setPagePublished(
   // The public site 404s at its root without a published Home page, and
   // setWebsiteStatus is the only other place that rule is enforced.
   if (!isPublished && website.status === 'published') {
-    const { data: page } = await supabase
+    const { data: page, error: pageError } = await supabase
       .from('website_pages')
       .select('path')
       .eq('id', pageId)
       .eq('website_id', websiteId)
       .maybeSingle()
-    if (page?.path === '/') return { error: 'Unpublish the website before hiding its Home page.' }
+    // Fail closed: if the page cannot be read we cannot rule out that it is Home.
+    if (pageError || !page) return { error: 'Failed to update page' }
+    if (page.path === '/') return { error: 'Unpublish the website before hiding its Home page.' }
   }
 
   const { data: updatedPage, error } = await supabase
@@ -618,13 +620,14 @@ export async function deleteWebsitePage(
   if (!website) return { error: 'Website not found' }
 
   if (website.status === 'published') {
-    const { data: page } = await supabase
+    const { data: page, error: pageError } = await supabase
       .from('website_pages')
       .select('path')
       .eq('id', pageId)
       .eq('website_id', websiteId)
       .maybeSingle()
-    if (page?.path === '/') return { error: 'Unpublish the website before deleting its Home page.' }
+    if (pageError || !page) return { error: 'Failed to delete page' }
+    if (page.path === '/') return { error: 'Unpublish the website before deleting its Home page.' }
   }
 
   const { data: deletedPage, error } = await supabase

@@ -14,7 +14,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Checkbox } from '@/components/ui/checkbox'
 import { TemplatePicker } from '@/components/website/TemplatePicker'
-import type { ServiceId } from '@/lib/website/templates'
+import { getTemplate, type ServiceId } from '@/lib/website/templates'
 import { PageHeader } from '@/components/layout/PageHeader'
 import { EmptyState } from '@/components/layout/EmptyState'
 import { ConfirmDialog } from '@/components/layout/ConfirmDialog'
@@ -44,7 +44,9 @@ export function WebsiteEditor({ studioSlug, website }: WebsiteEditorProps) {
   const [isSubmitting, setIsSubmitting] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
   const [passwordProtected, setPasswordProtected] = React.useState(website.password_protected)
-  const [template, setTemplate] = React.useState(website.template)
+  // A stored id that is no longer in the registry renders as the default, so the
+  // picker must start there too or the next save would be rejected.
+  const [template, setTemplate] = React.useState(getTemplate(website.template).id)
   const [service, setService] = React.useState<ServiceId | null>(null)
   const [pages, setPages] = React.useState(website.pages || [])
   const [newPageName, setNewPageName] = React.useState('')
