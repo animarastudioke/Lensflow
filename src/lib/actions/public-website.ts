@@ -2,11 +2,8 @@
 
 import { supabaseAdmin } from '@/lib/supabase/admin'
 import { hasEntitlement } from '@/lib/entitlements'
-
-export interface PublicWebsitePageContent {
-  heading?: string
-  body?: string
-}
+import { getWebsiteSections, type WebsiteGalleryOption } from '@/lib/website/content'
+import { getWebsiteGalleryOptions } from '@/lib/website/galleries'
 
 export interface PublicWebsiteNavItem {
   name: string
@@ -17,6 +14,7 @@ export interface PublicWebsiteResult {
   studioName: string
   logoUrl: string | null
   websiteName: string
+  template: string
   primaryColor: string | null
   seoTitle: string | null
   seoDescription: string | null
@@ -24,8 +22,9 @@ export interface PublicWebsiteResult {
   page: {
     name: string
     path: string
-    content: PublicWebsitePageContent
+    content: { sections: ReturnType<typeof getWebsiteSections> }
   }
+  galleryOptions: WebsiteGalleryOption[]
 }
 
 /**
@@ -46,10 +45,10 @@ export interface PublicWebsiteResult {
  * at all is the safe default until real verification is built (see
  * WebsiteEditor's inline note next to the checkbox).
  */
-export async function getPublicWebsitePage(subdomain: string, path: string): Promise<PublicWebsiteResult | null> {
+export async function getPublicWebsitePage(subdomain: string, path: string, includeGalleryImages = true): Promise<PublicWebsiteResult | null> {
   const { data: website } = await supabaseAdmin
     .from('websites')
-    .select('id, studio_id, name, status, theme, seo, password_protected')
+    .select('id, studio_id, name, status, template, theme, seo, password_protected')
     .eq('subdomain', subdomain)
     .maybeSingle()
 
@@ -75,6 +74,14 @@ export async function getPublicWebsitePage(subdomain: string, path: string): Pro
   const page = publishedPages.find((p) => p.path === path)
   if (!page) return null
 
+  const sections = getWebsiteSections(page.content, page.name)
+  const galleryIds = [...new Set(sections.flatMap((section) =>
+    'galleryId' in section && section.galleryId ? [section.galleryId] : []
+  ))]
+  const galleryOptions = includeGalleryImages
+    ? await getWebsiteGalleryOptions(supabaseAdmin, website.studio_id, galleryIds)
+    : []
+
   const theme = website.theme as { primaryColor?: string } | null
   const seo = website.seo as { title?: string; description?: string } | null
 
@@ -82,6 +89,7 @@ export async function getPublicWebsitePage(subdomain: string, path: string): Pro
     studioName: studio?.name ?? website.name,
     logoUrl: studio?.logo_url ?? null,
     websiteName: website.name,
+    template: website.template,
     primaryColor: theme?.primaryColor ?? null,
     seoTitle: seo?.title ?? null,
     seoDescription: seo?.description ?? null,
@@ -89,7 +97,9 @@ export async function getPublicWebsitePage(subdomain: string, path: string): Pro
     page: {
       name: page.name,
       path: page.path,
-      content: (page.content ?? {}) as PublicWebsitePageContent,
+      content: { sections },
     },
+    galleryOptions,
   }
 }
+

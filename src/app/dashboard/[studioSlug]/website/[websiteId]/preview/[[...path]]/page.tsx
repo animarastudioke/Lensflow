@@ -1,7 +1,7 @@
 import { Metadata } from 'next'
 import { notFound, redirect } from 'next/navigation'
 import { getAuthUserServer } from '@/lib/auth'
-import { getWebsite } from '@/lib/actions/websites'
+import { getWebsite, getWebsiteGalleries } from '@/lib/actions/websites'
 import { WebsiteRenderer } from '@/components/website/WebsiteRenderer'
 
 interface WebsitePreviewPageProps {
@@ -49,17 +49,22 @@ export default async function WebsitePreviewPage({ params }: WebsitePreviewPageP
     notFound()
   }
 
+  const galleries = await getWebsiteGalleries(websiteId, studioSlug)
+
   return (
     <WebsiteRenderer
-      studioName={website.name}
-      logoUrl={null}
+      studioName={website.studio?.name ?? website.name}
+      logoUrl={website.studio?.logo_url}
       websiteName={website.name}
+      template={website.template}
       primaryColor={website.theme?.primaryColor}
-      navPages={(website.pages ?? []).map((p) => ({ name: p.name, path: p.path }))}
+      navPages={[...(website.pages ?? [])].filter((p) => p.is_published).sort((a, b) => a.order - b.order).map((p) => ({ name: p.name, path: p.path }))}
       currentPath={page.path}
-      page={{ name: page.name, content: page.content as { heading?: string; body?: string } }}
+      page={{ name: page.name, content: page.content }}
+      galleryOptions={galleries}
       basePath={`/dashboard/${studioSlug}/website/${websiteId}/preview`}
       preview
     />
   )
 }
+

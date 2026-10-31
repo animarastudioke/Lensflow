@@ -61,7 +61,12 @@ export function NewWebsiteForm({ studioSlug, templates }: NewWebsiteFormProps) {
     formData.set('template', template)
 
     try {
-      await createWebsite(formData)
+      const result = await createWebsite(formData)
+      if (result?.error) {
+        setError(result.error)
+        toast.error(result.error)
+        setIsSubmitting(false)
+      }
     } catch (err) {
       if (err instanceof Error && err.message !== 'NEXT_REDIRECT') {
         setError(err.message || 'Failed to create website')

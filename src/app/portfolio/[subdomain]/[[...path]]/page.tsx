@@ -13,7 +13,7 @@ function resolvePath(segments?: string[]): string {
 
 export async function generateMetadata({ params }: PublicWebsitePageProps): Promise<Metadata> {
   const { subdomain, path } = await params
-  const result = await getPublicWebsitePage(subdomain, resolvePath(path))
+  const result = await getPublicWebsitePage(subdomain, resolvePath(path), false)
   if (!result) return { title: 'Site not found' }
   return {
     title: result.seoTitle || `${result.websiteName} — ${result.studioName}`,
@@ -34,11 +34,14 @@ export default async function PublicWebsitePage({ params }: PublicWebsitePagePro
       studioName={result.studioName}
       logoUrl={result.logoUrl}
       websiteName={result.websiteName}
+      template={result.template}
       primaryColor={result.primaryColor}
       navPages={result.navPages}
       currentPath={result.page.path}
       page={result.page}
+      galleryOptions={result.galleryOptions}
       basePath={`/portfolio/${subdomain}`}
     />
   )
 }
+

@@ -13,6 +13,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Checkbox } from '@/components/ui/checkbox'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { PageHeader } from '@/components/layout/PageHeader'
 import { EmptyState } from '@/components/layout/EmptyState'
 import { ConfirmDialog } from '@/components/layout/ConfirmDialog'
@@ -42,6 +43,7 @@ export function WebsiteEditor({ studioSlug, website }: WebsiteEditorProps) {
   const [isSubmitting, setIsSubmitting] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
   const [passwordProtected, setPasswordProtected] = React.useState(website.password_protected)
+  const [template, setTemplate] = React.useState(website.template)
   const [pages, setPages] = React.useState(website.pages || [])
   const [newPageName, setNewPageName] = React.useState('')
   const [newPagePath, setNewPagePath] = React.useState('')
@@ -56,6 +58,7 @@ export function WebsiteEditor({ studioSlug, website }: WebsiteEditorProps) {
     formData.set('id', website.id)
     formData.set('studio_slug', studioSlug)
     formData.set('password_protected', String(passwordProtected))
+    formData.set('template', template)
 
     try {
       await updateWebsiteSettings(formData)
@@ -81,18 +84,8 @@ export function WebsiteEditor({ studioSlug, website }: WebsiteEditorProps) {
     formData.set('path', newPagePath)
 
     try {
-      await addWebsitePage(formData)
-      setPages(prev => [...prev, {
-        id: `pending-${Date.now()}`,
-        website_id: website.id,
-        name: newPageName,
-        path: newPagePath,
-        is_published: false,
-        content: {},
-        order: prev.length,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      }])
+      const page = await addWebsitePage(formData)
+      setPages(prev => [...prev, page])
       setNewPageName('')
       setNewPagePath('')
       toast.success('Page added')
@@ -174,6 +167,19 @@ export function WebsiteEditor({ studioSlug, website }: WebsiteEditorProps) {
             <div className="space-y-2">
               <Label htmlFor="primary_color">Primary color</Label>
               <Input id="primary_color" name="primary_color" type="color" defaultValue={website.theme?.primaryColor || '#3B82F6'} className="h-10 w-20 p-1" />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="website_template">Portfolio style</Label>
+              <Select value={template} onValueChange={setTemplate}>
+                <SelectTrigger id="website_template"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="modern-minimal">Modern Minimal</SelectItem>
+                  <SelectItem value="elegant-wedding">Elegant Wedding</SelectItem>
+                  <SelectItem value="bold-editorial">Bold Editorial</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">Each style changes the actual site layout and presentation.</p>
             </div>
 
             <div className="space-y-2">
@@ -292,3 +298,4 @@ export function WebsiteEditor({ studioSlug, website }: WebsiteEditorProps) {
     </div>
   )
 }
+
