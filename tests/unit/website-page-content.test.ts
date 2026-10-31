@@ -11,7 +11,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 // already use.
 
 const dbCalls: { table: string; op: string; eq: Record<string, unknown> }[] = []
-let websiteRow: { id: string } | null = { id: 'website-1' }
+let websiteRow: { id: string; subdomain: string } | null = { id: 'website-1', subdomain: 'test-studio' }
 
 function makeBuilder(table: string): any {
   const builder: any = { _eq: {} }
@@ -26,7 +26,7 @@ function makeBuilder(table: string): any {
   }
   builder.single = async () => {
     if (table === 'websites') return { data: websiteRow, error: websiteRow ? null : { message: 'not found' } }
-    return { data: { id: 'row-1' }, error: null }
+    return { data: { id: 'row-1', path: '/' }, error: null }
   }
   builder.then = (resolve: (v: unknown) => void) => resolve({ data: null, error: null })
   return builder
@@ -55,14 +55,17 @@ function contentFormData(overrides: Partial<Record<string, string>> = {}): FormD
   fd.set('page_id', overrides['page_id'] ?? 'page-1')
   fd.set('website_id', overrides['website_id'] ?? 'website-1')
   fd.set('studio_slug', overrides['studio_slug'] ?? 'test-studio')
-  fd.set('heading', overrides['heading'] ?? 'New heading')
-  fd.set('body', overrides['body'] ?? 'New body text')
+  // The action takes the whole page as a `sections` JSON array (version 1
+  // content), not loose heading/body fields.
+  fd.set('sections', JSON.stringify([
+    { id: 'hero-1', type: 'hero', heading: overrides['heading'] ?? 'New heading', body: overrides['body'] ?? 'New body text' },
+  ]))
   return fd
 }
 
 beforeEach(() => {
   dbCalls.length = 0
-  websiteRow = { id: 'website-1' }
+  websiteRow = { id: 'website-1', subdomain: 'test-studio' }
   requireStudioPermissionMock.mockReset()
 })
 
@@ -96,20 +99,32 @@ describe('updateWebsitePageContent: tenant scoping', () => {
 })
 
 describe('updateWebsitePageContent: persistence', () => {
-  it('writes a real content object (heading + body) to website_pages when authorized', async () => {
+  it('writes versioned section content to website_pages when authorized', async () => {
     requireStudioPermissionMock.mockResolvedValue({ userId: 'user-1', studioId: 'studio-1', role: 'studio_owner' })
     const result = await websitesActions.updateWebsitePageContent(contentFormData({ heading: 'Hello', body: 'World' }))
     expect(result).toBeUndefined()
     const pageUpdate = dbCalls.find((c) => c.table === 'website_pages' && c.op === 'update')
     expect(pageUpdate).toBeDefined()
-    expect((pageUpdate!.eq['payload'] as { content: { heading: string; body: string } }).content).toEqual({ heading: 'Hello', body: 'World' })
+    expect((pageUpdate!.eq['payload'] as { content: unknown }).content).toEqual({
+      version: 1,
+      sections: [{ id: 'hero-1', type: 'hero', heading: 'Hello', body: 'World' }],
+    })
   })
 
-  it('rejects a heading longer than 200 characters before writing anything', async () => {
+  it('rejects a section heading longer than 200 characters before writing anything', async () => {
     requireStudioPermissionMock.mockResolvedValue({ userId: 'user-1', studioId: 'studio-1', role: 'studio_owner' })
-    await expect(
-      websitesActions.updateWebsitePageContent(contentFormData({ heading: 'x'.repeat(201) }))
-    ).rejects.toThrow()
+    // Validation failures are returned as { error }, not thrown, like the other actions.
+    const result = await websitesActions.updateWebsitePageContent(contentFormData({ heading: 'x'.repeat(201) }))
+    expect(result).toEqual({ error: expect.stringContaining('invalid') })
+    expect(dbCalls.find((c) => c.table === 'website_pages')).toBeUndefined()
+  })
+
+  it('rejects malformed sections JSON before writing anything', async () => {
+    requireStudioPermissionMock.mockResolvedValue({ userId: 'user-1', studioId: 'studio-1', role: 'studio_owner' })
+    const fd = contentFormData()
+    fd.set('sections', '{not json')
+    const result = await websitesActions.updateWebsitePageContent(fd)
+    expect(result).toEqual({ error: expect.stringContaining('could not be read') })
     expect(dbCalls.find((c) => c.table === 'website_pages')).toBeUndefined()
   })
 })
