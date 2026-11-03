@@ -9,6 +9,7 @@ import { requireStudioPermission } from '@/lib/auth/server'
 import { DEFAULT_TEMPLATE_ID, SERVICE_IDS, TEMPLATES, TEMPLATE_IDS, getTemplate } from '@/lib/website/templates'
 import { websiteSectionsSchema } from '@/lib/website/section-schema'
 import { getWebsiteGalleryOptions as loadWebsiteGalleryOptions } from '@/lib/website/galleries'
+import { MAX_PAGE_DEPTH, getParentPath, hasChildPages, pathDepth } from '@/lib/website/page-tree'
 
 export type WebsiteStatus = 'published' | 'draft' | 'archived'
 
@@ -534,6 +535,21 @@ export async function addWebsitePage(formData: FormData) {
 
   if (existingPage) throw new Error('That page path already exists on this website.')
 
+  // Enforced here and not only in the editor: a hand-crafted request could
+  // otherwise create /a/b/c, or a child whose parent page does not exist, and
+  // the editor's tree would have to guess where to show it.
+  if (pathDepth(validated.path) > MAX_PAGE_DEPTH) throw new Error('Pages can only be nested one level deep.')
+  const parentPath = getParentPath(validated.path)
+  if (parentPath) {
+    const { data: parentPage } = await supabase
+      .from('website_pages')
+      .select('id')
+      .eq('website_id', websiteId)
+      .eq('path', parentPath)
+      .maybeSingle()
+    if (!parentPage) throw new Error(`Create the "${parentPath}" page first.`)
+  }
+
   const { data: page, error } = await supabase.from('website_pages').insert({
     website_id: websiteId,
     name: validated.name,
@@ -619,16 +635,25 @@ export async function deleteWebsitePage(
 
   if (!website) return { error: 'Website not found' }
 
-  if (website.status === 'published') {
-    const { data: page, error: pageError } = await supabase
-      .from('website_pages')
-      .select('path')
-      .eq('id', pageId)
-      .eq('website_id', websiteId)
-      .maybeSingle()
-    if (pageError || !page) return { error: 'Failed to delete page' }
-    if (page.path === '/') return { error: 'Unpublish the website before deleting its Home page.' }
-  }
+  // Always read the page first (fail closed): the Home rule only applies on a
+  // published site, but the sub-page rule applies everywhere, and both need the path.
+  const { data: page, error: pageError } = await supabase
+    .from('website_pages')
+    .select('path')
+    .eq('id', pageId)
+    .eq('website_id', websiteId)
+    .maybeSingle()
+  if (pageError || !page) return { error: 'Failed to delete page' }
+  if (website.status === 'published' && page.path === '/') return { error: 'Unpublish the website before deleting its Home page.' }
+
+  // Deleting a parent would strand its sub-pages: their paths would still
+  // say /portfolio/wedding with no /portfolio page to hang from.
+  const { data: siblings, error: siblingsError } = await supabase
+    .from('website_pages')
+    .select('path')
+    .eq('website_id', websiteId)
+  if (siblingsError || !siblings) return { error: 'Failed to delete page' }
+  if (hasChildPages(siblings, page.path)) return { error: 'Delete or move its sub-pages first.' }
 
   const { data: deletedPage, error } = await supabase
     .from('website_pages')
@@ -645,6 +670,103 @@ export async function deleteWebsitePage(
 
   revalidatePath(`/dashboard/${studioSlug}/website/${websiteId}/editor`)
   revalidatePath(`/portfolio/${website.subdomain}${deletedPage.path === '/' ? '' : deletedPage.path}`)
+}
+
+export async function renameWebsitePage(
+  pageId: string,
+  websiteId: string,
+  studioSlug: string,
+  name: string
+): Promise<{ success: true } | { error: string }> {
+  const membership = await requireStudioPermission('website:manage_pages')
+  if ('error' in membership) return membership
+
+  const trimmed = name.trim()
+  if (trimmed.length < 1 || trimmed.length > 100) return { error: 'Page name must be 1 to 100 characters.' }
+
+  const supabase = await createClient()
+  const { data: website } = await supabase
+    .from('websites')
+    .select('id, subdomain')
+    .eq('id', websiteId)
+    .eq('studio_id', membership.studioId)
+    .single()
+
+  if (!website) return { error: 'Website not found' }
+
+  // Only the label changes. The path is the page's identity (links, the
+  // Home rule and the sub-page tree all hang off it), so renaming never moves a page.
+  const { data: updatedPage, error } = await supabase
+    .from('website_pages')
+    .update({ name: trimmed, updated_at: new Date().toISOString() })
+    .eq('id', pageId)
+    .eq('website_id', websiteId)
+    .select('path')
+    .single()
+
+  if (error || !updatedPage) {
+    console.error('Rename website page error:', error)
+    return { error: 'Failed to rename page' }
+  }
+
+  revalidatePath(`/dashboard/${studioSlug}/website/${websiteId}/editor`)
+  revalidatePath(`/dashboard/${studioSlug}/website/${websiteId}/preview`)
+  revalidatePath(`/portfolio/${website.subdomain}`)
+  return { success: true }
+}
+
+export async function reorderWebsitePages(
+  websiteId: string,
+  studioSlug: string,
+  orderedPageIds: string[]
+): Promise<{ success: true } | { error: string }> {
+  const membership = await requireStudioPermission('website:manage_pages')
+  if ('error' in membership) return membership
+
+  const outOfDate = { error: 'The page list is out of date. Reload and try again.' }
+  if (!Array.isArray(orderedPageIds) || orderedPageIds.length === 0 || orderedPageIds.length > 200) return outOfDate
+  if (new Set(orderedPageIds).size !== orderedPageIds.length) return outOfDate
+
+  const supabase = await createClient()
+  const { data: website } = await supabase
+    .from('websites')
+    .select('id, subdomain')
+    .eq('id', websiteId)
+    .eq('studio_id', membership.studioId)
+    .single()
+
+  if (!website) return { error: 'Website not found' }
+
+  const { data: existing, error: existingError } = await supabase
+    .from('website_pages')
+    .select('id')
+    .eq('website_id', websiteId)
+  if (existingError || !existing) return { error: 'Failed to reorder pages' }
+
+  // The client must send exactly this website's pages. Rejecting a missing or
+  // foreign id (rather than ignoring it) keeps a stale or forged list from
+  // renumbering a subset and leaving the rest with colliding positions.
+  const known = new Set(existing.map((row) => row.id))
+  if (known.size !== orderedPageIds.length || !orderedPageIds.every((id) => known.has(id))) return outOfDate
+
+  // Not atomic: there is no multi-row update with a different value per row
+  // here, and `order` only affects display order, so a partial failure is
+  // reported and the editor reloads rather than wrapped in a transaction.
+  const now = new Date().toISOString()
+  const results = await Promise.all(
+    orderedPageIds.map((id, index) =>
+      supabase.from('website_pages').update({ order: index, updated_at: now }).eq('id', id).eq('website_id', websiteId)
+    )
+  )
+  if (results.some((result) => result.error)) {
+    console.error('Reorder website pages error:', results.find((result) => result.error)?.error)
+    return { error: 'Failed to reorder pages' }
+  }
+
+  revalidatePath(`/dashboard/${studioSlug}/website/${websiteId}/editor`)
+  revalidatePath(`/dashboard/${studioSlug}/website/${websiteId}/preview`)
+  revalidatePath(`/portfolio/${website.subdomain}`)
+  return { success: true }
 }
 
 export async function updateWebsitePageContent(formData: FormData): Promise<{ error: string } | undefined> {

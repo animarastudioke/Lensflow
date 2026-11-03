@@ -4,10 +4,12 @@ import { supabaseAdmin } from '@/lib/supabase/admin'
 import { hasEntitlement } from '@/lib/entitlements'
 import { getWebsiteSections, type WebsiteGalleryOption } from '@/lib/website/content'
 import { getWebsiteGalleryOptions } from '@/lib/website/galleries'
+import { buildNavItems } from '@/lib/website/page-tree'
 
 export interface PublicWebsiteNavItem {
   name: string
   path: string
+  children?: { name: string; path: string }[]
 }
 
 export interface PublicWebsiteResult {
@@ -65,7 +67,7 @@ export async function getPublicWebsitePage(subdomain: string, path: string, incl
 
   const { data: pages } = await supabaseAdmin
     .from('website_pages')
-    .select('name, path, content')
+    .select('id, name, path, order, content')
     .eq('website_id', website.id)
     .eq('is_published', true)
     .order('order', { ascending: true })
@@ -93,7 +95,8 @@ export async function getPublicWebsitePage(subdomain: string, path: string, incl
     primaryColor: theme?.primaryColor ?? null,
     seoTitle: seo?.title ?? null,
     seoDescription: seo?.description ?? null,
-    navPages: publishedPages.map((p) => ({ name: p.name, path: p.path })),
+    // Everything selected here is already published, so the tree is built from the same rows.
+    navPages: buildNavItems(publishedPages.map((p) => ({ id: p.id, name: p.name, path: p.path, order: p.order, is_published: true }))),
     page: {
       name: page.name,
       path: page.path,

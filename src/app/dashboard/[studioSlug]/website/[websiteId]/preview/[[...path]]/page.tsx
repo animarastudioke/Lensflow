@@ -3,6 +3,7 @@ import { notFound, redirect } from 'next/navigation'
 import { getAuthUserServer } from '@/lib/auth'
 import { getWebsite, getWebsiteGalleries } from '@/lib/actions/websites'
 import { WebsiteRenderer } from '@/components/website/WebsiteRenderer'
+import { buildNavItems } from '@/lib/website/page-tree'
 
 interface WebsitePreviewPageProps {
   params: Promise<{ studioSlug: string; websiteId: string; path?: string[] }>
@@ -58,7 +59,7 @@ export default async function WebsitePreviewPage({ params }: WebsitePreviewPageP
       websiteName={website.name}
       template={website.template}
       primaryColor={website.theme?.primaryColor}
-      navPages={[...(website.pages ?? [])].filter((p) => p.is_published).sort((a, b) => a.order - b.order).map((p) => ({ name: p.name, path: p.path }))}
+      navPages={buildNavItems(website.pages ?? [])}
       currentPath={page.path}
       page={{ name: page.name, content: page.content }}
       galleryOptions={galleries}
