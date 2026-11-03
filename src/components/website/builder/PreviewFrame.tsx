@@ -1,0 +1,92 @@
+'use client'
+
+import * as React from 'react'
+import { createPortal } from 'react-dom'
+
+export type PreviewDevice = 'desktop' | 'mobile'
+
+interface PreviewFrameProps {
+  device: PreviewDevice
+  /** Prefix the renderer builds page links from; clicks on those switch the editor's page instead of navigating. */
+  basePath: string
+  onNavigate: (path: string) => void
+  title: string
+  children: React.ReactNode
+}
+
+const BLANK_DOCUMENT = '<!doctype html><html><head><meta name="viewport" content="width=device-width, initial-scale=1"></head><body></body></html>'
+
+/**
+ * Link clicks inside the preview must never take the editor away from the
+ * unsaved draft. Page links switch the selected page; mail/phone and other
+ * local links are inert; in-page anchors and external links keep working.
+ */
+export function resolvePreviewClick(href: string, basePath: string): { kind: 'page'; path: string } | { kind: 'block' } | { kind: 'allow' } {
+  if (href.startsWith('#') || /^https:\/\//i.test(href)) return { kind: 'allow' }
+  if (href === basePath || href.startsWith(`${basePath}/`)) {
+    const rest = href.slice(basePath.length).split(/[?#]/)[0] ?? ''
+    return { kind: 'page', path: rest === '' ? '/' : rest }
+  }
+  return { kind: 'block' }
+}
+
+function ClickGuard({ basePath, onNavigate, children }: Pick<PreviewFrameProps, 'basePath' | 'onNavigate' | 'children'>) {
+  const onClickCapture = (event: React.MouseEvent<HTMLDivElement>) => {
+    const anchor = (event.target as HTMLElement).closest('a')
+    if (!anchor) return
+    const result = resolvePreviewClick(anchor.getAttribute('href') ?? '', basePath)
+    if (result.kind === 'allow') return
+    event.preventDefault()
+    if (result.kind === 'page') onNavigate(result.path)
+  }
+  return <div onClickCapture={onClickCapture}>{children}</div>
+}
+
+// Responsive styles key off the viewport width, and a narrow <div> does not
+// change that. A real iframe gives the preview its own 390px viewport, so the
+// template's mobile layout is what gets shown. The page's stylesheets are
+// copied in because an iframe does not inherit them.
+function MobileFrame({ title, basePath, onNavigate, children }: Omit<PreviewFrameProps, 'device'>) {
+  const frameRef = React.useRef<HTMLIFrameElement>(null)
+  const [mountNode, setMountNode] = React.useState<HTMLElement | null>(null)
+
+  React.useEffect(() => {
+    const frame = frameRef.current
+    if (!frame) return
+    const prepare = () => {
+      const doc = frame.contentDocument
+      if (!doc?.body) return
+      doc.documentElement.className = document.documentElement.className
+      doc.body.className = document.body.className
+      doc.body.style.margin = '0'
+      doc.head.querySelectorAll('[data-builder-copy]').forEach((node) => node.remove())
+      document.querySelectorAll('link[rel="stylesheet"], style').forEach((node) => {
+        const copy = node.cloneNode(true) as HTMLElement
+        copy.setAttribute('data-builder-copy', '')
+        doc.head.appendChild(copy)
+      })
+      setMountNode(doc.body)
+    }
+    if (frame.contentDocument?.readyState === 'complete') prepare()
+    frame.addEventListener('load', prepare)
+    return () => frame.removeEventListener('load', prepare)
+  }, [])
+
+  return (
+    <div className="flex h-full justify-center overflow-auto bg-muted/40 p-4">
+      <iframe ref={frameRef} title={title} srcDoc={BLANK_DOCUMENT} className="h-full min-h-[600px] w-[390px] max-w-full shrink-0 rounded-xl border bg-white shadow-sm" />
+      {mountNode && createPortal(<ClickGuard basePath={basePath} onNavigate={onNavigate}>{children}</ClickGuard>, mountNode)}
+    </div>
+  )
+}
+
+export function PreviewFrame({ device, basePath, onNavigate, title, children }: PreviewFrameProps) {
+  if (device === 'mobile') {
+    return <MobileFrame title={title} basePath={basePath} onNavigate={onNavigate}>{children}</MobileFrame>
+  }
+  return (
+    <div className="h-full overflow-auto" aria-label={title} role="region">
+      <ClickGuard basePath={basePath} onNavigate={onNavigate}>{children}</ClickGuard>
+    </div>
+  )
+}

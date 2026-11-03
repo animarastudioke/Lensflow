@@ -45,7 +45,7 @@ export interface PublicWebsiteResult {
  * is nothing to verify a visitor against. Serving the site while claiming
  * "password protected" would be a false sense of security; not serving it
  * at all is the safe default until real verification is built (see
- * WebsiteEditor's inline note next to the checkbox).
+ * the builder's inline note next to the checkbox).
  */
 export async function getPublicWebsitePage(subdomain: string, path: string, includeGalleryImages = true): Promise<PublicWebsiteResult | null> {
   const { data: website } = await supabaseAdmin

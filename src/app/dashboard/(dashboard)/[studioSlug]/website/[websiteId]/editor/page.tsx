@@ -1,11 +1,12 @@
 import { Metadata } from 'next'
 import { notFound, redirect } from 'next/navigation'
 import { getAuthUserServer } from '@/lib/auth'
-import { WebsiteEditor } from '@/components/website/WebsiteEditor'
-import { getWebsite } from '@/lib/actions/websites'
+import { WebsiteBuilder } from '@/components/website/builder/WebsiteBuilder'
+import { getWebsite, getWebsiteGalleries } from '@/lib/actions/websites'
 
 interface WebsiteEditorPageProps {
   params: Promise<{ studioSlug: string; websiteId: string }>
+  searchParams: Promise<{ page?: string }>
 }
 
 export async function generateMetadata({
@@ -18,19 +19,26 @@ export async function generateMetadata({
   }
 }
 
-export default async function WebsiteEditorPage({ params }: WebsiteEditorPageProps) {
+export default async function WebsiteEditorPage({ params, searchParams }: WebsiteEditorPageProps) {
   const { studioSlug, websiteId } = await params
+  const { page: requestedPageId } = await searchParams
   const user = await getAuthUserServer()
 
   if (!user) {
     redirect('/auth/login')
   }
 
-  const website = await getWebsite(websiteId, studioSlug)
+  const [website, galleries] = await Promise.all([
+    getWebsite(websiteId, studioSlug),
+    getWebsiteGalleries(websiteId, studioSlug),
+  ])
 
   if (!website) {
     notFound()
   }
 
-  return <WebsiteEditor studioSlug={studioSlug} website={website} />
+  // The id only picks which page opens first; an unknown one is ignored by the builder.
+  const initialPageId = website.pages?.some((page) => page.id === requestedPageId) ? requestedPageId : undefined
+
+  return <WebsiteBuilder studioSlug={studioSlug} website={website} galleries={galleries} initialPageId={initialPageId} />
 }
