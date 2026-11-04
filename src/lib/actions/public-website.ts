@@ -4,10 +4,12 @@ import { supabaseAdmin } from '@/lib/supabase/admin'
 import { hasEntitlement } from '@/lib/entitlements'
 import { getWebsiteSections, type WebsiteGalleryOption } from '@/lib/website/content'
 import { getWebsiteGalleryOptions } from '@/lib/website/galleries'
+import { buildNavItems, filterVisiblePages } from '@/lib/website/page-tree'
 
 export interface PublicWebsiteNavItem {
   name: string
   path: string
+  children?: { name: string; path: string }[]
 }
 
 export interface PublicWebsiteResult {
@@ -43,7 +45,7 @@ export interface PublicWebsiteResult {
  * is nothing to verify a visitor against. Serving the site while claiming
  * "password protected" would be a false sense of security; not serving it
  * at all is the safe default until real verification is built (see
- * WebsiteEditor's inline note next to the checkbox).
+ * the builder's inline note next to the checkbox).
  */
 export async function getPublicWebsitePage(subdomain: string, path: string, includeGalleryImages = true): Promise<PublicWebsiteResult | null> {
   const { data: website } = await supabaseAdmin
@@ -65,12 +67,13 @@ export async function getPublicWebsitePage(subdomain: string, path: string, incl
 
   const { data: pages } = await supabaseAdmin
     .from('website_pages')
-    .select('name, path, content')
+    .select('id, name, path, order, is_published, content')
     .eq('website_id', website.id)
-    .eq('is_published', true)
     .order('order', { ascending: true })
 
-  const publishedPages = pages ?? []
+  // Drafts are read too, only so a sub-page can be hidden along with its
+  // parent; nothing unpublished is ever served or listed.
+  const publishedPages = filterVisiblePages(pages ?? [])
   const page = publishedPages.find((p) => p.path === path)
   if (!page) return null
 
@@ -93,7 +96,7 @@ export async function getPublicWebsitePage(subdomain: string, path: string, incl
     primaryColor: theme?.primaryColor ?? null,
     seoTitle: seo?.title ?? null,
     seoDescription: seo?.description ?? null,
-    navPages: publishedPages.map((p) => ({ name: p.name, path: p.path })),
+    navPages: buildNavItems(publishedPages),
     page: {
       name: page.name,
       path: page.path,

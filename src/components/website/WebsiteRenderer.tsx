@@ -6,6 +6,8 @@ import { getWebsiteSections, type WebsiteGalleryOption, type WebsiteSection } fr
 export interface WebsiteRendererNavItem {
   name: string
   path: string
+  /** Published sub-pages, shown in a dropdown under their parent. */
+  children?: { name: string; path: string }[]
 }
 
 export interface WebsiteRendererProps {
@@ -141,6 +143,50 @@ function SectionView({
     )
   }
 
+  if (section.type === 'testimonials') {
+    if (section.items.length === 0 && !preview) return null
+    return (
+      <section id={section.id} className={`mx-auto ${theme.maxWidth} px-6 ${theme.padSection} md:px-10`}>
+        <h2 className={sectionHeadingClass}>{section.heading}</h2>
+        {section.items.length > 0 ? (
+          <div className="mt-8 grid gap-4 md:grid-cols-2">
+            {section.items.map((item, index) => (
+              <figure key={`${section.id}-${index}`} className={`${theme.radius} border p-6 ${theme.card}`}>
+                <blockquote className={`text-base leading-7 ${theme.cardText}`}>“{item.quote}”</blockquote>
+                {item.author && <figcaption className={`mt-4 text-sm font-medium ${theme.cardText}`}>{item.author}</figcaption>}
+              </figure>
+            ))}
+          </div>
+        ) : (
+          <p className={`mt-5 ${theme.radius} border border-dashed ${theme.emptyNote} p-6 text-sm`}>Add kind words from clients to show them here.</p>
+        )}
+      </section>
+    )
+  }
+
+  if (section.type === 'pricing') {
+    if (section.items.length === 0 && !preview) return null
+    return (
+      <section id={section.id} className={`mx-auto ${theme.maxWidth} px-6 ${theme.padSection} md:px-10`}>
+        <h2 className={sectionHeadingClass}>{section.heading}</h2>
+        {section.body && <p className={sectionBodyClass}>{section.body}</p>}
+        {section.items.length > 0 ? (
+          <div className="mt-8 grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+            {section.items.map((item, index) => (
+              <article key={`${section.id}-${index}`} className={`${theme.radius} border p-6 ${theme.card}`}>
+                <h3 className={theme.cardTitle} style={primaryColor ? { color: primaryColor } : undefined}>{item.name}</h3>
+                {item.price && <p className={`mt-2 text-2xl ${theme.display} ${theme.heading}`}>{item.price}</p>}
+                {item.description && <p className={`mt-3 whitespace-pre-wrap text-sm leading-6 ${theme.cardText}`}>{item.description}</p>}
+              </article>
+            ))}
+          </div>
+        ) : (
+          <p className={`mt-5 ${theme.radius} border border-dashed ${theme.emptyNote} p-6 text-sm`}>Add your packages and prices to show them here.</p>
+        )}
+      </section>
+    )
+  }
+
   if (section.type === 'contact') {
     return (
       <section id={section.id || 'contact'} className={`mx-auto ${theme.maxWidth} px-6 ${theme.padContact} md:px-10 ${theme.contactBg}`}>
@@ -204,13 +250,39 @@ export function WebsiteRenderer({
         {navPages.length > 1 && (
           <nav aria-label="Website pages" className={`mx-auto flex ${theme.maxWidth} flex-wrap gap-x-6 gap-y-2 px-6 pb-4 md:px-10`}>
             {navPages.map((nav) => {
-              const isActive = nav.path === currentPath
+              const isCurrent = nav.path === currentPath
+              // A parent reads as active while one of its sub-pages is open, so
+              // the visitor can always see which section they are in.
+              const isActive = isCurrent || (nav.children?.some((child) => child.path === currentPath) ?? false)
+              const linkTarget = previewLinksInNewTab ? { target: '_blank', rel: 'noopener noreferrer' } : {}
               return (
-                <Link key={nav.path} href={pageHref(basePath, nav.path)} target={previewLinksInNewTab ? '_blank' : undefined} rel={previewLinksInNewTab ? 'noopener noreferrer' : undefined} aria-current={isActive ? 'page' : undefined}
-                  className={`border-b-2 pb-1 text-sm ${isActive ? 'font-medium' : theme.navIdle}`}
-                  style={isActive ? { borderColor: primaryColor || theme.navActiveFallback, color: dark ? '#fff' : undefined } : undefined}>
-                  {nav.name}
-                </Link>
+                <div key={nav.path} className="group relative">
+                  <Link href={pageHref(basePath, nav.path)} {...linkTarget} aria-current={isCurrent ? 'page' : undefined}
+                    className={`border-b-2 pb-1 text-sm ${isActive ? 'font-medium' : theme.navIdle}`}
+                    style={isActive ? { borderColor: primaryColor || theme.navActiveFallback, color: dark ? '#fff' : undefined } : undefined}>
+                    {nav.name}
+                  </Link>
+                  {nav.children && nav.children.length > 0 && (
+                    // Dropdown from md up (CSS only, so it also opens on keyboard focus);
+                    // on narrow screens there is no hover, so sub-pages simply list below.
+                    <div className="mt-1 md:invisible md:absolute md:left-0 md:top-full md:z-20 md:mt-0 md:min-w-44 md:pt-2 md:opacity-0 md:transition md:group-focus-within:visible md:group-focus-within:opacity-100 md:group-hover:visible md:group-hover:opacity-100">
+                      <ul className={`rounded-md py-1 md:border md:shadow-lg ${theme.site} ${theme.headerBorder}`}>
+                        {nav.children.map((child) => {
+                          const childCurrent = child.path === currentPath
+                          return (
+                            <li key={child.path}>
+                              <Link href={pageHref(basePath, child.path)} {...linkTarget} aria-current={childCurrent ? 'page' : undefined}
+                                className={`block py-1.5 pl-3 pr-4 text-sm md:px-4 ${childCurrent ? 'font-medium' : theme.navIdle}`}
+                                style={childCurrent ? { color: dark ? '#fff' : undefined } : undefined}>
+                                {child.name}
+                              </Link>
+                            </li>
+                          )
+                        })}
+                      </ul>
+                    </div>
+                  )}
+                </div>
               )
             })}
           </nav>

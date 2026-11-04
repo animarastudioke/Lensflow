@@ -1,0 +1,104 @@
+import { describe, expect, it } from 'vitest'
+import { render, screen } from '@testing-library/react'
+import { websiteSectionsSchema } from '@/lib/website/section-schema'
+import { getWebsiteSections } from '@/lib/website/content'
+import {
+  SECTION_TYPES,
+  createSection,
+  formatPricingItems,
+  formatTestimonialItems,
+  parsePricingItems,
+  parseServiceItems,
+  parseTestimonialItems,
+} from '@/lib/website/section-defaults'
+import { WebsiteRenderer } from '@/components/website/WebsiteRenderer'
+
+// The schema (what a save accepts) and the content guard (what a page load
+// will render) are two separate validators, so each new section type has to
+// be accepted by both or a saved page would silently lose the section.
+
+const pricing = { id: 'p1', type: 'pricing', heading: 'Investment', body: 'Packages', items: [{ name: 'Essential', price: 'KES 45,000', description: '4 hours' }] }
+const testimonials = { id: 't1', type: 'testimonials', heading: 'Kind words', items: [{ quote: 'Lovely', author: 'Amina' }] }
+
+describe('new section types: validation', () => {
+  it('accepts pricing and testimonials in both validators', () => {
+    expect(websiteSectionsSchema.safeParse([pricing, testimonials]).success).toBe(true)
+    expect(getWebsiteSections({ version: 1, sections: [pricing, testimonials] }, 'Page')).toEqual([pricing, testimonials])
+  })
+
+  it('rejects over-long or oversized lists in the schema', () => {
+    const tooMany = { ...pricing, items: Array.from({ length: 7 }, () => pricing.items[0]) }
+    expect(websiteSectionsSchema.safeParse([tooMany]).success).toBe(false)
+    expect(websiteSectionsSchema.safeParse([{ ...pricing, items: [{ name: 'x', price: 'y'.repeat(41), description: '' }] }]).success).toBe(false)
+    expect(websiteSectionsSchema.safeParse([{ ...testimonials, items: [{ quote: 'q'.repeat(501), author: 'a' }] }]).success).toBe(false)
+    expect(websiteSectionsSchema.safeParse([{ ...testimonials, items: [{ quote: 'q', author: 'a'.repeat(101) }] }]).success).toBe(false)
+  })
+
+  it('drops a malformed stored section on load instead of rendering it', () => {
+    const bad = { ...pricing, items: [{ name: 1, price: 'x', description: '' }] }
+    const loaded = getWebsiteSections({ version: 1, sections: [bad, testimonials] }, 'Page')
+    expect(loaded.map((s) => s.id)).toEqual(['t1'])
+  })
+
+  it('every type the editor can add survives the schema', () => {
+    for (const type of SECTION_TYPES) {
+      expect(websiteSectionsSchema.safeParse([createSection(type, `s-${type}`)]).success, type).toBe(true)
+    }
+  })
+})
+
+describe('line parsers', () => {
+  it('round-trips pricing lines and keeps dashes inside the description', () => {
+    const items = [{ name: 'Essential', price: 'KES 45,000', description: '4 hours — 200 edits' }]
+    expect(parsePricingItems(formatPricingItems(items))).toEqual(items)
+  })
+
+  it('takes the testimonial author from the last separator', () => {
+    expect(parseTestimonialItems('Calm — and kind — Amina')).toEqual([{ quote: 'Calm — and kind', author: 'Amina' }])
+    expect(parseTestimonialItems('No author here')).toEqual([{ quote: 'No author here', author: '' }])
+    expect(parseTestimonialItems(formatTestimonialItems([{ quote: 'Lovely', author: 'Amina' }]))).toEqual([{ quote: 'Lovely', author: 'Amina' }])
+  })
+
+  it('trims to the schema limits and ignores blank lines and extra lines', () => {
+    expect(parsePricingItems('\n\nA — B — C\n')).toHaveLength(1)
+    expect(parsePricingItems(Array.from({ length: 9 }, (_, i) => `P${i} — 1`).join('\n'))).toHaveLength(6)
+    expect(parseServiceItems(Array.from({ length: 12 }, (_, i) => `S${i}`).join('\n'))).toHaveLength(8)
+    const [item] = parsePricingItems(`${'n'.repeat(150)} — ${'p'.repeat(60)} — ${'d'.repeat(700)}`)
+    expect(item?.name).toHaveLength(100)
+    expect(item?.price).toHaveLength(40)
+    expect(item?.description).toHaveLength(500)
+    expect(websiteSectionsSchema.safeParse([{ id: 'p', type: 'pricing', heading: 'h', items: [item] }]).success).toBe(true)
+  })
+})
+
+function renderSections(sections: unknown[], preview = false) {
+  return render(
+    <WebsiteRenderer studioName="S" websiteName="S" navPages={[]} currentPath="/" page={{ name: 'Investment', content: { version: 1, sections } }} basePath="/p" preview={preview} />
+  )
+}
+
+describe('new section types: rendering', () => {
+  it('renders packages with name, price and description', () => {
+    renderSections([pricing])
+    expect(screen.getByRole('heading', { name: 'Essential' })).toBeInTheDocument()
+    expect(screen.getByText('KES 45,000')).toBeInTheDocument()
+    expect(screen.getByText('4 hours')).toBeInTheDocument()
+  })
+
+  it('renders testimonials as quotes with their author', () => {
+    renderSections([testimonials])
+    expect(screen.getByText('“Lovely”')).toBeInTheDocument()
+    expect(screen.getByText('Amina')).toBeInTheDocument()
+  })
+
+  it('hides an empty section from visitors but shows a hint in the editor preview', () => {
+    const empty = [{ ...pricing, items: [] }, { ...testimonials, items: [] }]
+    const { unmount } = renderSections(empty)
+    expect(screen.queryByText('Investment')).not.toBeInTheDocument()
+    expect(screen.queryByText('Kind words')).not.toBeInTheDocument()
+    unmount()
+    renderSections(empty, true)
+    expect(screen.getByText('Add your packages and prices to show them here.')).toBeInTheDocument()
+    expect(screen.getByText('Add kind words from clients to show them here.')).toBeInTheDocument()
+  })
+})
