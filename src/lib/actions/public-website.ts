@@ -4,7 +4,7 @@ import { supabaseAdmin } from '@/lib/supabase/admin'
 import { hasEntitlement } from '@/lib/entitlements'
 import { getWebsiteSections, type WebsiteGalleryOption } from '@/lib/website/content'
 import { getWebsiteGalleryOptions } from '@/lib/website/galleries'
-import { buildNavItems } from '@/lib/website/page-tree'
+import { buildNavItems, filterVisiblePages } from '@/lib/website/page-tree'
 
 export interface PublicWebsiteNavItem {
   name: string
@@ -67,12 +67,13 @@ export async function getPublicWebsitePage(subdomain: string, path: string, incl
 
   const { data: pages } = await supabaseAdmin
     .from('website_pages')
-    .select('id, name, path, order, content')
+    .select('id, name, path, order, is_published, content')
     .eq('website_id', website.id)
-    .eq('is_published', true)
     .order('order', { ascending: true })
 
-  const publishedPages = pages ?? []
+  // Drafts are read too, only so a sub-page can be hidden along with its
+  // parent; nothing unpublished is ever served or listed.
+  const publishedPages = filterVisiblePages(pages ?? [])
   const page = publishedPages.find((p) => p.path === path)
   if (!page) return null
 
@@ -95,8 +96,7 @@ export async function getPublicWebsitePage(subdomain: string, path: string, incl
     primaryColor: theme?.primaryColor ?? null,
     seoTitle: seo?.title ?? null,
     seoDescription: seo?.description ?? null,
-    // Everything selected here is already published, so the tree is built from the same rows.
-    navPages: buildNavItems(publishedPages.map((p) => ({ id: p.id, name: p.name, path: p.path, order: p.order, is_published: true }))),
+    navPages: buildNavItems(publishedPages),
     page: {
       name: page.name,
       path: page.path,

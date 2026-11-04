@@ -614,7 +614,9 @@ export async function setPagePublished(
   }
 
   revalidatePath(`/dashboard/${studioSlug}/website/${websiteId}/editor`)
-  revalidatePath(`/portfolio/${website.subdomain}${updatedPage.path === '/' ? '' : updatedPage.path}`)
+  // 'layout' reaches every page under the site: hiding a page changes the
+  // navigation on all of them, and hides its sub-pages too.
+  revalidatePath(`/portfolio/${website.subdomain}`, 'layout')
 }
 
 export async function deleteWebsitePage(
@@ -669,7 +671,7 @@ export async function deleteWebsitePage(
   }
 
   revalidatePath(`/dashboard/${studioSlug}/website/${websiteId}/editor`)
-  revalidatePath(`/portfolio/${website.subdomain}${deletedPage.path === '/' ? '' : deletedPage.path}`)
+  revalidatePath(`/portfolio/${website.subdomain}`, 'layout')
 }
 
 export async function renameWebsitePage(
@@ -711,7 +713,8 @@ export async function renameWebsitePage(
 
   revalidatePath(`/dashboard/${studioSlug}/website/${websiteId}/editor`)
   revalidatePath(`/dashboard/${studioSlug}/website/${websiteId}/preview`)
-  revalidatePath(`/portfolio/${website.subdomain}`)
+  // A page name is shown in the navigation of every page.
+  revalidatePath(`/portfolio/${website.subdomain}`, 'layout')
   return { success: true }
 }
 
@@ -765,7 +768,7 @@ export async function reorderWebsitePages(
 
   revalidatePath(`/dashboard/${studioSlug}/website/${websiteId}/editor`)
   revalidatePath(`/dashboard/${studioSlug}/website/${websiteId}/preview`)
-  revalidatePath(`/portfolio/${website.subdomain}`)
+  revalidatePath(`/portfolio/${website.subdomain}`, 'layout')
   return { success: true }
 }
 

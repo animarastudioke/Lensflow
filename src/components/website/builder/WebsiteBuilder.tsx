@@ -18,7 +18,7 @@ import {
   type WebsiteStatus,
 } from '@/lib/actions/websites'
 import { getWebsiteSections, type WebsiteGalleryOption, type WebsiteSection } from '@/lib/website/content'
-import { buildNavItems } from '@/lib/website/page-tree'
+import { buildNavItems, filterVisiblePages, getParentPath, hasChildPages } from '@/lib/website/page-tree'
 import { getTemplate, type ServiceId } from '@/lib/website/templates'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -64,6 +64,14 @@ function without<T>(record: Record<string, T>, key: string): Record<string, T> {
   const next = { ...record }
   delete next[key]
   return next
+}
+
+function visibilityNote(page: WebsitePageRow, pages: WebsitePageRow[]): string {
+  if (!page.is_published) return hasChildPages(pages, page.path) ? 'Hidden from visitors, along with its sub-pages.' : 'Hidden from visitors.'
+  const parentPath = getParentPath(page.path)
+  const parent = parentPath ? pages.find((item) => item.path === parentPath) : undefined
+  if (parent && !parent.is_published) return `Hidden because “${parent.name}” is hidden.`
+  return hasChildPages(pages, page.path) ? 'Visitors can open this page and its sub-pages.' : 'Visitors can open this page.'
 }
 
 function sectionsOf(page: WebsitePageRow): WebsiteSection[] {
@@ -149,7 +157,8 @@ export function WebsiteBuilder({ studioSlug, website, galleries, initialPageId }
   }
 
   const basePath = `/dashboard/${studioSlug}/website/${website.id}/preview`
-  const navItems = React.useMemo(() => buildNavItems(pages.map((page) => ({ ...page, is_published: true }))), [pages])
+  // The same rule the public site uses, so the preview menu shows what visitors will see.
+  const navItems = React.useMemo(() => buildNavItems(filterVisiblePages(pages)), [pages])
 
   const savePages = async (): Promise<boolean> => {
     for (const id of dirtyPageIds) {
@@ -367,7 +376,7 @@ export function WebsiteBuilder({ studioSlug, website, galleries, initialPageId }
                   <div className="flex items-center justify-between rounded-md border px-3 py-2.5">
                     <div>
                       <Label htmlFor="page-visible" className="text-sm">Show in the site</Label>
-                      <p className="text-xs text-muted-foreground">{selectedPage.is_published ? 'Visitors can open this page.' : 'Hidden from visitors.'}</p>
+                      <p className="text-xs text-muted-foreground">{visibilityNote(selectedPage, pages)}</p>
                     </div>
                     <Switch id="page-visible" checked={selectedPage.is_published} onCheckedChange={() => onTogglePageVisibility(selectedPage)} />
                   </div>

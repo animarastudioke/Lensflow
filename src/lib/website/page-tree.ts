@@ -94,8 +94,9 @@ export function buildPageTree<T extends TreePage>(pages: T[]): PageTreeNode<T>[]
 }
 
 /**
- * Navigation uses only published pages, so a published child whose parent is a
- * draft is promoted to the top level rather than hidden or dangling.
+ * Navigation from published pages only. Callers run filterVisiblePages first,
+ * so a sub-page under a hidden parent never gets here; a published page whose
+ * parent page is missing entirely is promoted to the top level rather than dangling.
  */
 export function buildNavItems(publishedPages: TreePage[]): NavItem[] {
   return buildPageTree(publishedPages.filter((page) => page.is_published)).map((node) => ({
@@ -105,4 +106,21 @@ export function buildNavItems(publishedPages: TreePage[]): NavItem[] {
       ? { children: node.children.map((child) => ({ name: child.page.name, path: child.page.path })) }
       : {}),
   }))
+}
+
+/**
+ * What a visitor can actually reach: a published page, and for a sub-page also
+ * a shown parent. Hiding "Portfolio" therefore hides everything under it, so
+ * the switch means what it says. A sub-page whose parent page does not exist
+ * at all (possible on sites built before sub-pages had rules) stays visible.
+ */
+export function filterVisiblePages<T extends TreePage>(pages: T[]): T[] {
+  const byPath = new Map(pages.map((page) => [page.path, page]))
+  return pages.filter((page) => {
+    if (!page.is_published) return false
+    const parentPath = getParentPath(page.path)
+    if (!parentPath) return true
+    const parent = byPath.get(parentPath)
+    return !parent || parent.is_published
+  })
 }

@@ -326,6 +326,36 @@ describe('WebsiteBuilder: design and settings', () => {
   })
 })
 
+describe('WebsiteBuilder: hiding a parent page', () => {
+  const withSubPage = () => ({
+    pages: [
+      page('home', 'Home', '/', 0, 'Welcome heading'),
+      page('portfolio', 'Portfolio', '/portfolio', 1),
+      page('wedding', 'Wedding', '/portfolio/wedding', 2),
+    ],
+  })
+
+  it('explains that sub-pages are hidden along with their parent', () => {
+    renderBuilder({ pages: [withSubPage().pages[0], { ...withSubPage().pages[1], is_published: false }, withSubPage().pages[2]] }, { initialPageId: 'portfolio' })
+    expect(screen.getByText('Hidden from visitors, along with its sub-pages.')).toBeInTheDocument()
+  })
+
+  it('says why a sub-page is hidden when only its parent is', () => {
+    renderBuilder({ pages: [withSubPage().pages[0], { ...withSubPage().pages[1], is_published: false }, withSubPage().pages[2]] }, { initialPageId: 'wedding' })
+    expect(screen.getByText('Hidden because “Portfolio” is hidden.')).toBeInTheDocument()
+  })
+
+  it('removes the parent and its sub-pages from the preview menu as soon as it is hidden', async () => {
+    renderBuilder(withSubPage(), { initialPageId: 'portfolio' })
+    const nav = () => within(previewRegion()).getByRole('navigation', { name: 'Website pages' })
+    expect(within(nav()).getByRole('link', { name: 'Wedding' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('switch', { name: /show in the site/i }))
+    await waitFor(() => expect(setPagePublishedMock).toHaveBeenCalledWith('portfolio', false, 'website-1', 'test-studio'))
+    await waitFor(() => expect(within(previewRegion()).queryByRole('link', { name: 'Wedding' })).not.toBeInTheDocument())
+    expect(within(previewRegion()).queryByRole('link', { name: 'Portfolio' })).not.toBeInTheDocument()
+  })
+})
+
 describe('WebsiteBuilder: line-based section fields', () => {
   it('keeps the newline you type and saves the parsed packages', async () => {
     renderBuilder()

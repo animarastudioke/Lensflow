@@ -3,6 +3,7 @@ import {
   buildNavItems,
   buildPageTree,
   childPagePath,
+  filterVisiblePages,
   getParentPath,
   hasChildPages,
   pathDepth,
@@ -122,5 +123,35 @@ describe('buildNavItems', () => {
     ])
     expect(nav.map((n) => n.path)).toEqual(['/', '/portfolio/wedding'])
     expect(nav.every((n) => n.children === undefined)).toBe(true)
+  })
+})
+
+describe('filterVisiblePages', () => {
+  it('hides a published sub-page while its parent page is hidden', () => {
+    const visible = filterVisiblePages([
+      page('/', 0),
+      page('/portfolio', 1, false),
+      page('/portfolio/wedding', 2, true),
+      page('/about', 3),
+    ])
+    expect(visible.map((p) => p.path)).toEqual(['/', '/about'])
+  })
+
+  it('shows sub-pages again once the parent is shown', () => {
+    const visible = filterVisiblePages([page('/portfolio', 1), page('/portfolio/wedding', 2)])
+    expect(visible.map((p) => p.path)).toEqual(['/portfolio', '/portfolio/wedding'])
+  })
+
+  it('hides a draft sub-page without touching its parent', () => {
+    const visible = filterVisiblePages([page('/portfolio', 1), page('/portfolio/wedding', 2, false)])
+    expect(visible.map((p) => p.path)).toEqual(['/portfolio'])
+  })
+
+  it('keeps a legacy sub-page whose parent page does not exist', () => {
+    expect(filterVisiblePages([page('/', 0), page('/gear/lenses', 1)]).map((p) => p.path)).toEqual(['/', '/gear/lenses'])
+  })
+
+  it('never lists a draft page', () => {
+    expect(filterVisiblePages([page('/secret', 0, false)])).toEqual([])
   })
 })

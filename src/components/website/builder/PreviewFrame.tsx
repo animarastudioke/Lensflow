@@ -31,15 +31,21 @@ export function resolvePreviewClick(href: string, basePath: string): { kind: 'pa
 }
 
 function ClickGuard({ basePath, onNavigate, children }: Pick<PreviewFrameProps, 'basePath' | 'onNavigate' | 'children'>) {
-  const onClickCapture = (event: React.MouseEvent<HTMLDivElement>) => {
+  const handle = (event: React.MouseEvent<HTMLDivElement>, navigate: boolean) => {
     const anchor = (event.target as HTMLElement).closest('a')
     if (!anchor) return
     const result = resolvePreviewClick(anchor.getAttribute('href') ?? '', basePath)
     if (result.kind === 'allow') return
     event.preventDefault()
-    if (result.kind === 'page') onNavigate(result.path)
+    if (navigate && result.kind === 'page') onNavigate(result.path)
   }
-  return <div onClickCapture={onClickCapture}>{children}</div>
+  // A middle-click fires auxclick, not click; without this it would open the
+  // saved preview route in a new tab instead of staying in the editor.
+  return (
+    <div onClickCapture={(event) => handle(event, true)} onAuxClickCapture={(event) => handle(event, false)}>
+      {children}
+    </div>
+  )
 }
 
 // Responsive styles key off the viewport width, and a narrow <div> does not
