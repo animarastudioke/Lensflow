@@ -3,7 +3,18 @@
 import * as React from 'react'
 import { ArrowDown, ArrowUp, ChevronDown, Plus, Trash2 } from 'lucide-react'
 import type { WebsiteGalleryOption, WebsiteSection } from '@/lib/website/content'
-import { SECTION_LABELS, SECTION_TYPES, createSection, moveItem } from '@/lib/website/section-defaults'
+import {
+  SECTION_LABELS,
+  SECTION_TYPES,
+  createSection,
+  formatPricingItems,
+  formatServiceItems,
+  formatTestimonialItems,
+  moveItem,
+  parsePricingItems,
+  parseServiceItems,
+  parseTestimonialItems,
+} from '@/lib/website/section-defaults'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -17,11 +28,45 @@ interface SectionEditorProps {
   galleries: WebsiteGalleryOption[]
 }
 
-function parseServiceItems(value: string) {
-  return value.split('\n').slice(0, 8).map((line) => {
-    const [title = '', ...descriptionParts] = line.split(' — ')
-    return { title: title.slice(0, 100), description: descriptionParts.join(' — ').slice(0, 500) }
-  }).filter((item) => item.title.trim() || item.description.trim())
+interface LineListFieldProps<T> {
+  id: string
+  label: string
+  help: string
+  placeholder: string
+  rows?: number
+  items: T[]
+  format: (items: T[]) => string
+  parse: (text: string) => T[]
+  onItems: (items: T[]) => void
+}
+
+// The stored value is a parsed list that drops blank lines, so rendering the
+// textarea straight from it would swallow the newline the moment it is typed.
+// The raw text is kept locally and only re-read from the items when they
+// change from somewhere else.
+function LineListField<T>({ id, label, help, placeholder, rows = 5, items, format, parse, onItems }: LineListFieldProps<T>) {
+  const [text, setText] = React.useState(() => format(items))
+  React.useEffect(() => {
+    if (JSON.stringify(parse(text)) !== JSON.stringify(items)) setText(format(items))
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- `text` is intentionally not a dependency: only external item changes should overwrite what is being typed.
+  }, [items])
+
+  return (
+    <div className="space-y-2">
+      <Label htmlFor={id}>{label}</Label>
+      <Textarea
+        id={id}
+        rows={rows}
+        value={text}
+        onChange={(event) => {
+          setText(event.target.value)
+          onItems(parse(event.target.value))
+        }}
+        placeholder={placeholder}
+      />
+      <p className="text-xs text-muted-foreground">{help}</p>
+    </div>
+  )
 }
 
 /**
@@ -96,17 +141,40 @@ export function SectionEditor({ sections, onChange, galleries }: SectionEditorPr
                   </div>
                 )}
                 {section.type === 'services' && (
-                  <div className="space-y-2">
-                    <Label htmlFor={`${section.id}-services`}>Offerings</Label>
-                    <Textarea
-                      id={`${section.id}-services`}
-                      rows={5}
-                      value={section.items.map((item) => `${item.title} — ${item.description}`).join('\n')}
-                      onChange={(event) => updateSection(section.id, { items: parseServiceItems(event.target.value) })}
-                      placeholder={'Wedding photography — Full-day storytelling\nPortrait sessions — Relaxed studio or outdoor portraits'}
-                    />
-                    <p className="text-xs text-muted-foreground">One service per line. Separate the title and description with an em dash.</p>
-                  </div>
+                  <LineListField
+                    id={`${section.id}-services`}
+                    label="Offerings"
+                    items={section.items}
+                    format={formatServiceItems}
+                    parse={parseServiceItems}
+                    onItems={(items) => updateSection(section.id, { items })}
+                    placeholder={'Wedding photography — Full-day storytelling\nPortrait sessions — Relaxed studio or outdoor portraits'}
+                    help="One service per line. Separate the title and description with an em dash."
+                  />
+                )}
+                {section.type === 'pricing' && (
+                  <LineListField
+                    id={`${section.id}-pricing`}
+                    label="Packages"
+                    items={section.items}
+                    format={formatPricingItems}
+                    parse={parsePricingItems}
+                    onItems={(items) => updateSection(section.id, { items })}
+                    placeholder={'Essential — KES 45,000 — 4 hours, 200 edited photos\nSignature — KES 85,000 — Full day, album included'}
+                    help="One package per line: name — price — what is included. Up to 6."
+                  />
+                )}
+                {section.type === 'testimonials' && (
+                  <LineListField
+                    id={`${section.id}-testimonials`}
+                    label="Kind words"
+                    items={section.items}
+                    format={formatTestimonialItems}
+                    parse={parseTestimonialItems}
+                    onItems={(items) => updateSection(section.id, { items })}
+                    placeholder={'They made us feel completely at ease. — Amina & Joseph'}
+                    help="One testimonial per line: the quote — who said it. Up to 6."
+                  />
                 )}
                 {(section.type === 'hero' || section.type === 'gallery') && (
                   <div className="space-y-2">

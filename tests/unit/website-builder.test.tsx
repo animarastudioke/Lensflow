@@ -326,6 +326,28 @@ describe('WebsiteBuilder: design and settings', () => {
   })
 })
 
+describe('WebsiteBuilder: line-based section fields', () => {
+  it('keeps the newline you type and saves the parsed packages', async () => {
+    renderBuilder()
+    fireEvent.click(screen.getByRole('button', { name: /^Portfolio/ }))
+    fireEvent.click(within(screen.getByRole('group', { name: 'Add a section' })).getByRole('button', { name: /Pricing/ }))
+    const field = await screen.findByLabelText('Packages')
+    fireEvent.change(field, { target: { value: 'Essential — KES 45,000 — 4 hours\n' } })
+    // A trailing blank line is not an item, but it must stay in the box so the next line can be typed.
+    expect(field).toHaveValue('Essential — KES 45,000 — 4 hours\n')
+    fireEvent.change(field, { target: { value: 'Essential — KES 45,000 — 4 hours\nSignature — KES 85,000 — Full day' } })
+    expect(within(previewRegion()).getByText('KES 85,000')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    await waitFor(() => expect(updateWebsitePageContentMock).toHaveBeenCalled())
+    const sections = JSON.parse(String((updateWebsitePageContentMock.mock.calls[0]![0] as FormData).get('sections')))
+    expect(sections.find((s: { type: string }) => s.type === 'pricing').items).toEqual([
+      { name: 'Essential', price: 'KES 45,000', description: '4 hours' },
+      { name: 'Signature', price: 'KES 85,000', description: 'Full day' },
+    ])
+  })
+})
+
 describe('WebsiteBuilder: links inside the preview', () => {
   it('switches the page instead of navigating when a preview nav link is clicked', () => {
     renderBuilder()

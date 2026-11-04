@@ -143,6 +143,50 @@ function SectionView({
     )
   }
 
+  if (section.type === 'testimonials') {
+    if (section.items.length === 0 && !preview) return null
+    return (
+      <section id={section.id} className={`mx-auto ${theme.maxWidth} px-6 ${theme.padSection} md:px-10`}>
+        <h2 className={sectionHeadingClass}>{section.heading}</h2>
+        {section.items.length > 0 ? (
+          <div className="mt-8 grid gap-4 md:grid-cols-2">
+            {section.items.map((item, index) => (
+              <figure key={`${section.id}-${index}`} className={`${theme.radius} border p-6 ${theme.card}`}>
+                <blockquote className={`text-base leading-7 ${theme.cardText}`}>“{item.quote}”</blockquote>
+                {item.author && <figcaption className={`mt-4 text-sm font-medium ${theme.cardText}`}>{item.author}</figcaption>}
+              </figure>
+            ))}
+          </div>
+        ) : (
+          <p className={`mt-5 ${theme.radius} border border-dashed ${theme.emptyNote} p-6 text-sm`}>Add kind words from clients to show them here.</p>
+        )}
+      </section>
+    )
+  }
+
+  if (section.type === 'pricing') {
+    if (section.items.length === 0 && !preview) return null
+    return (
+      <section id={section.id} className={`mx-auto ${theme.maxWidth} px-6 ${theme.padSection} md:px-10`}>
+        <h2 className={sectionHeadingClass}>{section.heading}</h2>
+        {section.body && <p className={sectionBodyClass}>{section.body}</p>}
+        {section.items.length > 0 ? (
+          <div className="mt-8 grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+            {section.items.map((item, index) => (
+              <article key={`${section.id}-${index}`} className={`${theme.radius} border p-6 ${theme.card}`}>
+                <h3 className={theme.cardTitle} style={primaryColor ? { color: primaryColor } : undefined}>{item.name}</h3>
+                {item.price && <p className={`mt-2 text-2xl ${theme.display} ${theme.heading}`}>{item.price}</p>}
+                {item.description && <p className={`mt-3 whitespace-pre-wrap text-sm leading-6 ${theme.cardText}`}>{item.description}</p>}
+              </article>
+            ))}
+          </div>
+        ) : (
+          <p className={`mt-5 ${theme.radius} border border-dashed ${theme.emptyNote} p-6 text-sm`}>Add your packages and prices to show them here.</p>
+        )}
+      </section>
+    )
+  }
+
   if (section.type === 'contact') {
     return (
       <section id={section.id || 'contact'} className={`mx-auto ${theme.maxWidth} px-6 ${theme.padContact} md:px-10 ${theme.contactBg}`}>
