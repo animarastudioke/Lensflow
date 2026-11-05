@@ -102,3 +102,65 @@ describe('new section types: rendering', () => {
     expect(screen.getByText('Add kind words from clients to show them here.')).toBeInTheDocument()
   })
 })
+
+describe('sample photos never reach visitors', () => {
+  const sections = [
+    { id: 'hero', type: 'hero' as const, heading: 'Hello', galleryId: '' },
+    { id: 'portfolio', type: 'gallery' as const, heading: 'Work', galleryId: '' },
+  ]
+  const renderPage = (preview: boolean) => render(
+    <WebsiteRenderer
+      studioName="S"
+      websiteName="S"
+      template="modern-minimal"
+      navPages={[]}
+      currentPath="/"
+      page={{ name: 'Home', content: { version: 1, sections } }}
+      galleryOptions={[]}
+      basePath="/portfolio/s"
+      preview={preview}
+    />,
+  )
+
+  it('renders samples in preview mode', () => {
+    renderPage(true)
+    expect(screen.getAllByRole('button', { name: /sample photo/i }).length).toBeGreaterThan(0)
+  })
+
+  it('renders none on the public site', () => {
+    const { container } = renderPage(false)
+    expect(screen.queryByRole('button', { name: /sample photo/i })).not.toBeInTheDocument()
+    expect(container.querySelector('img')).toBeNull()
+  })
+})
+
+describe('uploaded photos render for visitors', () => {
+  const url = 'https://media.lensflow.co.ke/studios/123e4567-e89b-42d3-a456-426614174000/website/img-123e4567-e89b-42d3-a456-426614174002.webp'
+  it('shows the hero and gallery photos on the public site, and no sample', () => {
+    const sections = [
+      { id: 'hero', type: 'hero' as const, heading: 'Hello', imageUrl: url },
+      { id: 'portfolio', type: 'gallery' as const, heading: 'Work', imageUrls: [url, url] },
+    ]
+    render(
+      <WebsiteRenderer studioName="S" websiteName="S" template="modern-minimal" navPages={[]} currentPath="/" page={{ name: 'Home', content: { version: 1, sections } }} galleryOptions={[]} basePath="/portfolio/s" />,
+    )
+    expect(screen.getByRole('img', { name: 'Hello' })).toHaveAttribute('src', url)
+    expect(screen.getAllByRole('img', { name: /Work \d/ })).toHaveLength(2)
+    expect(screen.queryByRole('button', { name: /sample photo/i })).not.toBeInTheDocument()
+  })
+})
+
+describe('call-to-action buttons without a saved brand colour', () => {
+  const sections = [{ id: 'hero', type: 'hero' as const, heading: 'Hi', ctaLabel: 'Book now', ctaHref: 'mailto:hello@example.com' }]
+  const renderWith = (primaryColor: string | null) => render(
+    <WebsiteRenderer studioName="S" websiteName="S" template="modern-minimal" primaryColor={primaryColor} navPages={[]} currentPath="/" page={{ name: 'Home', content: { version: 1, sections } }} basePath="/portfolio/s" />,
+  )
+  it('still get a visible background on a light template', () => {
+    renderWith(null)
+    expect(screen.getByRole('link', { name: 'Book now' })).toHaveStyle({ backgroundColor: '#292524' })
+  })
+  it('use the saved brand colour when there is one', () => {
+    renderWith('#3B82F6')
+    expect(screen.getByRole('link', { name: 'Book now' })).toHaveStyle({ backgroundColor: '#3B82F6' })
+  })
+})

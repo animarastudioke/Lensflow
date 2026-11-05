@@ -20,6 +20,7 @@ const setWebsiteStatusMock = vi.fn()
 const updateWebsitePageContentMock = vi.fn()
 const renameWebsitePageMock = vi.fn()
 const reorderWebsitePagesMock = vi.fn()
+const uploadWebsiteImageMock = vi.fn()
 
 vi.mock('@/lib/actions/websites', () => ({
   updateWebsiteSettings: (...a: unknown[]) => { calls.push('settings'); return updateWebsiteSettingsMock(...a) },
@@ -30,6 +31,7 @@ vi.mock('@/lib/actions/websites', () => ({
   updateWebsitePageContent: (...a: unknown[]) => { calls.push('content'); return updateWebsitePageContentMock(...a) },
   renameWebsitePage: (...a: unknown[]) => renameWebsitePageMock(...a),
   reorderWebsitePages: (...a: unknown[]) => reorderWebsitePagesMock(...a),
+  uploadWebsiteImage: (...a: unknown[]) => uploadWebsiteImageMock(...a),
 }))
 
 const { WebsiteBuilder } = await import('@/components/website/builder/WebsiteBuilder')
@@ -86,7 +88,7 @@ const previewRegion = () => screen.getByRole('region', { name: 'Live preview of 
 
 beforeEach(() => {
   calls.length = 0
-  for (const mock of [toastError, toastSuccess, updateWebsiteSettingsMock, addWebsitePageMock, deleteWebsitePageMock, setPagePublishedMock, setWebsiteStatusMock, updateWebsitePageContentMock, renameWebsitePageMock, reorderWebsitePagesMock]) mock.mockReset()
+  for (const mock of [toastError, toastSuccess, updateWebsiteSettingsMock, addWebsitePageMock, deleteWebsitePageMock, setPagePublishedMock, setWebsiteStatusMock, updateWebsitePageContentMock, renameWebsitePageMock, reorderWebsitePagesMock, uploadWebsiteImageMock]) mock.mockReset()
   updateWebsiteSettingsMock.mockResolvedValue(undefined)
   updateWebsitePageContentMock.mockResolvedValue(undefined)
   setWebsiteStatusMock.mockResolvedValue(undefined)
@@ -404,5 +406,91 @@ describe('resolvePreviewClick', () => {
   it('allows in-page anchors and external https links', () => {
     expect(resolvePreviewClick('#contact', base)).toEqual({ kind: 'allow' })
     expect(resolvePreviewClick('https://example.com', base)).toEqual({ kind: 'allow' })
+  })
+})
+
+describe('WebsiteBuilder: sample photos', () => {
+  const withPhotoSections = () => {
+    const home = page('home', 'Home', '/', 0)
+    home.content = {
+      version: 1,
+      sections: [
+        { id: 'hero', type: 'hero', heading: 'Welcome heading', galleryId: '' },
+        { id: 'portfolio', type: 'gallery', heading: 'Selected work', galleryId: '' },
+      ],
+    }
+    return { pages: [home] }
+  }
+
+  it('fills empty photo spots with labelled samples in the preview', () => {
+    renderBuilder(withPhotoSections())
+    // one hero image plus six gallery tiles
+    expect(within(previewRegion()).getAllByRole('button', { name: /sample photo/i })).toHaveLength(7)
+  })
+
+  it('opens the section that owns a sample photo when it is clicked', () => {
+    renderBuilder(withPhotoSections())
+    expect(screen.queryByLabelText('Photos to show')).not.toBeInTheDocument()
+    fireEvent.click(within(previewRegion()).getAllByRole('button', { name: /sample photo/i })[3]!)
+    expect(screen.getByLabelText('Page name')).toBeInTheDocument()
+    expect(screen.getByLabelText('Photos to show')).toBeInTheDocument()
+  })
+
+  it('tells the user that visitors will not see the samples', () => {
+    renderBuilder(withPhotoSections())
+    expect(screen.getByText(/2 sections still show sample photos here/i)).toBeInTheDocument()
+  })
+
+  const UPLOADED = 'https://media.lensflow.co.ke/studios/123e4567-e89b-42d3-a456-426614174000/website/img-123e4567-e89b-42d3-a456-426614174002.webp'
+
+  it('uploads a hero photo, shows it in the preview and stops counting it as a sample', async () => {
+    uploadWebsiteImageMock.mockResolvedValue({ success: true, url: UPLOADED })
+    renderBuilder(withPhotoSections())
+    fireEvent.click(within(previewRegion()).getAllByRole('button', { name: /sample photo/i })[0]!)
+    const file = new File(['x'], 'cover.jpg', { type: 'image/jpeg' })
+    fireEvent.change(screen.getByLabelText('Your photo'), { target: { files: [file] } })
+
+    await waitFor(() => expect(within(previewRegion()).getByRole('img', { name: 'Welcome heading' })).toHaveAttribute('src', UPLOADED))
+    const sent = uploadWebsiteImageMock.mock.calls[0]![0] as FormData
+    expect((sent.get('image') as File).name).toBe('cover.jpg')
+    // the hero no longer shows a sample; the gallery still does
+    expect(within(previewRegion()).getAllByRole('button', { name: /sample photo/i })).toHaveLength(6)
+    expect(screen.getByText(/1 section still shows sample photos here/i)).toBeInTheDocument()
+  })
+
+  it('names the file and the reason when an upload is refused, and keeps the sample', async () => {
+    uploadWebsiteImageMock.mockResolvedValue({ error: 'That photo is over 12MB. Try a smaller export.' })
+    renderBuilder(withPhotoSections())
+    fireEvent.click(within(previewRegion()).getAllByRole('button', { name: /sample photo/i })[0]!)
+    fireEvent.change(screen.getByLabelText('Your photo'), { target: { files: [new File(['x'], 'big.jpg', { type: 'image/jpeg' })] } })
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('big.jpg: That photo is over 12MB. Try a smaller export.')
+    expect(within(previewRegion()).getAllByRole('button', { name: /sample photo/i })).toHaveLength(7)
+  })
+
+  it('survives the upload request itself failing', async () => {
+    uploadWebsiteImageMock.mockRejectedValue(new Error('network'))
+    renderBuilder(withPhotoSections())
+    fireEvent.click(within(previewRegion()).getAllByRole('button', { name: /sample photo/i })[0]!)
+    fireEvent.change(screen.getByLabelText('Your photo'), { target: { files: [new File(['x'], 'a.jpg', { type: 'image/jpeg' })] } })
+    expect(await screen.findByRole('alert')).toHaveTextContent('Check your connection')
+  })
+
+  it('adds several gallery photos and removes one', async () => {
+    let n = 0
+    uploadWebsiteImageMock.mockImplementation(async () => ({ success: true, url: UPLOADED.replace('426614174002', `4266141740${10 + n++}`) }))
+    renderBuilder(withPhotoSections())
+    fireEvent.click(within(previewRegion()).getAllByRole('button', { name: /sample photo/i })[3]!)
+    const files = [new File(['x'], '1.jpg', { type: 'image/jpeg' }), new File(['x'], '2.jpg', { type: 'image/jpeg' })]
+    fireEvent.change(screen.getByLabelText('Your photos'), { target: { files } })
+
+    await waitFor(() => expect(within(previewRegion()).getAllByRole('img', { name: /Selected work \d/ })).toHaveLength(2))
+    fireEvent.click(screen.getByRole('button', { name: 'Remove photo 1' }))
+    expect(within(previewRegion()).getAllByRole('img', { name: /Selected work \d/ })).toHaveLength(1)
+  })
+
+  it('shows no notice when the site has no empty photo spots', () => {
+    renderBuilder()
+    expect(screen.queryByText(/sample photos here/i)).not.toBeInTheDocument()
   })
 })

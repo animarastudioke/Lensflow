@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { MAX_SECTION_IMAGES, isWebsiteImageUrl } from './media'
 
 const safeLink = z.string().max(500).refine((value) => {
   if (!value) return true
@@ -17,6 +18,7 @@ const safeLink = z.string().max(500).refine((value) => {
 const sectionId = z.string().min(1).max(80).regex(/^[a-zA-Z0-9_-]+$/)
 const sectionHeading = z.string().max(200)
 const sectionBody = z.string().max(5000)
+const uploadedImage = z.string().refine(isWebsiteImageUrl, 'Use a photo uploaded from the website builder.')
 
 export const websiteSectionSchema = z.discriminatedUnion('type', [
   z.object({
@@ -28,6 +30,7 @@ export const websiteSectionSchema = z.discriminatedUnion('type', [
     ctaLabel: z.string().max(80).optional(),
     ctaHref: safeLink.optional(),
     galleryId: z.string().uuid().or(z.literal('')).optional(),
+    imageUrl: uploadedImage.optional(),
   }),
   z.object({
     id: sectionId,
@@ -40,6 +43,7 @@ export const websiteSectionSchema = z.discriminatedUnion('type', [
     type: z.literal('gallery'),
     heading: sectionHeading,
     galleryId: z.string().uuid().or(z.literal('')).optional(),
+    imageUrls: z.array(uploadedImage).max(MAX_SECTION_IMAGES).optional(),
   }),
   z.object({
     id: sectionId,

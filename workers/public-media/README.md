@@ -1,6 +1,6 @@
 # LensFlow public media Worker
 
-This Worker serves only gallery `preview.webp` / `thumb.webp` objects and studio logo files from the existing `lensflow-media` R2 bucket. It does not serve original, raw, or product-download keys. Keep the bucket's `r2.dev` public endpoint enabled until the cutover steps below are complete.
+This Worker serves only gallery `preview.webp` / `thumb.webp` objects, website photos (`studios/<studio>/website/img-<uuid>.webp`) and studio logo files from the existing `lensflow-media` R2 bucket. It does not serve original, raw, or product-download keys. Keep the bucket's `r2.dev` public endpoint enabled until the cutover steps below are complete.
 
 ## Deploy and cut over
 

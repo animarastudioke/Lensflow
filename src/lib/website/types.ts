@@ -7,6 +7,8 @@ export interface WebsiteHeroSection {
   ctaLabel?: string
   ctaHref?: string
   galleryId?: string
+  /** An uploaded photo; takes precedence over `galleryId`. */
+  imageUrl?: string
 }
 
 export interface WebsiteTextSection {
@@ -21,6 +23,8 @@ export interface WebsiteGallerySection {
   type: 'gallery'
   heading: string
   galleryId?: string
+  /** Uploaded photos; shown instead of `galleryId` when present. */
+  imageUrls?: string[]
 }
 
 export interface WebsiteServicesSection {

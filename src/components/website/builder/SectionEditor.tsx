@@ -19,6 +19,8 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
+import { PhotoUploader, type UploadImage } from '@/components/website/builder/PhotoUploader'
+import { MAX_SECTION_IMAGES } from '@/lib/website/media'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { cn } from '@/lib/utils'
 
@@ -26,6 +28,9 @@ interface SectionEditorProps {
   sections: WebsiteSection[]
   onChange: (sections: WebsiteSection[]) => void
   galleries: WebsiteGalleryOption[]
+  onUploadImage: UploadImage
+  /** Opens (and scrolls to) a section; a new object each time so the same section can be requested again. */
+  focusRequest?: { id: string } | null
 }
 
 interface LineListFieldProps<T> {
@@ -73,8 +78,13 @@ function LineListField<T>({ id, label, help, placeholder, rows = 5, items, forma
  * Controlled editor for one page's sections. The parent owns the array so the
  * live preview and the save button always see the same unsaved draft.
  */
-export function SectionEditor({ sections, onChange, galleries }: SectionEditorProps) {
-  const [openId, setOpenId] = React.useState<string | null>(sections[0]?.id ?? null)
+export function SectionEditor({ sections, onChange, galleries, onUploadImage, focusRequest }: SectionEditorProps) {
+  const [openId, setOpenId] = React.useState<string | null>(focusRequest?.id ?? sections[0]?.id ?? null)
+  React.useEffect(() => {
+    if (!focusRequest) return
+    setOpenId(focusRequest.id)
+    document.getElementById(`${focusRequest.id}-upload`)?.scrollIntoView?.({ block: 'center' })
+  }, [focusRequest])
 
   const updateSection = (id: string, updates: Record<string, unknown>) => {
     onChange(sections.map((section) => (section.id === id ? ({ ...section, ...updates } as WebsiteSection) : section)))
@@ -174,6 +184,26 @@ export function SectionEditor({ sections, onChange, galleries }: SectionEditorPr
                     onItems={(items) => updateSection(section.id, { items })}
                     placeholder={'They made us feel completely at ease. — Amina & Joseph'}
                     help="One testimonial per line: the quote — who said it. Up to 6."
+                  />
+                )}
+                {section.type === 'hero' && (
+                  <PhotoUploader
+                    id={`${section.id}-upload`}
+                    label="Your photo"
+                    urls={section.imageUrl ? [section.imageUrl] : []}
+                    max={1}
+                    onUpload={onUploadImage}
+                    onChange={(urls) => updateSection(section.id, { imageUrl: urls[0] })}
+                  />
+                )}
+                {section.type === 'gallery' && (
+                  <PhotoUploader
+                    id={`${section.id}-upload`}
+                    label="Your photos"
+                    urls={section.imageUrls ?? []}
+                    max={MAX_SECTION_IMAGES}
+                    onUpload={onUploadImage}
+                    onChange={(urls) => updateSection(section.id, { imageUrls: urls })}
                   />
                 )}
                 {(section.type === 'hero' || section.type === 'gallery') && (
