@@ -133,3 +133,19 @@ describe('sample photos never reach visitors', () => {
     expect(container.querySelector('img')).toBeNull()
   })
 })
+
+describe('uploaded photos render for visitors', () => {
+  const url = 'https://media.lensflow.co.ke/studios/123e4567-e89b-42d3-a456-426614174000/website/img-123e4567-e89b-42d3-a456-426614174002.webp'
+  it('shows the hero and gallery photos on the public site, and no sample', () => {
+    const sections = [
+      { id: 'hero', type: 'hero' as const, heading: 'Hello', imageUrl: url },
+      { id: 'portfolio', type: 'gallery' as const, heading: 'Work', imageUrls: [url, url] },
+    ]
+    render(
+      <WebsiteRenderer studioName="S" websiteName="S" template="modern-minimal" navPages={[]} currentPath="/" page={{ name: 'Home', content: { version: 1, sections } }} galleryOptions={[]} basePath="/portfolio/s" />,
+    )
+    expect(screen.getByRole('img', { name: 'Hello' })).toHaveAttribute('src', url)
+    expect(screen.getAllByRole('img', { name: /Work \d/ })).toHaveLength(2)
+    expect(screen.queryByRole('button', { name: /sample photo/i })).not.toBeInTheDocument()
+  })
+})

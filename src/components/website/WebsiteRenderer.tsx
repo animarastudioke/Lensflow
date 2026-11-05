@@ -102,7 +102,7 @@ function SectionView({
   const heroBodyClass = centered ? `${sectionBodyClass} mx-auto` : sectionBodyClass
 
   if (section.type === 'hero') {
-    const heroImage = gallery?.images[0]
+    const heroImage = section.imageUrl ? { src: section.imageUrl, alt: section.heading } : gallery?.images[0]
     return (
       <section id={section.id} className={`mx-auto grid ${theme.maxWidth} gap-10 px-6 ${theme.padHero} md:px-10 ${centered ? 'justify-items-center text-center' : 'md:grid-cols-2 md:items-center'}`}>
         <div>
@@ -124,11 +124,19 @@ function SectionView({
   }
 
   if (section.type === 'gallery') {
-    if (!gallery && !preview) return null
+    const uploaded = section.imageUrls ?? []
+    if (!gallery && uploaded.length === 0 && !preview) return null
     return (
       <section id={section.id} className={`mx-auto ${theme.maxWidth} px-6 ${theme.padSection} md:px-10`}>
         <h2 className={sectionHeadingClass}>{section.heading}</h2>
-        {gallery ? (
+        {uploaded.length > 0 ? (
+          <div className={`mt-8 grid ${theme.galleryGrid}`}>
+            {uploaded.map((src, index) => (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img key={`${src}-${index}`} src={src} alt={`${section.heading} ${index + 1}`} loading="lazy" className={`${theme.galleryImage} ${theme.radius} object-cover`} />
+            ))}
+          </div>
+        ) : gallery ? (
           <div className={`mt-8 grid ${theme.galleryGrid}`}>
             {gallery.images.map((image, index) => (
               // eslint-disable-next-line @next/next/no-img-element

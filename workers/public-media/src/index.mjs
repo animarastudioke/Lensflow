@@ -2,6 +2,7 @@ const UUID = '[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f
 
 const PUBLIC_KEY_PATTERNS = [
   new RegExp(`^studios/${UUID}/galleries/${UUID}/assets/${UUID}/(?:preview|thumb)\\.webp$`, 'i'),
+  new RegExp(`^studios/${UUID}/website/img-${UUID}\\.webp$`, 'i'),
   new RegExp(`^studios/${UUID}/branding/logo-${UUID}\\.(?:png|jpe?g|webp|svg)$`, 'i'),
 ]
 

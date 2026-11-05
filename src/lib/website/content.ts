@@ -1,4 +1,5 @@
 import type { WebsiteSection } from './types'
+import { MAX_SECTION_IMAGES, isWebsiteImageUrl } from './media'
 export type { WebsiteGalleryImage, WebsiteGalleryOption, WebsiteSection } from './types'
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -38,9 +39,14 @@ function isWebsiteSection(value: unknown): value is WebsiteSection {
       && optionalText(value['ctaLabel'], 80)
       && isValidLink(value['ctaHref'])
       && galleryIdValid
+      && (value['imageUrl'] === undefined || isWebsiteImageUrl(value['imageUrl']))
   }
   if (value['type'] === 'text') return true
-  if (value['type'] === 'gallery') return galleryIdValid
+  if (value['type'] === 'gallery') {
+    return galleryIdValid
+      && (value['imageUrls'] === undefined
+        || (Array.isArray(value['imageUrls']) && value['imageUrls'].length <= MAX_SECTION_IMAGES && value['imageUrls'].every(isWebsiteImageUrl)))
+  }
   if (value['type'] === 'services') {
     return Array.isArray(value['items'])
       && value['items'].length <= 8

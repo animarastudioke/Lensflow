@@ -4,10 +4,13 @@ import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { z } from 'zod'
+import sharp from 'sharp'
 import { hasEntitlement, requireEntitlement } from '@/lib/entitlements'
 import { requireStudioPermission } from '@/lib/auth/server'
 import { DEFAULT_TEMPLATE_ID, SERVICE_IDS, TEMPLATES, TEMPLATE_IDS, getTemplate } from '@/lib/website/templates'
 import { websiteSectionsSchema } from '@/lib/website/section-schema'
+import { websiteImageStudioId } from '@/lib/website/media'
+import { getR2PublicUrl, uploadObject } from '@/lib/storage/r2'
 import { getWebsiteGalleryOptions as loadWebsiteGalleryOptions } from '@/lib/website/galleries'
 import { MAX_PAGE_DEPTH, getParentPath, hasChildPages, pathDepth } from '@/lib/website/page-tree'
 
@@ -789,6 +792,14 @@ export async function updateWebsitePageContent(formData: FormData): Promise<{ er
   const parsedSections = websiteSectionsSchema.safeParse(rawSections)
   if (!parsedSections.success) return { error: 'Some section content is invalid. Review the fields and try again.' }
 
+  // The schema only proves a URL has the shape of a site photo. A studio may
+  // only reference its own, so a pasted URL cannot point at another studio's files.
+  const referencesForeignImage = parsedSections.data.some((section) => {
+    const urls = section.type === 'hero' ? [section.imageUrl] : section.type === 'gallery' ? section.imageUrls ?? [] : []
+    return urls.some((url) => url !== undefined && websiteImageStudioId(url) !== membership.studioId.toLowerCase())
+  })
+  if (referencesForeignImage) return { error: 'Some photos do not belong to this studio. Upload them again.' }
+
   const supabase = await createClient()
   const { data: website } = await supabase
     .from('websites')
@@ -820,3 +831,56 @@ export async function updateWebsitePageContent(formData: FormData): Promise<{ er
   revalidatePath(`/portfolio/${website.subdomain}${updatedPage.path === '/' ? '' : updatedPage.path}`)
 }
 
+
+const SITE_IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp'])
+const SITE_IMAGE_MAX_BYTES = 12 * 1024 * 1024
+const SITE_IMAGE_MAX_PIXELS = 40_000_000
+
+/**
+ * Stores one photo for a website section. The upload is decoded and re-encoded
+ * server-side: a file that is not really an image fails to decode, the
+ * result is a bounded WebP, and re-encoding drops EXIF (including GPS
+ * location) that a studio would not intend to publish. The key is generated
+ * here, never taken from the client.
+ */
+export async function uploadWebsiteImage(formData: FormData): Promise<{ error: string } | { success: true; url: string }> {
+  const membership = await requireStudioPermission('website:manage_pages')
+  if ('error' in membership) return membership
+
+  // The same plan gate as creating and publishing a site: without it a studio
+  // that cannot use the builder could still fill its public media folder.
+  if (!(await hasEntitlement(membership.studioId, 'website_builder'))) {
+    return { error: 'Your plan does not include the website builder.' }
+  }
+
+  const file = formData.get('image')
+  if (!(file instanceof File) || file.size === 0) return { error: 'No photo was provided.' }
+  if (!SITE_IMAGE_TYPES.has(file.type)) return { error: 'Use a JPEG, PNG or WebP photo.' }
+  if (file.size > SITE_IMAGE_MAX_BYTES) return { error: 'That photo is over 12MB. Try a smaller export.' }
+
+  let output: Buffer
+  try {
+    const image = sharp(Buffer.from(await file.arrayBuffer()), { limitInputPixels: SITE_IMAGE_MAX_PIXELS, failOn: 'error', sequentialRead: true })
+    // `file.type` is client-supplied and sharp also decodes SVG, GIF and TIFF,
+    // so the real format is checked after sniffing the bytes.
+    const { format } = await image.metadata()
+    if (format !== 'jpeg' && format !== 'png' && format !== 'webp') return { error: 'Use a JPEG, PNG or WebP photo.' }
+    output = await image
+      .rotate()
+      .resize({ width: 2400, height: 2400, fit: 'inside', withoutEnlargement: true })
+      .webp({ quality: 82 })
+      .toBuffer()
+  } catch {
+    return { error: 'That file could not be read as a photo.' }
+  }
+
+  const key = `studios/${membership.studioId}/website/img-${crypto.randomUUID()}.webp`
+  try {
+    await uploadObject(key, output, 'image/webp')
+  } catch (error) {
+    console.error('Website image upload error:', error)
+    return { error: 'The upload failed. Try again.' }
+  }
+
+  return { success: true, url: getR2PublicUrl(key) }
+}
