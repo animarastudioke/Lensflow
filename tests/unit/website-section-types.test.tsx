@@ -102,3 +102,34 @@ describe('new section types: rendering', () => {
     expect(screen.getByText('Add kind words from clients to show them here.')).toBeInTheDocument()
   })
 })
+
+describe('sample photos never reach visitors', () => {
+  const sections = [
+    { id: 'hero', type: 'hero' as const, heading: 'Hello', galleryId: '' },
+    { id: 'portfolio', type: 'gallery' as const, heading: 'Work', galleryId: '' },
+  ]
+  const renderPage = (preview: boolean) => render(
+    <WebsiteRenderer
+      studioName="S"
+      websiteName="S"
+      template="modern-minimal"
+      navPages={[]}
+      currentPath="/"
+      page={{ name: 'Home', content: { version: 1, sections } }}
+      galleryOptions={[]}
+      basePath="/portfolio/s"
+      preview={preview}
+    />,
+  )
+
+  it('renders samples in preview mode', () => {
+    renderPage(true)
+    expect(screen.getAllByRole('button', { name: /sample photo/i }).length).toBeGreaterThan(0)
+  })
+
+  it('renders none on the public site', () => {
+    const { container } = renderPage(false)
+    expect(screen.queryByRole('button', { name: /sample photo/i })).not.toBeInTheDocument()
+    expect(container.querySelector('img')).toBeNull()
+  })
+})

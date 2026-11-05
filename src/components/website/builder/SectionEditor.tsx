@@ -26,6 +26,8 @@ interface SectionEditorProps {
   sections: WebsiteSection[]
   onChange: (sections: WebsiteSection[]) => void
   galleries: WebsiteGalleryOption[]
+  /** Opens (and scrolls to) a section; a new object each time so the same section can be requested again. */
+  focusRequest?: { id: string } | null
 }
 
 interface LineListFieldProps<T> {
@@ -73,8 +75,13 @@ function LineListField<T>({ id, label, help, placeholder, rows = 5, items, forma
  * Controlled editor for one page's sections. The parent owns the array so the
  * live preview and the save button always see the same unsaved draft.
  */
-export function SectionEditor({ sections, onChange, galleries }: SectionEditorProps) {
-  const [openId, setOpenId] = React.useState<string | null>(sections[0]?.id ?? null)
+export function SectionEditor({ sections, onChange, galleries, focusRequest }: SectionEditorProps) {
+  const [openId, setOpenId] = React.useState<string | null>(focusRequest?.id ?? sections[0]?.id ?? null)
+  React.useEffect(() => {
+    if (!focusRequest) return
+    setOpenId(focusRequest.id)
+    document.getElementById(`${focusRequest.id}-gallery`)?.scrollIntoView?.({ block: 'center' })
+  }, [focusRequest])
 
   const updateSection = (id: string, updates: Record<string, unknown>) => {
     onChange(sections.map((section) => (section.id === id ? ({ ...section, ...updates } as WebsiteSection) : section)))

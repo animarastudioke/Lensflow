@@ -113,6 +113,7 @@ export function WebsiteBuilder({ studioSlug, website, galleries, initialPageId }
   const [isPublishing, setIsPublishing] = React.useState(false)
   const [isReordering, setIsReordering] = React.useState(false)
   const [pageToDelete, setPageToDelete] = React.useState<WebsitePageRow | null>(null)
+  const [focusRequest, setFocusRequest] = React.useState<{ id: string } | null>(null)
   const [renameValue, setRenameValue] = React.useState('')
 
   const selectedPage = pages.find((page) => page.id === selectedId) ?? null
@@ -141,12 +142,26 @@ export function WebsiteBuilder({ studioSlug, website, galleries, initialPageId }
     return () => window.removeEventListener('beforeunload', warn)
   }, [hasUnsaved])
 
+  const samplePhotoSections = pages
+    .filter((page) => page.is_published)
+    .flatMap((page) => drafts[page.id] ?? sectionsOf(page))
+    .filter((section) => (section.type === 'hero' || section.type === 'gallery') && !section.galleryId).length
+
   const currentSections = selectedPage ? drafts[selectedPage.id] ?? sectionsOf(selectedPage) : []
 
   const selectPage = (pageId: string) => {
     setSelectedId(pageId)
     setShowPageDetail(true)
     setTab('pages')
+  }
+
+  // Clicking a sample photo in the preview opens that section's photo picker,
+  // so a first-time user never has to hunt for where to replace it.
+  const selectSectionFromPreview = (sectionId: string) => {
+    setShowPageDetail(true)
+    setTab('pages')
+    setMobileView('edit')
+    setFocusRequest({ id: sectionId })
   }
 
   const navigateFromPreview = (path: string) => {
@@ -387,6 +402,7 @@ export function WebsiteBuilder({ studioSlug, website, galleries, initialPageId }
                       key={selectedPage.id}
                       sections={currentSections}
                       galleries={galleries}
+                      focusRequest={focusRequest}
                       onChange={(sections) => setDrafts((current) => ({ ...current, [selectedPage.id]: sections }))}
                     />
                   </div>
@@ -451,6 +467,11 @@ export function WebsiteBuilder({ studioSlug, website, galleries, initialPageId }
             </TabsContent>
           </Tabs>
 
+          {samplePhotoSections > 0 && (
+            <p className="border-t bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
+              {samplePhotoSections === 1 ? '1 section still shows' : `${samplePhotoSections} sections still show`} sample photos here. Visitors won&apos;t see them: pick a gallery in {samplePhotoSections === 1 ? 'that section' : 'each'} to show your own photos.
+            </p>
+          )}
           <div className="flex items-center gap-2 border-t p-3">
             {selectedPage && (
               <Button variant="outline" size="sm" asChild title="Open the saved version in a new tab">
@@ -470,7 +491,7 @@ export function WebsiteBuilder({ studioSlug, website, galleries, initialPageId }
 
         <section className={cn('min-w-0 flex-1 bg-muted/30', mobileView === 'preview' ? 'block' : 'hidden lg:block')} aria-label="Live preview">
           {selectedPage ? (
-            <PreviewFrame device={device} basePath={basePath} onNavigate={navigateFromPreview} title="Live preview of your website">
+            <PreviewFrame device={device} basePath={basePath} onNavigate={navigateFromPreview} onSelectSection={selectSectionFromPreview} title="Live preview of your website">
               <WebsiteRenderer
                 studioName={website.studio?.name ?? site.name}
                 logoUrl={website.studio?.logo_url}

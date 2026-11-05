@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { Eye } from 'lucide-react'
 import { getTemplate, type TemplateTheme } from '@/lib/website/templates'
+import { samplePhotoSrc } from '@/lib/website/sample-media'
 import { getWebsiteSections, type WebsiteGalleryOption, type WebsiteSection } from '@/lib/website/content'
 
 export interface WebsiteRendererNavItem {
@@ -64,6 +65,23 @@ function ActionLink({ href, label, primaryColor, theme }: {
   return <Link className={className} style={!dark && primaryColor ? { backgroundColor: primaryColor } : undefined} href={href}>{label}</Link>
 }
 
+// Preview-only. data-sample-section lets the builder turn a click on the
+// placeholder into "open this section's photo picker".
+function SamplePhoto({ sectionId, variant, dark, className }: { sectionId: string; variant: number; dark: boolean; className: string }) {
+  return (
+    <button
+      type="button"
+      data-sample-section={sectionId}
+      aria-label="Sample photo. Choose your own photos."
+      className={`relative block overflow-hidden ${className}`}
+    >
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src={samplePhotoSrc(variant, dark)} alt="" className="h-full w-full object-cover" />
+      <span className="absolute inset-x-2 bottom-2 rounded bg-black/65 px-2 py-1 text-center text-[11px] font-medium text-white">Sample photo · click to replace</span>
+    </button>
+  )
+}
+
 function SectionView({
   section,
   galleries,
@@ -95,10 +113,12 @@ function SectionView({
             <ActionLink href={section.ctaHref} label={section.ctaLabel} primaryColor={primaryColor} theme={theme} />
           </div>
         </div>
-        {heroImage && (
+        {heroImage ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img src={heroImage.src} alt={heroImage.alt} className={`${theme.heroImage} ${theme.radius} object-cover`} />
-        )}
+        ) : preview ? (
+          <SamplePhoto sectionId={section.id} variant={0} dark={theme.dark} className={`${theme.heroImage} ${theme.radius}`} />
+        ) : null}
       </section>
     )
   }
@@ -116,7 +136,14 @@ function SectionView({
             ))}
           </div>
         ) : (
-          <p className={`mt-5 ${theme.radius} border border-dashed ${theme.emptyNote} p-6 text-sm`}>Choose one of your published galleries to show its photographs here.</p>
+          <>
+            <div className={`mt-8 grid ${theme.galleryGrid}`}>
+              {[0, 1, 2, 3, 4, 5].map((variant) => (
+                <SamplePhoto key={variant} sectionId={section.id} variant={variant} dark={theme.dark} className={`${theme.galleryImage} ${theme.radius}`} />
+              ))}
+            </div>
+            <p className={`mt-5 ${theme.radius} border border-dashed ${theme.emptyNote} p-6 text-sm`}>Choose one of your published galleries to show its photographs here.</p>
+          </>
         )}
       </section>
     )

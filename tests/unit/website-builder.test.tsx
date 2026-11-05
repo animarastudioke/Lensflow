@@ -406,3 +406,41 @@ describe('resolvePreviewClick', () => {
     expect(resolvePreviewClick('https://example.com', base)).toEqual({ kind: 'allow' })
   })
 })
+
+describe('WebsiteBuilder: sample photos', () => {
+  const withPhotoSections = () => {
+    const home = page('home', 'Home', '/', 0)
+    home.content = {
+      version: 1,
+      sections: [
+        { id: 'hero', type: 'hero', heading: 'Welcome heading', galleryId: '' },
+        { id: 'portfolio', type: 'gallery', heading: 'Selected work', galleryId: '' },
+      ],
+    }
+    return { pages: [home] }
+  }
+
+  it('fills empty photo spots with labelled samples in the preview', () => {
+    renderBuilder(withPhotoSections())
+    // one hero image plus six gallery tiles
+    expect(within(previewRegion()).getAllByRole('button', { name: /sample photo/i })).toHaveLength(7)
+  })
+
+  it('opens the section that owns a sample photo when it is clicked', () => {
+    renderBuilder(withPhotoSections())
+    expect(screen.queryByLabelText('Photos to show')).not.toBeInTheDocument()
+    fireEvent.click(within(previewRegion()).getAllByRole('button', { name: /sample photo/i })[3]!)
+    expect(screen.getByLabelText('Page name')).toBeInTheDocument()
+    expect(screen.getByLabelText('Photos to show')).toBeInTheDocument()
+  })
+
+  it('tells the user that visitors will not see the samples', () => {
+    renderBuilder(withPhotoSections())
+    expect(screen.getByText(/2 sections still show sample photos here/i)).toBeInTheDocument()
+  })
+
+  it('shows no notice when the site has no empty photo spots', () => {
+    renderBuilder()
+    expect(screen.queryByText(/sample photos here/i)).not.toBeInTheDocument()
+  })
+})
