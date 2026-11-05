@@ -50,19 +50,22 @@ function ActionLink({ href, label, primaryColor, theme }: {
   if (!href || !label) return null
 
   const dark = theme.dark
+  // A site whose colour was never saved has no primaryColor; without this the
+  // white label on a light template sat on no background at all.
+  const accent = primaryColor || theme.navActiveFallback
   const className = dark
     ? `inline-flex items-center ${theme.radius} bg-white px-5 py-3 text-sm font-medium text-stone-950 hover:bg-white/90`
     : `inline-flex items-center ${theme.radius} px-5 py-3 text-sm font-medium text-white hover:opacity-90`
 
   if (/^https:\/\//i.test(href)) {
-    return <a className={className} style={!dark && primaryColor ? { backgroundColor: primaryColor } : undefined} href={href} target="_blank" rel="noopener noreferrer">{label}</a>
+    return <a className={className} style={!dark ? { backgroundColor: accent } : undefined} href={href} target="_blank" rel="noopener noreferrer">{label}</a>
   }
 
   if (href.startsWith('mailto:') || href.startsWith('tel:')) {
-    return <a className={className} style={!dark && primaryColor ? { backgroundColor: primaryColor } : undefined} href={href}>{label}</a>
+    return <a className={className} style={!dark ? { backgroundColor: accent } : undefined} href={href}>{label}</a>
   }
 
-  return <Link className={className} style={!dark && primaryColor ? { backgroundColor: primaryColor } : undefined} href={href}>{label}</Link>
+  return <Link className={className} style={!dark ? { backgroundColor: accent } : undefined} href={href}>{label}</Link>
 }
 
 // Preview-only. data-sample-section lets the builder turn a click on the

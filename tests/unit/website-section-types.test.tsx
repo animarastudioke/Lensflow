@@ -149,3 +149,18 @@ describe('uploaded photos render for visitors', () => {
     expect(screen.queryByRole('button', { name: /sample photo/i })).not.toBeInTheDocument()
   })
 })
+
+describe('call-to-action buttons without a saved brand colour', () => {
+  const sections = [{ id: 'hero', type: 'hero' as const, heading: 'Hi', ctaLabel: 'Book now', ctaHref: 'mailto:hello@example.com' }]
+  const renderWith = (primaryColor: string | null) => render(
+    <WebsiteRenderer studioName="S" websiteName="S" template="modern-minimal" primaryColor={primaryColor} navPages={[]} currentPath="/" page={{ name: 'Home', content: { version: 1, sections } }} basePath="/portfolio/s" />,
+  )
+  it('still get a visible background on a light template', () => {
+    renderWith(null)
+    expect(screen.getByRole('link', { name: 'Book now' })).toHaveStyle({ backgroundColor: '#292524' })
+  })
+  it('use the saved brand colour when there is one', () => {
+    renderWith('#3B82F6')
+    expect(screen.getByRole('link', { name: 'Book now' })).toHaveStyle({ backgroundColor: '#3B82F6' })
+  })
+})
