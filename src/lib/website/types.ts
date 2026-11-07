@@ -47,6 +47,8 @@ export interface WebsiteTestimonialsSection {
   id: string
   type: 'testimonials'
   heading: string
+  /** Starter content someone else wrote. Hidden from visitors until the studio edits it. */
+  sample?: true
   items: { quote: string; author: string }[]
 }
 
@@ -54,6 +56,8 @@ export interface WebsitePricingSection {
   id: string
   type: 'pricing'
   heading: string
+  /** Starter content someone else wrote. Hidden from visitors until the studio edits it. */
+  sample?: true
   body?: string
   /** `price` is free text on purpose ("KES 45,000", "From KES 12,000", "On request"). */
   items: { name: string; price: string; description: string }[]

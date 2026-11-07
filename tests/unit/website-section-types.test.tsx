@@ -164,3 +164,39 @@ describe('call-to-action buttons without a saved brand colour', () => {
     expect(screen.getByRole('link', { name: 'Book now' })).toHaveStyle({ backgroundColor: '#3B82F6' })
   })
 })
+
+describe('example testimonials and pricing', () => {
+  const sections = [
+    { id: 't', type: 'testimonials' as const, heading: 'Kind words', sample: true as const, items: [{ quote: 'Lovely work', author: 'Client name' }] },
+    { id: 'p', type: 'pricing' as const, heading: 'Packages', sample: true as const, items: [{ name: 'Essential', price: 'KES 25,000', description: 'x' }] },
+  ]
+  const renderPage = (preview: boolean, list = sections) => render(
+    <WebsiteRenderer studioName="S" websiteName="S" template="modern-minimal" navPages={[]} currentPath="/" page={{ name: 'Home', content: { version: 1, sections: list } }} basePath="/portfolio/s" preview={preview} />,
+  )
+
+  it('are hidden from visitors', () => {
+    renderPage(false)
+    expect(screen.queryByText(/Lovely work/)).not.toBeInTheDocument()
+    expect(screen.queryByText('KES 25,000')).not.toBeInTheDocument()
+  })
+
+  it('show in the preview with a note that visitors do not see them', () => {
+    renderPage(true)
+    expect(screen.getByText(/Lovely work/)).toBeInTheDocument()
+    expect(screen.getAllByText(/Visitors don.t see this until you edit it/)).toHaveLength(2)
+  })
+
+  it('show to visitors once the example flag is gone', () => {
+    renderPage(false, sections.map(({ sample: _sample, ...rest }) => rest) as never)
+    expect(screen.getByText(/Lovely work/)).toBeInTheDocument()
+    expect(screen.getByText('KES 25,000')).toBeInTheDocument()
+  })
+
+  it('pass both validators with the flag, and reject a value other than true', () => {
+    expect(websiteSectionsSchema.safeParse(sections).success).toBe(true)
+    expect(getWebsiteSections({ version: 1, sections }, 'P')).toEqual(sections)
+    const bad = [{ ...sections[0], sample: false }]
+    expect(websiteSectionsSchema.safeParse(bad).success).toBe(false)
+    expect(getWebsiteSections({ version: 1, sections: bad }, 'P')).not.toEqual(bad)
+  })
+})

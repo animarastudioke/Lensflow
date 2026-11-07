@@ -150,6 +150,11 @@ export function WebsiteBuilder({ studioSlug, website, galleries, initialPageId }
       || (section.type === 'gallery' && !section.galleryId && !(section.imageUrls?.length)))
     .length
 
+  const exampleSections = pages
+    .filter((page) => page.is_published)
+    .flatMap((page) => drafts[page.id] ?? sectionsOf(page))
+    .filter((section) => (section.type === 'testimonials' || section.type === 'pricing') && section.sample).length
+
   const currentSections = selectedPage ? drafts[selectedPage.id] ?? sectionsOf(selectedPage) : []
 
   const selectPage = (pageId: string) => {
@@ -483,6 +488,11 @@ export function WebsiteBuilder({ studioSlug, website, galleries, initialPageId }
             </TabsContent>
           </Tabs>
 
+          {exampleSections > 0 && (
+            <p className="border-t bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
+              {exampleSections === 1 ? '1 section of example testimonials or prices is' : `${exampleSections} sections of example testimonials or prices are`} hidden from visitors until you edit {exampleSections === 1 ? 'it' : 'them'}.
+            </p>
+          )}
           {samplePhotoSections > 0 && (
             <p className="border-t bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
               {samplePhotoSections === 1 ? '1 section still shows' : `${samplePhotoSections} sections still show`} sample photos here. Visitors won&apos;t see them: upload photos or pick a gallery in {samplePhotoSections === 1 ? 'that section' : 'each'}.

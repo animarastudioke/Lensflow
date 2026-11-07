@@ -58,6 +58,7 @@ export const websiteSectionSchema = z.discriminatedUnion('type', [
     id: sectionId,
     type: z.literal('testimonials'),
     heading: sectionHeading,
+    sample: z.literal(true).optional(),
     items: z.array(z.object({
       quote: z.string().max(500),
       author: z.string().max(100),
@@ -67,6 +68,7 @@ export const websiteSectionSchema = z.discriminatedUnion('type', [
     id: sectionId,
     type: z.literal('pricing'),
     heading: sectionHeading,
+    sample: z.literal(true).optional(),
     body: sectionBody.optional(),
     items: z.array(z.object({
       name: z.string().max(100),

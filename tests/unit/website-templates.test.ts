@@ -116,3 +116,41 @@ describe('rankTemplatesForService', () => {
     })
   })
 })
+
+describe('complete starter sites', () => {
+  it.each(TEMPLATES.map((template) => [template.id, template] as const))(
+    '%s seeds a full site: home, nested portfolio, about, services and contact',
+    (_id, template) => {
+      const pages = template.starterPages('Test Studio')
+      expect(pages.map((page) => page.name)).toEqual(['Home', 'Portfolio', expect.any(String), expect.any(String), 'About', 'Services', 'Contact'])
+      const paths = pages.map((page) => page.path)
+      const children = paths.filter((path) => path.startsWith('/portfolio/'))
+      expect(children).toHaveLength(2)
+      expect(paths).toContain('/portfolio')
+      for (const child of children) expect(child.split('/').filter(Boolean)).toHaveLength(2)
+    },
+  )
+
+  it.each(TEMPLATES.map((template) => [template.id, template] as const))(
+    '%s marks invented testimonials and prices as examples so they are never published as-is',
+    (_id, template) => {
+      const sections = template.starterPages('Test Studio').flatMap((page) => page.sections)
+      const invented = sections.filter((section) => section.type === 'testimonials' || section.type === 'pricing')
+      expect(invented.length).toBeGreaterThanOrEqual(2)
+      for (const section of invented) expect(section).toMatchObject({ sample: true })
+    },
+  )
+
+  it.each(TEMPLATES.map((template) => [template.id, template] as const))(
+    '%s gives every page real content rather than an empty shell',
+    (_id, template) => {
+      for (const page of template.starterPages('Test Studio')) {
+        expect(page.sections.length, page.path).toBeGreaterThanOrEqual(2)
+        for (const section of page.sections) {
+          expect(section.heading.trim(), `${page.path} ${section.id}`).not.toBe('')
+          if (section.type === 'text') expect((section.body ?? '').length, `${page.path} ${section.id}`).toBeGreaterThan(40)
+        }
+      }
+    },
+  )
+})

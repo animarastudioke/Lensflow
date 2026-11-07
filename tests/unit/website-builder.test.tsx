@@ -489,6 +489,15 @@ describe('WebsiteBuilder: sample photos', () => {
     expect(within(previewRegion()).getAllByRole('img', { name: /Selected work \d/ })).toHaveLength(1)
   })
 
+  it('stops hiding example testimonials once the studio edits them', async () => {
+    const home = page('home', 'Home', '/', 0)
+    home.content = { version: 1, sections: [{ id: 't', type: 'testimonials', heading: 'Kind words', sample: true, items: [{ quote: 'Lovely', author: 'Client name' }] }] }
+    renderBuilder({ pages: [home] }, { initialPageId: 'home' })
+    expect(screen.getByText(/1 section of example testimonials or prices/i)).toBeInTheDocument()
+    fireEvent.change(screen.getByLabelText('Heading'), { target: { value: 'What clients say' } })
+    expect(screen.queryByText(/section of example testimonials or prices/i)).not.toBeInTheDocument()
+  })
+
   it('shows no notice when the site has no empty photo spots', () => {
     renderBuilder()
     expect(screen.queryByText(/sample photos here/i)).not.toBeInTheDocument()

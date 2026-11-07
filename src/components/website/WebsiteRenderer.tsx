@@ -85,6 +85,15 @@ function SamplePhoto({ sectionId, variant, dark, className }: { sectionId: strin
   )
 }
 
+// Preview-only label for starter content that stays hidden from visitors.
+function SampleNote({ theme }: { theme: TemplateTheme }) {
+  return (
+    <p className={`mb-4 inline-block ${theme.radius} border border-dashed ${theme.emptyNote} px-3 py-1.5 text-xs`}>
+      Example content. Visitors don&apos;t see this until you edit it.
+    </p>
+  )
+}
+
 function SectionView({
   section,
   galleries,
@@ -182,9 +191,11 @@ function SectionView({
   }
 
   if (section.type === 'testimonials') {
-    if (section.items.length === 0 && !preview) return null
+    // Starter quotes are examples, not real clients: never show them to visitors.
+    if ((section.items.length === 0 || section.sample) && !preview) return null
     return (
       <section id={section.id} className={`mx-auto ${theme.maxWidth} px-6 ${theme.padSection} md:px-10`}>
+        {section.sample && <SampleNote theme={theme} />}
         <h2 className={sectionHeadingClass}>{section.heading}</h2>
         {section.items.length > 0 ? (
           <div className="mt-8 grid gap-4 md:grid-cols-2">
@@ -203,9 +214,11 @@ function SectionView({
   }
 
   if (section.type === 'pricing') {
-    if (section.items.length === 0 && !preview) return null
+    // Starter prices are examples, not the studio's rates: never show them to visitors.
+    if ((section.items.length === 0 || section.sample) && !preview) return null
     return (
       <section id={section.id} className={`mx-auto ${theme.maxWidth} px-6 ${theme.padSection} md:px-10`}>
+        {section.sample && <SampleNote theme={theme} />}
         <h2 className={sectionHeadingClass}>{section.heading}</h2>
         {section.body && <p className={sectionBodyClass}>{section.body}</p>}
         {section.items.length > 0 ? (

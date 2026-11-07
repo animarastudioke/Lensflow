@@ -55,14 +55,16 @@ function isWebsiteSection(value: unknown): value is WebsiteSection {
         && typeof item['description'] === 'string' && item['description'].length <= 500)
   }
   if (value['type'] === 'testimonials') {
-    return Array.isArray(value['items'])
+    return (value['sample'] === undefined || value['sample'] === true)
+      && Array.isArray(value['items'])
       && value['items'].length <= 6
       && value['items'].every((item) => isRecord(item)
         && typeof item['quote'] === 'string' && item['quote'].length <= 500
         && typeof item['author'] === 'string' && item['author'].length <= 100)
   }
   if (value['type'] === 'pricing') {
-    return Array.isArray(value['items'])
+    return (value['sample'] === undefined || value['sample'] === true)
+      && Array.isArray(value['items'])
       && value['items'].length <= 6
       && value['items'].every((item) => isRecord(item)
         && typeof item['name'] === 'string' && item['name'].length <= 100

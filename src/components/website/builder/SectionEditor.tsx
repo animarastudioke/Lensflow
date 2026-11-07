@@ -87,7 +87,8 @@ export function SectionEditor({ sections, onChange, galleries, onUploadImage, fo
   }, [focusRequest])
 
   const updateSection = (id: string, updates: Record<string, unknown>) => {
-    onChange(sections.map((section) => (section.id === id ? ({ ...section, ...updates } as WebsiteSection) : section)))
+    // Editing starter example content makes it the studio's own, so it stops being hidden.
+    onChange(sections.map((section) => (section.id === id ? ({ ...section, ...updates, ...('sample' in section ? { sample: undefined } : {}) } as WebsiteSection) : section)))
   }
 
   const addSection = (type: WebsiteSection['type']) => {
