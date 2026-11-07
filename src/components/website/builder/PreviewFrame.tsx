@@ -10,6 +10,8 @@ interface PreviewFrameProps {
   /** Prefix the renderer builds page links from; clicks on those switch the editor's page instead of navigating. */
   basePath: string
   onNavigate: (path: string) => void
+  /** A sample photo was clicked; the argument is the id of the section it belongs to. */
+  onSelectSection?: (sectionId: string) => void
   title: string
   children: React.ReactNode
 }
@@ -30,8 +32,15 @@ export function resolvePreviewClick(href: string, basePath: string): { kind: 'pa
   return { kind: 'block' }
 }
 
-function ClickGuard({ basePath, onNavigate, children }: Pick<PreviewFrameProps, 'basePath' | 'onNavigate' | 'children'>) {
+function ClickGuard({ basePath, onNavigate, onSelectSection, children }: Pick<PreviewFrameProps, 'basePath' | 'onNavigate' | 'onSelectSection' | 'children'>) {
   const handle = (event: React.MouseEvent<HTMLDivElement>, navigate: boolean) => {
+    const sample = (event.target as HTMLElement).closest('[data-sample-section]')
+    if (sample) {
+      event.preventDefault()
+      const sectionId = sample.getAttribute('data-sample-section')
+      if (navigate && sectionId) onSelectSection?.(sectionId)
+      return
+    }
     const anchor = (event.target as HTMLElement).closest('a')
     if (!anchor) return
     const result = resolvePreviewClick(anchor.getAttribute('href') ?? '', basePath)
@@ -52,7 +61,7 @@ function ClickGuard({ basePath, onNavigate, children }: Pick<PreviewFrameProps, 
 // change that. A real iframe gives the preview its own 390px viewport, so the
 // template's mobile layout is what gets shown. The page's stylesheets are
 // copied in because an iframe does not inherit them.
-function MobileFrame({ title, basePath, onNavigate, children }: Omit<PreviewFrameProps, 'device'>) {
+function MobileFrame({ title, basePath, onNavigate, onSelectSection, children }: Omit<PreviewFrameProps, 'device'>) {
   const frameRef = React.useRef<HTMLIFrameElement>(null)
   const [mountNode, setMountNode] = React.useState<HTMLElement | null>(null)
 
@@ -81,18 +90,18 @@ function MobileFrame({ title, basePath, onNavigate, children }: Omit<PreviewFram
   return (
     <div className="flex h-full justify-center overflow-auto bg-muted/40 p-4">
       <iframe ref={frameRef} title={title} srcDoc={BLANK_DOCUMENT} className="h-full min-h-[600px] w-[390px] max-w-full shrink-0 rounded-xl border bg-white shadow-sm" />
-      {mountNode && createPortal(<ClickGuard basePath={basePath} onNavigate={onNavigate}>{children}</ClickGuard>, mountNode)}
+      {mountNode && createPortal(<ClickGuard basePath={basePath} onNavigate={onNavigate} onSelectSection={onSelectSection}>{children}</ClickGuard>, mountNode)}
     </div>
   )
 }
 
-export function PreviewFrame({ device, basePath, onNavigate, title, children }: PreviewFrameProps) {
+export function PreviewFrame({ device, basePath, onNavigate, onSelectSection, title, children }: PreviewFrameProps) {
   if (device === 'mobile') {
-    return <MobileFrame title={title} basePath={basePath} onNavigate={onNavigate}>{children}</MobileFrame>
+    return <MobileFrame title={title} basePath={basePath} onNavigate={onNavigate} onSelectSection={onSelectSection}>{children}</MobileFrame>
   }
   return (
     <div className="h-full overflow-auto" aria-label={title} role="region">
-      <ClickGuard basePath={basePath} onNavigate={onNavigate}>{children}</ClickGuard>
+      <ClickGuard basePath={basePath} onNavigate={onNavigate} onSelectSection={onSelectSection}>{children}</ClickGuard>
     </div>
   )
 }

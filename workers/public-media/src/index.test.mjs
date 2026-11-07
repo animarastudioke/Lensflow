@@ -54,3 +54,11 @@ test('supports HEAD, restricts methods, and serves SVG logos as sandboxed images
   const post = await worker.fetch(new Request(`https://media.lensflow.co.ke/${logoKey}`, { method: 'POST' }), env)
   assert.equal(post.status, 405)
 })
+
+test('serves website photos from the studio website folder only', () => {
+  const siteKey = `studios/${studioId}/website/img-${mediaId}.webp`
+  assert.equal(getPublicMediaKey(`/${siteKey}`), siteKey)
+  assert.equal(getPublicMediaKey(`/${siteKey.replace('.webp', '.png')}`), null)
+  assert.equal(getPublicMediaKey(`/studios/${studioId}/website/${mediaId}.webp`), null)
+  assert.equal(getPublicMediaKey(`/studios/${studioId}/website/nested/img-${mediaId}.webp`), null)
+})

@@ -1,4 +1,4 @@
-import { createDefaultWebsiteSections } from './content'
+import { buildStarterPages, MODERN_MINIMAL_COPY, ELEGANT_WEDDING_COPY, BOLD_EDITORIAL_COPY, SOFT_PORTRAIT_COPY, CLEAN_COMMERCIAL_COPY, CINEMATIC_REEL_COPY } from './starter-content'
 import type { WebsiteSection } from './types'
 
 // Single source of truth for website templates. It is deliberately pure (no
@@ -119,32 +119,13 @@ const shippedLayout = {
   cardTitle: 'font-display text-lg font-semibold',
 } as const
 
-const contactPage = (heading: string, body: string): TemplateStarterPage => ({
-  name: 'Contact',
-  path: '/contact',
-  sections: [{ id: 'contact', type: 'contact', heading, body }],
-})
-
 const MODERN_MINIMAL: WebsiteTemplate = {
   id: 'modern-minimal',
   label: 'Modern Minimal',
   description: 'White space and a calm grid that lets the photographs lead.',
   services: ['portraits-family', 'commercial-brand', 'events'],
   theme: { ...lightColors, ...shippedLayout, site: 'bg-white text-stone-900' },
-  starterPages: (name) => [
-    { name: 'Home', path: '/', sections: createDefaultWebsiteSections(name) },
-    {
-      name: 'About',
-      path: '/about',
-      sections: [{
-        id: 'about',
-        type: 'text',
-        heading: `About ${name}`,
-        body: 'Say who you are, how you like to work and what clients can expect. Two or three short paragraphs is plenty.',
-      }],
-    },
-    contactPage('Let’s talk about your project.', 'Share what you have in mind and the dates you are considering.'),
-  ],
+  starterPages: (name) => buildStarterPages(MODERN_MINIMAL_COPY, name),
 }
 
 const ELEGANT_WEDDING: WebsiteTemplate = {
@@ -153,51 +134,7 @@ const ELEGANT_WEDDING: WebsiteTemplate = {
   description: 'A warm ivory page with a classic serif voice for wedding work.',
   services: ['weddings', 'portraits-family'],
   theme: { ...lightColors, ...shippedLayout, site: 'bg-[#fbf8f3] text-stone-800 font-serif' },
-  starterPages: (name) => [
-    {
-      name: 'Home',
-      path: '/',
-      sections: [
-        {
-          id: 'hero',
-          type: 'hero',
-          eyebrow: 'Weddings and celebrations',
-          heading: name,
-          body: 'Honest, unhurried photographs of your day as it unfolded.',
-          ctaLabel: 'Enquire about your date',
-          ctaHref: '#contact',
-        },
-        { id: 'portfolio', type: 'gallery', heading: 'Recent weddings', galleryId: '' },
-        {
-          id: 'services',
-          type: 'services',
-          heading: 'How we can help',
-          items: [
-            { title: 'Wedding day', description: 'Coverage planned around your timeline, from getting ready to the celebration.' },
-            { title: 'Engagement session', description: 'A relaxed session before the day, so you are comfortable in front of the camera.' },
-            { title: 'Albums and prints', description: 'Ways to keep your photographs beyond the screen.' },
-          ],
-        },
-        {
-          id: 'contact',
-          type: 'contact',
-          heading: 'Tell us about your day.',
-          body: 'Share your date, venue and the kind of day you are imagining.',
-        },
-      ],
-    },
-    {
-      name: 'About',
-      path: '/about',
-      sections: [{
-        id: 'about',
-        type: 'text',
-        heading: `The people behind ${name}`,
-        body: 'Introduce yourself and describe how you work with couples, from the first conversation to delivery.',
-      }],
-    },
-    contactPage('Say hello.', 'Share your wedding date and location and we will get back to you.'),
-  ],
+  starterPages: (name) => buildStarterPages(ELEGANT_WEDDING_COPY, name),
 }
 
 const BOLD_EDITORIAL: WebsiteTemplate = {
@@ -206,45 +143,7 @@ const BOLD_EDITORIAL: WebsiteTemplate = {
   description: 'Dark, high-impact pages with large type, made for striking work.',
   services: ['events', 'commercial-brand', 'video-film'],
   theme: { ...darkColors, ...shippedLayout, site: 'bg-[#171717] text-white' },
-  starterPages: (name) => [
-    {
-      name: 'Home',
-      path: '/',
-      sections: [
-        {
-          id: 'hero',
-          type: 'hero',
-          eyebrow: 'Photography and film',
-          heading: name,
-          body: 'Strong images made for people who want their story told with confidence.',
-          ctaLabel: 'Start a project',
-          ctaHref: '#contact',
-        },
-        { id: 'portfolio', type: 'gallery', heading: 'Selected work', galleryId: '' },
-        {
-          id: 'contact',
-          type: 'contact',
-          heading: 'Have a project in mind?',
-          body: 'Tell us what you are making and when you need it.',
-        },
-      ],
-    },
-    {
-      name: 'Services',
-      path: '/services',
-      sections: [{
-        id: 'services',
-        type: 'services',
-        heading: 'What we do',
-        items: [
-          { title: 'Photography', description: 'Describe the photography you offer and who it is for.' },
-          { title: 'Video', description: 'Describe the video work you offer and who it is for.' },
-          { title: 'Custom projects', description: 'Explain how clients can ask for something specific.' },
-        ],
-      }],
-    },
-    contactPage('Let’s work together.', 'Share a short brief and your preferred dates.'),
-  ],
+  starterPages: (name) => buildStarterPages(BOLD_EDITORIAL_COPY, name),
 }
 
 const SOFT_PORTRAIT: WebsiteTemplate = {
@@ -273,51 +172,7 @@ const SOFT_PORTRAIT: WebsiteTemplate = {
     contactBg: 'bg-[#efe2d3]',
     emptyNote: 'border-[#d6c3ae] text-stone-500',
   },
-  starterPages: (name) => [
-    {
-      name: 'Home',
-      path: '/',
-      sections: [
-        {
-          id: 'hero',
-          type: 'hero',
-          eyebrow: 'Portraits and family sessions',
-          heading: name,
-          body: 'Relaxed sessions and natural photographs of the people who matter most to you.',
-          ctaLabel: 'Book a session',
-          ctaHref: '#contact',
-        },
-        { id: 'portfolio', type: 'gallery', heading: 'Recent sessions', galleryId: '' },
-        {
-          id: 'services',
-          type: 'services',
-          heading: 'Sessions',
-          items: [
-            { title: 'Family', description: 'A relaxed session for the whole family, at a place that suits you.' },
-            { title: 'Portraits', description: 'Individual or couple portraits for personal or professional use.' },
-            { title: 'Milestones', description: 'Photographs for birthdays, graduations and other occasions worth remembering.' },
-          ],
-        },
-        {
-          id: 'contact',
-          type: 'contact',
-          heading: 'Let’s plan your session.',
-          body: 'Tell us who the session is for and when you would like it.',
-        },
-      ],
-    },
-    {
-      name: 'About',
-      path: '/about',
-      sections: [{
-        id: 'about',
-        type: 'text',
-        heading: `Hello, we are ${name}`,
-        body: 'Share a little about yourself and what a session with you feels like, so new clients know what to expect.',
-      }],
-    },
-    contactPage('Get in touch.', 'Share who the session is for, where you are and when you would like it.'),
-  ],
+  starterPages: (name) => buildStarterPages(SOFT_PORTRAIT_COPY, name),
 }
 
 const CLEAN_COMMERCIAL: WebsiteTemplate = {
@@ -351,45 +206,7 @@ const CLEAN_COMMERCIAL: WebsiteTemplate = {
     contactBg: 'bg-neutral-100',
     emptyNote: 'border-neutral-400 text-neutral-600',
   },
-  starterPages: (name) => [
-    {
-      name: 'Home',
-      path: '/',
-      sections: [
-        {
-          id: 'hero',
-          type: 'hero',
-          eyebrow: 'Commercial and brand photography',
-          heading: name,
-          body: 'Clear, well-lit imagery for products, teams and brands.',
-          ctaLabel: 'Request a quote',
-          ctaHref: '#contact',
-        },
-        { id: 'portfolio', type: 'gallery', heading: 'Selected work', galleryId: '' },
-        {
-          id: 'contact',
-          type: 'contact',
-          heading: 'Briefing a shoot?',
-          body: 'Send the scope, the usage you need and your timeline.',
-        },
-      ],
-    },
-    {
-      name: 'Services',
-      path: '/services',
-      sections: [{
-        id: 'services',
-        type: 'services',
-        heading: 'Services',
-        items: [
-          { title: 'Product', description: 'Describe the product photography you offer and what clients receive.' },
-          { title: 'Brand and team', description: 'Describe portraits, lifestyle and brand imagery you offer.' },
-          { title: 'Events', description: 'Describe the event coverage you offer for businesses.' },
-        ],
-      }],
-    },
-    contactPage('Request a quote.', 'Tell us about the shoot, how the images will be used and when you need them.'),
-  ],
+  starterPages: (name) => buildStarterPages(CLEAN_COMMERCIAL_COPY, name),
 }
 
 const CINEMATIC_REEL: WebsiteTemplate = {
@@ -415,45 +232,7 @@ const CINEMATIC_REEL: WebsiteTemplate = {
     body: 'text-white/65',
     contactBg: 'bg-white/[0.04]',
   },
-  starterPages: (name) => [
-    {
-      name: 'Home',
-      path: '/',
-      sections: [
-        {
-          id: 'hero',
-          type: 'hero',
-          eyebrow: 'Film and video',
-          heading: name,
-          body: 'Moving pictures with a considered eye for light, sound and story.',
-          ctaLabel: 'Discuss your film',
-          ctaHref: '#contact',
-        },
-        { id: 'portfolio', type: 'gallery', heading: 'Stills from recent films', galleryId: '' },
-        {
-          id: 'contact',
-          type: 'contact',
-          heading: 'Have a film in mind?',
-          body: 'Tell us about the story, the location and the dates you are considering.',
-        },
-      ],
-    },
-    {
-      name: 'Services',
-      path: '/services',
-      sections: [{
-        id: 'services',
-        type: 'services',
-        heading: 'What we make',
-        items: [
-          { title: 'Highlight films', description: 'Describe the short films you make for weddings and events.' },
-          { title: 'Brand films', description: 'Describe the video work you offer to businesses.' },
-          { title: 'Edits and delivery', description: 'Explain how editing and delivery work with you.' },
-        ],
-      }],
-    },
-    contactPage('Let’s talk about your film.', 'Share the story, the location and your preferred dates.'),
-  ],
+  starterPages: (name) => buildStarterPages(CINEMATIC_REEL_COPY, name),
 }
 
 export const TEMPLATES: readonly WebsiteTemplate[] = [

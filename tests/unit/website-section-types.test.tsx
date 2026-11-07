@@ -102,3 +102,101 @@ describe('new section types: rendering', () => {
     expect(screen.getByText('Add kind words from clients to show them here.')).toBeInTheDocument()
   })
 })
+
+describe('sample photos never reach visitors', () => {
+  const sections = [
+    { id: 'hero', type: 'hero' as const, heading: 'Hello', galleryId: '' },
+    { id: 'portfolio', type: 'gallery' as const, heading: 'Work', galleryId: '' },
+  ]
+  const renderPage = (preview: boolean) => render(
+    <WebsiteRenderer
+      studioName="S"
+      websiteName="S"
+      template="modern-minimal"
+      navPages={[]}
+      currentPath="/"
+      page={{ name: 'Home', content: { version: 1, sections } }}
+      galleryOptions={[]}
+      basePath="/portfolio/s"
+      preview={preview}
+    />,
+  )
+
+  it('renders samples in preview mode', () => {
+    renderPage(true)
+    expect(screen.getAllByRole('button', { name: /sample photo/i }).length).toBeGreaterThan(0)
+  })
+
+  it('renders none on the public site', () => {
+    const { container } = renderPage(false)
+    expect(screen.queryByRole('button', { name: /sample photo/i })).not.toBeInTheDocument()
+    expect(container.querySelector('img')).toBeNull()
+  })
+})
+
+describe('uploaded photos render for visitors', () => {
+  const url = 'https://media.lensflow.co.ke/studios/123e4567-e89b-42d3-a456-426614174000/website/img-123e4567-e89b-42d3-a456-426614174002.webp'
+  it('shows the hero and gallery photos on the public site, and no sample', () => {
+    const sections = [
+      { id: 'hero', type: 'hero' as const, heading: 'Hello', imageUrl: url },
+      { id: 'portfolio', type: 'gallery' as const, heading: 'Work', imageUrls: [url, url] },
+    ]
+    render(
+      <WebsiteRenderer studioName="S" websiteName="S" template="modern-minimal" navPages={[]} currentPath="/" page={{ name: 'Home', content: { version: 1, sections } }} galleryOptions={[]} basePath="/portfolio/s" />,
+    )
+    expect(screen.getByRole('img', { name: 'Hello' })).toHaveAttribute('src', url)
+    expect(screen.getAllByRole('img', { name: /Work \d/ })).toHaveLength(2)
+    expect(screen.queryByRole('button', { name: /sample photo/i })).not.toBeInTheDocument()
+  })
+})
+
+describe('call-to-action buttons without a saved brand colour', () => {
+  const sections = [{ id: 'hero', type: 'hero' as const, heading: 'Hi', ctaLabel: 'Book now', ctaHref: 'mailto:hello@example.com' }]
+  const renderWith = (primaryColor: string | null) => render(
+    <WebsiteRenderer studioName="S" websiteName="S" template="modern-minimal" primaryColor={primaryColor} navPages={[]} currentPath="/" page={{ name: 'Home', content: { version: 1, sections } }} basePath="/portfolio/s" />,
+  )
+  it('still get a visible background on a light template', () => {
+    renderWith(null)
+    expect(screen.getByRole('link', { name: 'Book now' })).toHaveStyle({ backgroundColor: '#292524' })
+  })
+  it('use the saved brand colour when there is one', () => {
+    renderWith('#3B82F6')
+    expect(screen.getByRole('link', { name: 'Book now' })).toHaveStyle({ backgroundColor: '#3B82F6' })
+  })
+})
+
+describe('example testimonials and pricing', () => {
+  const sections = [
+    { id: 't', type: 'testimonials' as const, heading: 'Kind words', sample: true as const, items: [{ quote: 'Lovely work', author: 'Client name' }] },
+    { id: 'p', type: 'pricing' as const, heading: 'Packages', sample: true as const, items: [{ name: 'Essential', price: 'KES 25,000', description: 'x' }] },
+  ]
+  const renderPage = (preview: boolean, list = sections) => render(
+    <WebsiteRenderer studioName="S" websiteName="S" template="modern-minimal" navPages={[]} currentPath="/" page={{ name: 'Home', content: { version: 1, sections: list } }} basePath="/portfolio/s" preview={preview} />,
+  )
+
+  it('are hidden from visitors', () => {
+    renderPage(false)
+    expect(screen.queryByText(/Lovely work/)).not.toBeInTheDocument()
+    expect(screen.queryByText('KES 25,000')).not.toBeInTheDocument()
+  })
+
+  it('show in the preview with a note that visitors do not see them', () => {
+    renderPage(true)
+    expect(screen.getByText(/Lovely work/)).toBeInTheDocument()
+    expect(screen.getAllByText(/Visitors don.t see this until you edit it/)).toHaveLength(2)
+  })
+
+  it('show to visitors once the example flag is gone', () => {
+    renderPage(false, sections.map(({ sample: _sample, ...rest }) => rest) as never)
+    expect(screen.getByText(/Lovely work/)).toBeInTheDocument()
+    expect(screen.getByText('KES 25,000')).toBeInTheDocument()
+  })
+
+  it('pass both validators with the flag, and reject a value other than true', () => {
+    expect(websiteSectionsSchema.safeParse(sections).success).toBe(true)
+    expect(getWebsiteSections({ version: 1, sections }, 'P')).toEqual(sections)
+    const bad = [{ ...sections[0], sample: false }]
+    expect(websiteSectionsSchema.safeParse(bad).success).toBe(false)
+    expect(getWebsiteSections({ version: 1, sections: bad }, 'P')).not.toEqual(bad)
+  })
+})
